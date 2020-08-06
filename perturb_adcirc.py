@@ -10,7 +10,7 @@ from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 import numpy
 
-DATA_DIRECTORY = pathlib.Path(os.path.expanduser('~')) / "run"
+DATA_DIRECTORY = pathlib.Path(os.path.expandvars('WORK')) / "data"
 INPUT_DIRECTORY = DATA_DIRECTORY / "NetCDF_Shinnecock_Inlet"
 FORT14_FILENAME = INPUT_DIRECTORY / "fort.14"
 OUTPUT_DIRECTORY = DATA_DIRECTORY / "output"
