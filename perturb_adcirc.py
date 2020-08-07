@@ -10,7 +10,7 @@ from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 import numpy
 
-DATA_DIRECTORY = pathlib.Path(os.path.expandvars('WORK')) / "data"
+DATA_DIRECTORY = pathlib.Path(os.path.expandvars('$WORK')) / "data"
 INPUT_DIRECTORY = DATA_DIRECTORY / "NetCDF_Shinnecock_Inlet"
 FORT14_FILENAME = INPUT_DIRECTORY / "fort.14"
 OUTPUT_DIRECTORY = DATA_DIRECTORY / "output"
@@ -48,10 +48,11 @@ if __name__ == '__main__':
         run_name='ADCIRC_GAHM_GENERIC',
         partition='development',
         duration=timedelta(hours=8),
+        tasks_per_node=15,
         mail_type='all',
         mail_user='zachary.burnett@noaa.gov',
         log_filename='mannings_n_perturbation.log',
-        modules=['intel/2020', 'impi/2020', 'netcdf/4.7.2-parallel'],
+        modules=['intel', 'impi', 'netcdf/4.7.2-parallel'],
         path_prefix='$HOME/adcirc/build'
     )
     driver = AdcircRun(
