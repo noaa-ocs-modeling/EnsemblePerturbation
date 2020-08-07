@@ -66,4 +66,4 @@ if __name__ == '__main__':
     for mannings_n in numpy.linspace(0.001, 0.15, 40):
         driver.mesh.mannings_n_at_sea_floor = numpy.full((len(driver.mesh.coords),),
                                                          fill_value=mannings_n)
-        driver.run(OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}')
+        driver.write(OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}')
