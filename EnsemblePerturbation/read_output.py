@@ -9,7 +9,7 @@ from pandas import DataFrame
 def parse_adcirc_output(
       directory: str,
       filenames: [str] = None
-) -> {str: Union[{str: numpy.ndarray}, DataFrame]}:
+) -> {str: Union[dict, DataFrame]}:
     """
     Parse output from ADCIRC
 
