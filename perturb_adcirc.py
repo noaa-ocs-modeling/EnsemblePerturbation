@@ -44,15 +44,15 @@ if __name__ == '__main__':
     # instantiate AdcircRun object.
     slurm = SlurmConfig(
         account='NOAA_CSDL_NWI',
-        slurm_ntasks=1000,
+        slurm_ntasks=10,
         run_name='ADCIRC_GAHM_GENERIC',
         partition='development',
-        duration=timedelta(hours=8),
-        tasks_per_node=15,
+        duration=timedelta(hours=2),
+        slurm_nodes=10,
         mail_type='all',
         mail_user='zachary.burnett@noaa.gov',
         log_filename='mannings_n_perturbation.log',
-        modules=['intel', 'impi', 'netcdf/4.7.2-parallel'],
+        modules=['intel', 'impi', 'netcdf'],
         path_prefix='$HOME/adcirc/build'
     )
     driver = AdcircRun(
