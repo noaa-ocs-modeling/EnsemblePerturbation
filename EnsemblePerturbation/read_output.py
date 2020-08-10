@@ -1,12 +1,24 @@
 import os
+from typing import Union
 
 from netCDF4 import Dataset
 import numpy
 from pandas import DataFrame
 
 
-def parse_adcirc_output(directory: str):
-    output_files = {
+def parse_adcirc_output(
+      directory: str,
+      filenames: [str] = None
+) -> {str: Union[{str: numpy.ndarray}, DataFrame]}:
+    """
+    Parse output from ADCIRC
+
+    :param directory: path to directory containing ADCIRC output files in NetCDF format
+    :param filenames: output files to parse
+    :return:
+    """
+
+    data_variables = {
         # Elevation Time Series at All Nodes in the Model Grid (fort.63)
         'fort.63.nc'  : ['zeta'],
         # Depth-averaged Velocity Time Series at All Nodes in the Model Grid (fort.64)
@@ -20,8 +32,13 @@ def parse_adcirc_output(directory: str):
         'maxvel.63.nc': ['vel_max', 'time_of_vel_max']
     }
 
+    if filenames is None:
+        filenames = data_variables
+    else:
+        filenames = {filename: data_variables[filename] for filename in filenames}
+
     output_data = {}
-    for output_file, data_variables in output_files.items():
+    for output_file, file_data_variables in filenames.items():
         filename = os.path.join(directory, output_file)
         if os.path.exists(filename):
             dataset = Dataset(filename)
@@ -29,7 +46,7 @@ def parse_adcirc_output(directory: str):
             time = numpy.array(dataset['time'])
 
             data = {data_variable: numpy.array(dataset[data_variable])
-                    for data_variable in data_variables}
+                    for data_variable in file_data_variables}
 
             if output_file in ['fort.63.nc', 'fort.64.nc']:
                 data = {'coordinates': coordinates, 'time': time, 'data': data}
