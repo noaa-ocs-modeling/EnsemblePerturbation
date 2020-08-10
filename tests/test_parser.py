@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from EnsemblePerturbation.parse_output import ADCIRC_OUTPUT_DATA_VARIABLES, parse_adcirc_output
+from ensemble_perturbation.parse_output import ADCIRC_OUTPUT_DATA_VARIABLES, parse_adcirc_output
 
 
 class TestParser(unittest.TestCase):
