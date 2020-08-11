@@ -47,7 +47,7 @@ if __name__ == '__main__':
         slurm_ntasks=10,
         run_name='ADCIRC_GAHM_GENERIC',
         partition='development',
-        duration=timedelta(hours=2),
+        walltime=timedelta(hours=2),
         slurm_nodes=10,
         mail_type='all',
         mail_user='zachary.burnett@noaa.gov',
