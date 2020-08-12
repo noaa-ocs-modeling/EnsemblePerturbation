@@ -73,4 +73,4 @@ if __name__ == '__main__':
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)],
             fill_value=mannings_n)
-        driver.write(output_directory)
+        driver.write(output_directory, overwrite=True)
