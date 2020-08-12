@@ -11,8 +11,7 @@ from adcircpy.server import SlurmConfig
 import numpy
 
 DATA_DIRECTORY = pathlib.Path(os.path.expanduser('~\Downloads')) / "data"
-INPUT_DIRECTORY = DATA_DIRECTORY / "NetCDF_Shinnecock_Inlet"
-FORT14_FILENAME = INPUT_DIRECTORY / "fort.14"
+INPUT_DIRECTORY = DATA_DIRECTORY / "Shinnecock_Inlet_NetCDF_output"
 OUTPUT_DIRECTORY = DATA_DIRECTORY / "output"
 
 if __name__ == '__main__':
@@ -21,19 +20,21 @@ if __name__ == '__main__':
     if not os.path.exists(OUTPUT_DIRECTORY):
         os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
 
+    fort14_filename = INPUT_DIRECTORY / "fort.14"
+
     # fetch shinnecock inlet test data
-    if not FORT14_FILENAME.is_file():
+    if not fort14_filename.is_file():
         url = "https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1"
-        g = urllib.request.urlopen(url)
+        remote_file = urllib.request.urlopen(url)
         temporary_directory = tempfile.TemporaryDirectory()
         temporary_filename = os.path.join(temporary_directory.name, 'temp.bz2')
-        with open(temporary_filename, 'b+w') as f:
-            f.write(g.read())
-        with tarfile.open(temporary_filename, "r:bz2") as tar:
-            tar.extractall(INPUT_DIRECTORY)
+        with open(temporary_filename, 'b+w') as local_file:
+            local_file.write(remote_file.read())
+        with tarfile.open(temporary_filename, "r:bz2") as local_file:
+            local_file.extractall(INPUT_DIRECTORY)
 
     # open mesh file
-    mesh = AdcircMesh.open(FORT14_FILENAME, crs=4326)
+    mesh = AdcircMesh.open(fort14_filename, crs=4326)
 
     # init tidal forcing and setup requests
     tidal_forcing = Tides()
@@ -62,8 +63,11 @@ if __name__ == '__main__':
         spinup_time=timedelta(days=5),
         server_config=slurm
     )
-    driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_elevation_stations_output(timedelta(minutes=6),
+                                         spinup=timedelta(minutes=6))
     for mannings_n in numpy.linspace(0.001, 0.15, 40):
-        driver.mesh.mannings_n_at_sea_floor = numpy.full([len(driver.mesh.coords)],
-                                                         fill_value=mannings_n)
-        driver.write(OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}')
+        output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}'
+        driver.mesh.mannings_n_at_sea_floor = numpy.full(
+            [len(driver.mesh.coords)],
+            fill_value=mannings_n)
+        driver.write(output_directory)
