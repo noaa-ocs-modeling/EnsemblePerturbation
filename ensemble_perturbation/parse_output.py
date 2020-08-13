@@ -91,8 +91,10 @@ def parse_adcirc_output(
 
     output_data = {}
     for output_filename in directory.glob('*.nc'):
-        output_data[output_filename.parts[-1]] = parse_adcirc_netcdf(
-            output_filename, file_data_variables[output_filename])
+        basename = output_filename.parts[-1]
+        output_data[basename] = parse_adcirc_netcdf(output_filename,
+                                                    file_data_variables[
+                                                        basename])
 
     return output_data
 
