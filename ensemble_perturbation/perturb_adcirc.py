@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta
 import os
 import pathlib
-import shutil
 import tarfile
 import tempfile
 import urllib.request
@@ -66,10 +65,10 @@ if __name__ == '__main__':
     )
     driver.set_elevation_stations_output(timedelta(minutes=6),
                                          spinup=timedelta(minutes=6))
+    driver.set_elevation_surface_output(timedelta(minutes=6),
+                                        spinup=timedelta(minutes=6))
     for mannings_n in numpy.linspace(0.001, 0.15, 40):
         output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}'
-        if output_directory.exists():
-            shutil.rmtree(output_directory)
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)],
             fill_value=mannings_n)
