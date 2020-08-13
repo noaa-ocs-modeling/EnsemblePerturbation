@@ -24,13 +24,13 @@ jobs:
           CACHE_NUMBER: 0
         with:
           path: ~/conda_pkgs_dir
-          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('adcircpy/environment.yml') }}
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment.yml') }}
       - name: Create and activate conda environment
         uses: goanpeca/setup-miniconda@v1
         with:
           activate-environment: adcircpy
           python-version: ${{ matrix.python-version }}
-          environment-file: adcircpy/environment.yml
+          environment-file: environment.yml
           use-only-tar-bz2: true
       #- name: Lint with flake8
       #  run: |
