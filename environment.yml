@@ -16,7 +16,7 @@ dependencies:
   - seaborn
   - shapely
   - pip:
-      - adcircpy
+      - adcircpy==1.0.12
       - coverage
       - coverage-badge
       - eventlet
