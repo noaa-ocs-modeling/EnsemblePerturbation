@@ -45,11 +45,11 @@ if __name__ == '__main__':
     # instantiate AdcircRun object.
     slurm = SlurmConfig(
         account='NOAA_CSDL_NWI',
-        slurm_ntasks=10,
+        ntasks=10,
         run_name='ADCIRC_GAHM_GENERIC',
         partition='development',
         walltime=timedelta(hours=2),
-        slurm_nodes=10,
+        nodes=10,
         mail_type='all',
         mail_user='zachary.burnett@noaa.gov',
         log_filename='mannings_n_perturbation.log',
