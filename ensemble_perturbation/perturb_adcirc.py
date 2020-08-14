@@ -10,6 +10,10 @@ from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 import numpy
 
+from ensemble_perturbation import get_logger
+
+LOGGER = get_logger('perturb.adcirc')
+
 DATA_DIRECTORY = pathlib.Path(os.path.expanduser('~\Downloads')) / "data"
 INPUT_DIRECTORY = DATA_DIRECTORY / "Shinnecock_Inlet_NetCDF_output"
 OUTPUT_DIRECTORY = DATA_DIRECTORY / "output"
@@ -20,7 +24,10 @@ if __name__ == '__main__':
     if not os.path.exists(OUTPUT_DIRECTORY):
         os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
 
+    LOGGER.info('perturbing Manning\'s N')
+
     fort14_filename = INPUT_DIRECTORY / "fort.14"
+    fort15_filename = INPUT_DIRECTORY / "fort.15"
 
     # fetch shinnecock inlet test data
     if not fort14_filename.is_file():
@@ -67,9 +74,11 @@ if __name__ == '__main__':
                                          spinup=timedelta(minutes=6))
     driver.set_elevation_surface_output(timedelta(minutes=6),
                                         spinup=timedelta(minutes=6))
+    driver.import_stations(fort15=fort15_filename)
     for mannings_n in numpy.linspace(0.001, 0.15, 40):
         output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}'
+        LOGGER.info(f'writing config files for Manning\'s N = {mannings_n} to '
+                    f'"{output_directory}"')
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
-            [len(driver.mesh.coords)],
-            fill_value=mannings_n)
+            [len(driver.mesh.coords)], fill_value=mannings_n)
         driver.write(output_directory, overwrite=True)
