@@ -61,7 +61,8 @@ if __name__ == '__main__':
         mail_user='zachary.burnett@noaa.gov',
         log_filename='mannings_n_perturbation.log',
         modules=['intel', 'impi', 'netcdf'],
-        path_prefix='$HOME/adcirc/build'
+        path_prefix='$HOME/adcirc/build',
+        launcher='ibrun'
     )
     driver = AdcircRun(
         mesh=mesh,
@@ -82,3 +83,5 @@ if __name__ == '__main__':
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)], fill_value=mannings_n)
         driver.write(output_directory, overwrite=True)
+
+    print('done')
