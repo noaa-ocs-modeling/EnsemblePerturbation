@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     # instantiate AdcircRun object.
     slurm = SlurmConfig(
-        account='NOAA_CSDL_NWI',
+        account=None,
         ntasks=10,
         run_name='ADCIRC_GAHM_GENERIC',
         partition='development',
@@ -76,9 +76,10 @@ if __name__ == '__main__':
                                         spinup=timedelta(minutes=6))
     driver.import_stations(fort15=fort15_filename)
     for mannings_n in numpy.linspace(0.001, 0.15, 40):
-        output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n}'
-        LOGGER.info(f'writing config files for Manning\'s N = {mannings_n} to '
-                    f'"{output_directory}"')
+        output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n:.3}'
+        LOGGER.info(
+            f'writing config files for Manning\'s N = {mannings_n:.3} to '
+            f'"{output_directory}"')
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)], fill_value=mannings_n)
         driver.write(output_directory, overwrite=True)
