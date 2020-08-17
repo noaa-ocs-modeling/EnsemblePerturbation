@@ -77,9 +77,8 @@ if __name__ == '__main__':
     driver.import_stations(fort15=fort15_filename)
     for mannings_n in numpy.linspace(0.001, 0.15, 40):
         output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n:.3}'
-        LOGGER.info(
-            f'writing config files for Manning\'s N = {mannings_n:.3} to '
-            f'"{output_directory}"')
+        LOGGER.info(f'writing config files for Manning\'s N = {mannings_n:.3} '
+                    f'to "{output_directory}"')
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)], fill_value=mannings_n)
         driver.write(output_directory, overwrite=True)
