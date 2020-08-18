@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Union
 
-from netCDF4 import Dataset
+from netCDF4 import Dataset, Variable
 import numpy
 from pandas import DataFrame
 
@@ -18,6 +18,20 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Maximum Velocity at All Nodes in the Model Grid (maxvel.63)
     'maxvel.63.nc': ['vel_max', 'time_of_vel_max']
 }
+
+
+def decode_time(variable: Variable) -> numpy.array:
+    unit, direction, base_date = variable.units.split(' ', 2)
+    intervals = {
+        'years': 'Y',
+        'months': 'M',
+        'days': 'D',
+        'hours': 'h',
+        'minutes': 'm',
+        'seconds': 's'
+    }
+    return numpy.datetime64(base_date) + numpy.array(variable).astype(
+        f'timedelta64[{intervals[unit]}]')
 
 
 def parse_adcirc_netcdf(
@@ -41,15 +55,16 @@ def parse_adcirc_netcdf(
 
     dataset = Dataset(filename)
 
-    coordinates = numpy.stack(
-        (dataset['x'], dataset['y'], dataset['depth']), axis=1)
-    time = numpy.array(dataset['time'])
+    coordinates = numpy.stack((dataset['x'], dataset['y'], dataset['depth']),
+                              axis=1)
 
-    data = {data_variable: numpy.array(dataset[data_variable])
+    times = decode_time(dataset['time'])
+
+    data = {data_variable: dataset[data_variable]
             for data_variable in data_variables}
 
     if basename in ['fort.63.nc', 'fort.64.nc']:
-        data = {'coordinates': coordinates, 'time': time, 'data': data}
+        data = {'coordinates': coordinates, 'time': times, 'data': data}
     else:
         columns = ['x', 'y', 'depth'] + list(data)
         for array in data.values():
@@ -99,11 +114,20 @@ def parse_adcirc_output(
     return output_data
 
 
-if __name__ == '__main__':
-    output_directory = Path(r"C:\Users\Zachary.Burnett\Downloads\data\output")
+def parse_adcirc_outputs(directory: str) -> {str: dict}:
+    """
+    Parse output from multiple ADCIRC runs.
+
+    :param directory: directory containing run output directories
+    :return: dictionary of file tree containing parsed data
+    """
+
+    if not isinstance(directory, Path):
+        directory = Path(directory)
+
     output_datasets = {}
-    for filename in output_directory.glob('**/*.nc'):
-        parts = Path(str(filename).split(str(output_directory))[-1]).parts[1:]
+    for filename in directory.glob('**/*.nc'):
+        parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
         tree = output_datasets
         for part_index in range(len(parts)):
             part = parts[part_index]
@@ -114,4 +138,4 @@ if __name__ == '__main__':
             else:
                 tree[part] = parse_adcirc_netcdf(filename)
 
-    print('done')
+    return output_datasets

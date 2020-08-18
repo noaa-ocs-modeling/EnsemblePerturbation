@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 import os
 import pathlib
+from pathlib import Path
 import tarfile
 import tempfile
 import urllib.request
@@ -18,6 +19,26 @@ DATA_DIRECTORY = pathlib.Path(os.path.expanduser('~\Downloads')) / "data"
 INPUT_DIRECTORY = DATA_DIRECTORY / "Shinnecock_Inlet_NetCDF_output"
 OUTPUT_DIRECTORY = DATA_DIRECTORY / "output"
 
+
+def download_test_configuration(directory: str):
+    """
+    fetch shinnecock inlet test data
+    :param directory: local directory
+    """
+
+    if not isinstance(directory, Path):
+        directory = Path(directory)
+
+    url = "https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1"
+    remote_file = urllib.request.urlopen(url)
+    temporary_directory = tempfile.TemporaryDirectory()
+    temporary_filename = os.path.join(temporary_directory.name, 'temp.bz2')
+    with open(temporary_filename, 'b+w') as local_file:
+        local_file.write(remote_file.read())
+    with tarfile.open(temporary_filename, "r:bz2") as local_file:
+        local_file.extractall(directory)
+
+
 if __name__ == '__main__':
     if not os.path.exists(INPUT_DIRECTORY):
         os.makedirs(INPUT_DIRECTORY, exist_ok=True)
@@ -29,16 +50,8 @@ if __name__ == '__main__':
     fort14_filename = INPUT_DIRECTORY / "fort.14"
     fort15_filename = INPUT_DIRECTORY / "fort.15"
 
-    # fetch shinnecock inlet test data
     if not fort14_filename.is_file():
-        url = "https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1"
-        remote_file = urllib.request.urlopen(url)
-        temporary_directory = tempfile.TemporaryDirectory()
-        temporary_filename = os.path.join(temporary_directory.name, 'temp.bz2')
-        with open(temporary_filename, 'b+w') as local_file:
-            local_file.write(remote_file.read())
-        with tarfile.open(temporary_filename, "r:bz2") as local_file:
-            local_file.extractall(INPUT_DIRECTORY)
+        download_test_configuration(INPUT_DIRECTORY)
 
     # open mesh file
     mesh = AdcircMesh.open(fort14_filename, crs=4326)
