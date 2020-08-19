@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 import os
-import pathlib
 from pathlib import Path
 import tarfile
 import tempfile
@@ -16,9 +15,9 @@ from ensemble_perturbation import get_logger, repository_root
 
 LOGGER = get_logger('perturb.adcirc')
 
-DATA_DIRECTORY = pathlib.Path(os.path.expanduser('~\Downloads')) / "data"
-INPUT_DIRECTORY = DATA_DIRECTORY / "Shinnecock_Inlet_NetCDF_output"
-OUTPUT_DIRECTORY = DATA_DIRECTORY / "output"
+DATA_DIRECTORY = Path(repository_root()) / 'examples/data'
+INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
+OUTPUT_DIRECTORY = DATA_DIRECTORY / 'output'
 
 
 def download_test_configuration(directory: str):

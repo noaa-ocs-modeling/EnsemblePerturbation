@@ -27,8 +27,6 @@ if __name__ == '__main__':
         [mesh.coords, numpy.expand_dims(mesh.values, axis=1)],
         axis=1), columns=['x', 'y', 'zeta'])
 
-    station_types = ['NOUTE', 'NOUTV', 'NOUTM', 'NOUTC']
-
     station_ids = [8512769, 8510560, 8513825, 8510448, 8510321]
     start_date = datetime(2020, 8, 18)
     end_date = datetime.today()
