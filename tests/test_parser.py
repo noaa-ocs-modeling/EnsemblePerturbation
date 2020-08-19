@@ -1,7 +1,8 @@
 import os
 import unittest
 
-from ensemble_perturbation.parse_output import ADCIRC_OUTPUT_DATA_VARIABLES, parse_adcirc_output
+from ensemble_perturbation.outputs.parse_output import \
+    ADCIRC_OUTPUT_DATA_VARIABLES, parse_adcirc_output
 
 ADCIRC_OUTPUT_DIRECTORY = os.path.join(__file__, os.pardir, 'data/Shinnecock_Inlet_NetCDF_output')
 

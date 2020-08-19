@@ -91,7 +91,7 @@ def parse_adcirc_output(
     Parse ADCIRC output files
 
     :param directory: path to directory containing ADCIRC output files in NetCDF format
-    :param file_data_variables: output files to parse
+    :param file_data_variables: output files to outputs
     :return: dictionary of output data
     """
 

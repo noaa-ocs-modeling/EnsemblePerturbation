@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+
 from datetime import datetime, timedelta
 import os
 import pathlib
@@ -11,7 +12,7 @@ from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 import numpy
 
-from ensemble_perturbation import get_logger
+from ensemble_perturbation import get_logger, repository_root
 
 LOGGER = get_logger('perturb.adcirc')
 
@@ -28,6 +29,9 @@ def download_test_configuration(directory: str):
 
     if not isinstance(directory, Path):
         directory = Path(directory)
+
+    if not directory.exists():
+        os.makedirs(directory, exist_ok=True)
 
     url = "https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1"
     remote_file = urllib.request.urlopen(url)
@@ -65,11 +69,11 @@ if __name__ == '__main__':
     # instantiate AdcircRun object.
     slurm = SlurmConfig(
         account=None,
-        ntasks=10,
+        ntasks=100,
         run_name='ADCIRC_GAHM_GENERIC',
         partition='development',
         walltime=timedelta(hours=2),
-        nodes=10,
+        nodes=100,
         mail_type='all',
         mail_user='zachary.burnett@noaa.gov',
         log_filename='mannings_n_perturbation.log',
@@ -84,12 +88,13 @@ if __name__ == '__main__':
         spinup_time=timedelta(days=5),
         server_config=slurm
     )
+    driver.import_stations(Path(repository_root()) /
+                           'examples/data/stations.txt')
     driver.set_elevation_stations_output(timedelta(minutes=6),
                                          spinup=timedelta(minutes=6))
     driver.set_elevation_surface_output(timedelta(minutes=6),
                                         spinup=timedelta(minutes=6))
-    driver.import_stations(fort15=fort15_filename)
-    for mannings_n in numpy.linspace(0.001, 0.15, 40):
+    for mannings_n in numpy.linspace(0.001, 0.15, 6):
         output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n:.3}'
         LOGGER.info(f'writing config files for Manning\'s N = {mannings_n:.3} '
                     f'to "{output_directory}"')
