@@ -1,27 +1,37 @@
 from pathlib import Path
 from typing import Union
 
+import geopandas
+from geopandas import GeoDataFrame
 from netCDF4 import Dataset, Variable
 import numpy
 from pandas import DataFrame
 
 ADCIRC_OUTPUT_DATA_VARIABLES = {
+    # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
+    'fort.61.nc': ['station_name', 'zeta'],
     # Elevation Time Series at All Nodes in the Model Grid (fort.63)
     'fort.63.nc': ['zeta'],
     # Depth-averaged Velocity Time Series at All Nodes in the Model Grid (fort.64)
     'fort.64.nc': ['u-vel', 'v-vel'],
     # Hot Start Output (fort.67, fort.68)
-    'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
-    'fort.68.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
+    'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel',
+                   'v-vel'],
+    'fort.68.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel',
+                   'v-vel'],
     # Maximum Elevation at All Nodes in the Model Grid (maxele.63)
     'maxele.63.nc': ['zeta_max', 'time_of_zeta_max'],
     # Maximum Velocity at All Nodes in the Model Grid (maxvel.63)
     'maxvel.63.nc': ['vel_max', 'time_of_vel_max']
 }
 
+NODATA = -99999.0
 
-def decode_time(variable: Variable) -> numpy.array:
-    unit, direction, base_date = variable.units.split(' ', 2)
+
+def decode_time(variable: Variable, unit: str = None) -> numpy.array:
+    if unit is None:
+        unit = variable.units
+    unit, direction, base_date = unit.split(' ', 2)
     intervals = {
         'years': 'Y',
         'months': 'M',
@@ -36,13 +46,13 @@ def decode_time(variable: Variable) -> numpy.array:
 
 def parse_adcirc_netcdf(
         filename: str,
-        data_variables: [str] = None
+        variables: [str] = None
 ) -> Union[dict, DataFrame]:
     """
     Parse ADCIRC output files
 
     :param filename: file path to ADCIRC NetCDF output
-    :param data_variables: list of data variables to extract
+    :param variables: list of data variables to extract
     :return: parsed data
     """
 
@@ -50,35 +60,38 @@ def parse_adcirc_netcdf(
         filename = Path(filename)
     basename = filename.parts[-1]
 
-    if data_variables is None:
-        data_variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
+    if variables is None:
+        variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
 
     dataset = Dataset(filename)
 
-    coordinates = numpy.stack((dataset['x'], dataset['y'], dataset['depth']),
-                              axis=1)
+    data = {name: dataset[name] for name in variables}
+
+    coordinate_variables = ['x', 'y']
+    if 'depth' in dataset.variables:
+        coordinate_variables += ['depth']
+    coordinates = numpy.stack([dataset[variable]
+                               for variable in coordinate_variables], axis=1)
 
     times = decode_time(dataset['time'])
 
-    data = {data_variable: dataset[data_variable]
-            for data_variable in data_variables}
-
-    if basename in ['fort.63.nc', 'fort.64.nc']:
+    if basename in ['fort.63.nc', 'fort.64.nc', 'fort.61.nc']:
         data = {'coordinates': coordinates, 'time': times, 'data': data}
     else:
-        columns = ['x', 'y', 'depth'] + list(data)
         for array in data.values():
             assert numpy.prod(array.shape) > 0, \
                 f'invalid data shape "{array.shape}"'
-        data = numpy.concatenate(
-            (
-                coordinates,
-                numpy.stack([numpy.squeeze(data_variable)
-                             for data_variable in data.values()],
-                            axis=1)
-            ),
-            axis=1)
-        data = DataFrame(data, columns=columns)
+        variables = {}
+        for name, variable in data.items():
+            if 'time_of' in name:
+                variable = decode_time(variable, unit=dataset['time'].units)
+            variables[name] = numpy.squeeze(variable)
+        columns = dict(zip(coordinate_variables, coordinates.T))
+        columns.update(variables)
+        data = GeoDataFrame(columns,
+                            geometry=geopandas.points_from_xy(columns['x'],
+                                                              columns['y']))
+        data[data == NODATA] = numpy.nan
 
     return data
 
