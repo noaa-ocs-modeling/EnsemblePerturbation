@@ -77,7 +77,19 @@ if __name__ == '__main__':
                 errors[station_id] = difference
             errors = pandas.concat(errors.values())
 
-            rmses[run][stage] = numpy.sqrt(numpy.nanmean(errors['zeta'].item()
-                                                         ** 2))
+            rmses[run][stage] = {
+                'zeta': numpy.sqrt(numpy.nanmean(errors['zeta'].item() ** 2)),
+                'time_difference': errors['time'].item()
+            }
+
+    rmses = DataFrame({'run': list(rmses.keys()),
+                       **{f'{stage}_{difference}': [rmse[stage][difference]
+                                                    for rmse in rmses.values()]
+                          for stage in ['coldstart', 'hotstart']
+                          for difference in ['zeta', 'time_difference']
+                          }
+                       })
+
+    rmses.to_csv(output_directory / 'rmse.csv', index=False)
 
     print('done')
