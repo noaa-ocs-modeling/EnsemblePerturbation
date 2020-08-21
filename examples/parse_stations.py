@@ -2,10 +2,19 @@ from pathlib import Path
 
 import fiona
 from pyproj import CRS
-from shapely.geometry import mapping
+from shapely.geometry import Point, mapping
 
 from ensemble_perturbation import repository_root
-from ensemble_perturbation.outputs.parse_stations import parse_stations
+
+
+def parse_stations(filename: str) -> {str: Point}:
+    with open(filename) as stations_file:
+        lines = [line.split()
+                 for line in list(stations_file.readlines())[2:]]
+        return {int(line[3].replace('! ', '')):
+                    Point(float(line[0]), float(line[1]))
+                for line in lines}
+
 
 if __name__ == '__main__':
     stations_filename = Path(repository_root()) / 'examples/data/stations.txt'
