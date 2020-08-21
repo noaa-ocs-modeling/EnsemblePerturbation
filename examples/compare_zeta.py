@@ -1,6 +1,7 @@
+from datetime import timedelta
 from pathlib import Path
 
-from adcircpy import AdcircMesh
+from matplotlib import pyplot
 import numpy
 import pandas
 from pandas import DataFrame
@@ -22,8 +23,6 @@ if __name__ == '__main__':
 
     output_directory = Path(__file__) / '../data/output'
     output_datasets = parse_adcirc_outputs(output_directory)
-
-    mesh = AdcircMesh.open(fort14_filename, crs=4326)
 
     rmses = {}
     for run, stages in output_datasets.items():
@@ -73,23 +72,42 @@ if __name__ == '__main__':
                     modeled_ssh['time'].item()).abs().idxmin()]
                 difference = (modeled_ssh[['time', 'zeta']] -
                               observed_ssh).abs()
+
+                difference['time'] = difference['time'] / timedelta(seconds=1)
+                difference.columns = ['delta_seconds', 'zeta']
+
                 difference.index = [station_id]
                 errors[station_id] = difference
             errors = pandas.concat(errors.values())
 
             rmses[run][stage] = {
                 'zeta': numpy.sqrt(numpy.nanmean(errors['zeta'].item() ** 2)),
-                'time_difference': errors['time'].item()
+                'delta_seconds': errors['delta_seconds'].item()
             }
 
-    rmses = DataFrame({'run': list(rmses.keys()),
-                       **{f'{stage}_{difference}': [rmse[stage][difference]
-                                                    for rmse in rmses.values()]
-                          for stage in ['coldstart', 'hotstart']
-                          for difference in ['zeta', 'time_difference']
-                          }
-                       })
+    rmses = DataFrame({
+        'run': list(rmses.keys()),
+        **{
+            f'{stage}_{difference}': [rmse[stage][difference]
+                                      for rmse in rmses.values()]
+            for stage in ['coldstart', 'hotstart']
+            for difference in ['zeta', 'delta_seconds']
+        }
+    })
 
     rmses.to_csv(output_directory / 'rmse.csv', index=False)
+
+    mannings_n = [float(run.replace('mannings_n_', ''))
+                  for run in rmses['run']]
+
+    pyplot.figure()
+    pyplot.suptitle('RMSE')
+    for column in rmses:
+        if 'zeta' in column:
+            pyplot.plot(mannings_n, rmses[column], label=f'{run} {stage}')
+    pyplot.xlabel('Manning\'s N')
+    pyplot.ylabel('zeta RMSE (m)')
+    pyplot.legend()
+    pyplot.show()
 
     print('done')
