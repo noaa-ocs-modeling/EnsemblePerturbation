@@ -8,8 +8,10 @@ def repository_root(path: str = None) -> str:
         path = __file__
     if os.path.isfile(path):
         path = os.path.dirname(path)
-    return path if '.git' in os.listdir(path) else repository_root(
-        os.path.dirname(path))
+    if '.git' in os.listdir(path):
+        return path
+    else:
+        return repository_root(os.path.dirname(path))
 
 
 def get_logger(name: str, log_filename: str = None, file_level: int = None,
