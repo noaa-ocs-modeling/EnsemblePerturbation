@@ -4,6 +4,7 @@ channels:
 dependencies:
   - bs4
   - fiona
+  - geopandas
   - matplotlib
   - netcdf4
   - numpy
