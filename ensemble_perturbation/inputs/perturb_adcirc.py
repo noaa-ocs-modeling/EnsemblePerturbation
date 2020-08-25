@@ -4,12 +4,11 @@ from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import tarfile
-import tempfile
-import urllib.request
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 import numpy
+import requests
 
 from ensemble_perturbation import get_logger, repository_root
 
@@ -32,14 +31,15 @@ def download_test_configuration(directory: str):
     if not directory.exists():
         os.makedirs(directory, exist_ok=True)
 
-    url = "https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1"
-    remote_file = urllib.request.urlopen(url)
-    temporary_directory = tempfile.TemporaryDirectory()
-    temporary_filename = os.path.join(temporary_directory.name, 'temp.bz2')
+    url = "https://www.dropbox.com/s/1wk91r67cacf132/" \
+          "NetCDF_shinnecock_inlet.tar.bz2?dl=1"
+    remote_file = requests.get(url, stream=True)
+    temporary_filename = DATA_DIRECTORY / 'temp.tar.gz'
     with open(temporary_filename, 'b+w') as local_file:
-        local_file.write(remote_file.read())
+        local_file.write(remote_file.raw.read())
     with tarfile.open(temporary_filename, "r:bz2") as local_file:
         local_file.extractall(directory)
+    os.remove(temporary_filename)
 
 
 if __name__ == '__main__':

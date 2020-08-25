@@ -27,5 +27,6 @@ dependencies:
       - ordered-set
       - paramiko
       - rednose
+      - requests_futures
       - utm
       - wget
