@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+import os
 
 from geopandas import GeoDataFrame
+from pyproj import CRS
 
 from ensemble_perturbation import get_logger
 
@@ -8,10 +10,15 @@ LOGGER = get_logger('seabed')
 
 
 class SeabedDescriptions(ABC):
+    longitude_field = 'Longitude'
+    latitude_field = 'Latitude'
+    description_field = 'Description'
+
     def __init__(self, bounds: (float, float, float, float) = None,
-                 surveys: [str] = None):
+                 surveys: [str] = None, crs: CRS = None):
         self.bounds = bounds
         self.__surveys = surveys
+        self.crs = CRS.from_user_input(crs) if crs is not None else None
 
     @classmethod
     @abstractmethod
@@ -34,9 +41,25 @@ class SeabedDescriptions(ABC):
 
     @property
     @abstractmethod
-    def seabed_descriptions(self) -> [str]:
+    def descriptions(self) -> [str]:
         raise NotImplementedError
 
     def __iter__(self) -> GeoDataFrame:
         for survey in self.surveys:
             yield self[survey]
+
+    def write(self, filename: str, **kwargs):
+        drivers = {
+            '.csv': 'CSV',
+            '.gpkg': 'GPKG',
+            '.json': 'GeoJSON',
+            '.shp': 'Esri Shapefile',
+            '.gdb': 'OpenFileGDB',
+            '.gml': 'GML',
+            '.xml': 'GML'
+        }
+
+        extension = os.path.splitext(filename)[-1]
+        kwargs['driver'] = drivers[extension]
+
+        self.data.to_file(filename, **kwargs)
