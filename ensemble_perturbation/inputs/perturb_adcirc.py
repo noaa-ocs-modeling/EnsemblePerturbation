@@ -93,7 +93,7 @@ if __name__ == '__main__':
                                          spinup=timedelta(minutes=6))
     driver.set_elevation_surface_output(timedelta(minutes=6),
                                         spinup=timedelta(minutes=6))
-    for mannings_n in numpy.linspace(0.001, 0.15, 6):
+    for mannings_n in numpy.linspace(0.016, 0.08, 5):
         output_directory = OUTPUT_DIRECTORY / f'mannings_n_{mannings_n:.3}'
         LOGGER.info(f'writing config files for Manning\'s N = {mannings_n:.3} '
                     f'to "{output_directory}"')
