@@ -25,6 +25,7 @@ class TestSeabedDescriptions(unittest.TestCase):
         assert seabed.data.shape[0] > 0
         assert seabed.data.shape[1] == 14
         assert len(seabed.descriptions) > 0
+        assert any(seabed.data['Survey'].isin(['492']))
 
 
 if __name__ == '__main__':
