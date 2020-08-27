@@ -5,7 +5,9 @@ import geopandas
 from geopandas import GeoDataFrame
 from netCDF4 import Dataset, Variable
 import numpy
+import pandas
 from pandas import DataFrame
+from shapely.geometry import Point
 
 ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
@@ -44,6 +46,34 @@ def decode_time(variable: Variable, unit: str = None) -> numpy.array:
         f'timedelta64[{intervals[unit]}]')
 
 
+def parse_fort61_stations(filename: str,
+                          station_names: [str] = None) -> GeoDataFrame:
+    dataset = Dataset(filename)
+
+    coordinate_variables = ['x', 'y']
+    coordinates = numpy.stack([dataset[variable]
+                               for variable in coordinate_variables], axis=1)
+    times = decode_time(dataset['time'])
+
+    all_station_names = [int(station_name.tobytes().decode())
+                         for station_name in
+                         numpy.array(dataset['station_name'])]
+
+    stations = []
+    for station_name in station_names:
+        station_index = all_station_names.index(station_name)
+        station_coordinates = coordinates[station_index]
+        station_point = Point(station_coordinates[0], station_coordinates[1])
+
+        stations.append(GeoDataFrame({
+            'time': times,
+            'zeta': dataset['zeta'][:, station_index],
+            'station': station_name
+        }, geometry=[station_point for _ in times]))
+
+    return pandas.concat(stations)
+
+
 def parse_adcirc_netcdf(
         filename: str,
         variables: [str] = None
@@ -75,8 +105,16 @@ def parse_adcirc_netcdf(
 
     times = decode_time(dataset['time'])
 
-    if basename in ['fort.63.nc', 'fort.64.nc', 'fort.61.nc']:
+    if basename in ['fort.63.nc', 'fort.64.nc']:
         data = {'coordinates': coordinates, 'time': times, 'data': data}
+    elif basename == 'fort.61.nc':
+        data = GeoDataFrame({
+            'name': [int(station_name.tobytes().decode())
+                     for station_name in numpy.array(dataset['station_name'])],
+            'x': coordinates[:, 0],
+            'y': coordinates[:, 1]
+        }, geometry=geopandas.points_from_xy(coordinates[:, 0],
+                                             coordinates[:, 1]))
     else:
         for array in data.values():
             assert numpy.prod(array.shape) > 0, \
