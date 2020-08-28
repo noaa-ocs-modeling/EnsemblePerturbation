@@ -55,9 +55,8 @@ def parse_fort61_stations(filename: str,
                                for variable in coordinate_variables], axis=1)
     times = decode_time(dataset['time'])
 
-    all_station_names = [int(station_name.tobytes().decode())
-                         for station_name in
-                         numpy.array(dataset['station_name'])]
+    all_station_names = [station_name.tobytes().decode().strip().strip('\'')
+                         for station_name in dataset['station_name']]
 
     stations = []
     for station_name in station_names:
@@ -109,8 +108,8 @@ def parse_adcirc_netcdf(
         data = {'coordinates': coordinates, 'time': times, 'data': data}
     elif basename == 'fort.61.nc':
         data = GeoDataFrame({
-            'name': [int(station_name.tobytes().decode())
-                     for station_name in numpy.array(dataset['station_name'])],
+            'name': [station_name.tobytes().decode().strip().strip('\'')
+                     for station_name in dataset['station_name']],
             'x': coordinates[:, 0],
             'y': coordinates[:, 1]
         }, geometry=geopandas.points_from_xy(coordinates[:, 0],
