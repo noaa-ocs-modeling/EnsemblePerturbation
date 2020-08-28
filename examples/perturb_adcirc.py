@@ -3,44 +3,19 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
-import tarfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 import numpy
-import requests
 
 from ensemble_perturbation import get_logger, repository_root
+from ensemble_perturbation.inputs.adcirc import download_test_configuration
 
 LOGGER = get_logger('perturb.adcirc')
 
 DATA_DIRECTORY = Path(repository_root()) / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
 OUTPUT_DIRECTORY = DATA_DIRECTORY / 'output'
-
-
-def download_test_configuration(directory: str):
-    """
-    fetch shinnecock inlet test data
-    :param directory: local directory
-    """
-
-    if not isinstance(directory, Path):
-        directory = Path(directory)
-
-    if not directory.exists():
-        os.makedirs(directory, exist_ok=True)
-
-    url = "https://www.dropbox.com/s/1wk91r67cacf132/" \
-          "NetCDF_shinnecock_inlet.tar.bz2?dl=1"
-    remote_file = requests.get(url, stream=True)
-    temporary_filename = DATA_DIRECTORY / 'temp.tar.gz'
-    with open(temporary_filename, 'b+w') as local_file:
-        local_file.write(remote_file.raw.read())
-    with tarfile.open(temporary_filename, "r:bz2") as local_file:
-        local_file.extractall(directory)
-    os.remove(temporary_filename)
-
 
 if __name__ == '__main__':
     if not os.path.exists(INPUT_DIRECTORY):

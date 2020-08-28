@@ -1,4 +1,3 @@
-from datetime import timedelta
 from pathlib import Path
 
 from geopandas import GeoDataFrame
@@ -11,8 +10,7 @@ import shapely
 from shapely.ops import nearest_points
 
 from ensemble_perturbation import get_logger
-from ensemble_perturbation.inputs.perturb_adcirc import \
-    download_test_configuration
+from ensemble_perturbation.inputs.adcirc import download_test_configuration
 from ensemble_perturbation.outputs.parse_output import parse_adcirc_outputs, \
     parse_fort61_stations
 
@@ -116,7 +114,6 @@ if __name__ == '__main__':
                 difference = (modeled_ssh[['time', 'zeta']] -
                               observed_ssh[['time', 'zeta']]).abs()
 
-                difference['time'] = difference['time'] / timedelta(seconds=1)
                 difference.columns = ['time_difference', 'zeta']
 
                 difference = difference[reversed(difference.columns)]
@@ -160,16 +157,15 @@ if __name__ == '__main__':
                                           loc='upper left',
                                           fontsize='xx-small')
 
-    pyplot.show()
+    # pyplot.show()
 
     rmses = DataFrame({
         'run': list(rmses.keys()),
-        **{
-            f'{stage}_{difference}': [rmse[stage][difference]
-                                      for rmse in rmses.values()]
-            for stage in ['coldstart', 'hotstart']
-            for difference in ['zeta', 'delta_seconds']
-        }
+        **{f'{stage}_{value}': [rmse[stage][value]
+                                for rmse in rmses.values()]
+           for stage in ['coldstart', 'hotstart']
+           for value in ['zeta_rmse', 'mean_time_difference', 'mean_distance']
+           }
     })
 
     rmses.to_csv(output_directory / 'rmse.csv', index=False)
