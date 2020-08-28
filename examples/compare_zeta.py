@@ -121,8 +121,6 @@ if __name__ == '__main__':
 
                 observed_zeta = parse_fort61_stations(fort61_filename,
                                                       [station_name])
-                observed_zeta = parse_fort61_stations(fort61_filename,
-                                                      [station_name])
 
                 zeta_difference = (modeled_zeta[['time', 'zeta']] -
                                    observed_zeta[['time', 'zeta']]).abs()
@@ -195,7 +193,7 @@ if __name__ == '__main__':
 
     figure = pyplot.figure()
     rmse_axis = figure.add_subplot(1, 1, 1)
-    rmse_axis.suptitle('RMSE')
+    rmse_axis.set_title('RMSE')
     for column in rmses:
         if 'zeta' in column:
             rmse_axis.plot(mannings_n, rmses[column], label=f'{column}')
