@@ -179,8 +179,6 @@ if __name__ == '__main__':
                                                loc='upper left',
                                                fontsize='xx-small')
 
-    pyplot.show()
-
     rmses = DataFrame({
         'run': list(rmses.keys()),
         **{f'{stage}_{value}': [rmse[stage][value]
@@ -196,14 +194,14 @@ if __name__ == '__main__':
                   for run in rmses['run']]
 
     figure = pyplot.figure()
-    zeta_axis = figure.add_subplot(1, 1, 1)
-    zeta_axis.suptitle('RMSE')
+    rmse_axis = figure.add_subplot(1, 1, 1)
+    rmse_axis.suptitle('RMSE')
     for column in rmses:
         if 'zeta' in column:
-            zeta_axis.plot(mannings_n, rmses[column], label=f'{column}')
-    zeta_axis.set_xlabel('Manning\'s N')
-    zeta_axis.set_ylabel('zeta RMSE (m)')
-    zeta_axis.legend()
+            rmse_axis.plot(mannings_n, rmses[column], label=f'{column}')
+    rmse_axis.set_xlabel('Manning\'s N')
+    rmse_axis.set_ylabel('zeta RMSE (m)')
+    rmse_axis.legend()
 
     pyplot.show()
 
