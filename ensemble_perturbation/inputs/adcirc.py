@@ -4,8 +4,6 @@ import tarfile
 
 import requests
 
-from examples.perturb_adcirc import DATA_DIRECTORY
-
 
 def download_test_configuration(directory: str):
     """
@@ -22,7 +20,7 @@ def download_test_configuration(directory: str):
     url = "https://www.dropbox.com/s/1wk91r67cacf132/" \
           "NetCDF_shinnecock_inlet.tar.bz2?dl=1"
     remote_file = requests.get(url, stream=True)
-    temporary_filename = DATA_DIRECTORY / 'temp.tar.gz'
+    temporary_filename = directory / 'temp.tar.gz'
     with open(temporary_filename, 'b+w') as local_file:
         local_file.write(remote_file.raw.read())
     with tarfile.open(temporary_filename, "r:bz2") as local_file:
