@@ -2,6 +2,10 @@ import logging
 import os
 import sys
 
+import numpy
+from pyproj import CRS, Geod, Transformer
+from shapely.geometry import Point
+
 
 def repository_root(path: str = None) -> str:
     if path is None:
@@ -61,3 +65,19 @@ def get_logger(name: str, log_filename: str = None, file_level: int = None,
         handler.setFormatter(log_formatter)
 
     return logger
+
+
+def ellipsoidal_distance(point_a: (float, float), point_b: (float, float),
+                         crs_a: CRS, crs_b: CRS = None) -> float:
+    if isinstance(point_a, Point):
+        point_a = [*point_a.coords]
+    if isinstance(point_b, Point):
+        point_b = [*point_b.coords]
+    if crs_b is not None:
+        transformer = Transformer.from_crs(crs_b, crs_a)
+        point_b = transformer.transform(*point_b)
+    points = numpy.stack((point_a, point_b), axis=0)
+    ellipsoid = crs_a.datum.to_json_dict()['ellipsoid']
+    geodetic = Geod(a=ellipsoid['semi_major_axis'],
+                    rf=ellipsoid['inverse_flattening'])
+    return geodetic.line_length(points[:, 0], points[:, 1])
