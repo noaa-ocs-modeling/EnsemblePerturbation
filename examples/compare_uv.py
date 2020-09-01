@@ -80,10 +80,12 @@ if __name__ == '__main__':
 
     observation_color_map = matplotlib.cm.get_cmap('Blues')
     model_color_map = matplotlib.cm.get_cmap('Reds')
-    error_color_map = matplotlib.cm.get_cmap('Spectral')
+    error_color_map = matplotlib.cm.get_cmap('prism')
     run_index_normalizer = matplotlib.colors.Normalize(0, len(output_datasets))
-    station_index_normalizer = matplotlib.colors.Normalize(1, len(
-        output_datasets) * len(stations_within_mesh))
+    station_index_normalizer = matplotlib.colors.Normalize(0, len(
+        stations_within_mesh))
+
+    components = 'u', 'v'
 
     linestyles = {
         'coldstart': ':',
@@ -95,19 +97,27 @@ if __name__ == '__main__':
     sharing_axis = None
 
     value_axes = {}
-    for station_index, (_station) in \
+    for station_index, (_, station) in \
             enumerate(stations_within_mesh.iterrows()):
-        axis = value_figure.add_subplot(len(stations_within_mesh), 1,
-                                        station_index + 1, sharex=sharing_axis,
-                                        sharey=sharing_axis)
+        u_axis = value_figure.add_subplot(len(stations_within_mesh) * 2, 1,
+                                          station_index * 2 + 1,
+                                          sharex=sharing_axis,
+                                          sharey=sharing_axis)
         if sharing_axis is None:
-            sharing_axis = axis
+            sharing_axis = u_axis
+        v_axis = value_figure.add_subplot(len(stations_within_mesh) * 2, 1,
+                                          station_index * 2 + 2,
+                                          sharex=sharing_axis,
+                                          sharey=sharing_axis)
 
-        value_axes[station['name']] = axis
+        value_axes[station['name']] = dict(zip(components, (u_axis, v_axis)))
 
     error_figure = pyplot.figure()
     error_figure.suptitle('uv errors')
-    error_axis = error_figure.add_subplot(1, 1, 1, sharex=sharing_axis)
+    error_axes = {component: error_figure.add_subplot(len(components), 1,
+                                                      index + 1,
+                                                      sharex=sharing_axis)
+                  for index, component in enumerate(components)}
 
     rmses = {}
     for run_index, (run_name, stages) in enumerate(output_datasets.items()):
@@ -136,7 +146,8 @@ if __name__ == '__main__':
             del model_times, modeled_u, modeled_v
 
             uv_errors = []
-            for station_name, modeled_uv in nearest_modeled_uv.items():
+            for station_index, (station_name, modeled_uv) in \
+                    enumerate(nearest_modeled_uv.items()):
                 observed_uv = fort62_stations_uv(fort62_filename,
                                                  [station_name])
 
@@ -164,20 +175,21 @@ if __name__ == '__main__':
                     run_index_normalizer(run_index))
                 model_color = model_color_map(run_index_normalizer(run_index))
                 error_color = error_color_map(
-                    station_index_normalizer(
-                        (run_index + 1) * (station_index + 1)))
+                    station_index_normalizer(station_index))
 
-                value_axis = value_axes[station_name]
-                value_axis.plot(observed_uv['time'], observed_uv['magnitude'],
-                                color=observation_color,
-                                linestyle=linestyles[stage],
-                                label=f'{run_name} {stage} fort.62 magnitude')
-                value_axis.plot(modeled_uv['time'], modeled_uv['magnitude'],
-                                color=model_color, linestyle=linestyles[stage],
-                                label=f'{run_name} {stage} model magnitude')
-                error_axis.scatter(uv_error['time'], uv_error['magnitude'],
-                                   color=error_color, s=2,
-                                   label=f'{run_name} {stage} magnitude error')
+                axes = value_axes[station_name]
+                for component, axis in axes.items():
+                    axis.plot(observed_uv['time'], observed_uv[component],
+                              color=observation_color,
+                              linestyle=linestyles[stage],
+                              label=f'{run_name} {stage} fort.62 {component}')
+                    axis.plot(modeled_uv['time'], modeled_uv[component],
+                              color=model_color, linestyle=linestyles[stage],
+                              label=f'{run_name} {stage} model {component}')
+                for component, axis in error_axes.items():
+                    axis.scatter(uv_error['time'], uv_error[component],
+                                 color=error_color, s=2,
+                                 label=f'{run_name} {stage} {component} error')
 
             uv_errors = pandas.concat(uv_errors)
 
@@ -186,8 +198,7 @@ if __name__ == '__main__':
                                        2).mean()),
                 'u_rmse': numpy.sqrt((uv_errors['u'] ** 2).mean()),
                 'v_rmse': numpy.sqrt((uv_errors['v'] ** 2).mean()),
-                'mean_time_difference': uv_errors[
-                    'time_difference'].mean(),
+                'mean_time_difference': uv_errors['time_difference'].mean(),
                 'mean_distance': uv_errors['distance'].mean()
             }
 
@@ -200,25 +211,25 @@ if __name__ == '__main__':
                label='Hotstart')
     ]
 
-    for station_name, axis in value_axes.items():
-        axis.set_title(f'station {station_name} uv magnitude', loc='left')
-        axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
-        axis.set_ylabel('uv (m/s)')
-        axis.legend(handles=value_handles)
+    for station_name, axes in value_axes.items():
+        for component, axis in axes.items():
+            axis.set_title(f'station {station_name} {component}', loc='left')
+            axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
+            axis.set_ylabel(f'{component} (m/s)')
+            axis.legend(handles=value_handles)
 
     error_handles = [Line2D([0], [0],
                             color=error_color_map(
-                                station_index_normalizer(
-                                    (run_index + 1) * (station_index + 1))),
-                            label=f'{run_name} station {station["name"]}')
+                                station_index_normalizer(station_index)),
+                            label=f'station {station["name"]}')
                      for station_index, (_, station) in
-                     enumerate(stations_within_mesh.iterrows())
-                     for run_index, run_name in enumerate(output_datasets)]
+                     enumerate(stations_within_mesh.iterrows())]
 
-    error_axis.set_title(f'uv magnitude error', loc='left')
-    error_axis.hlines([0], *error_axis.get_xlim(), color='k', linestyle='--')
-    error_axis.set_ylabel('uv error (m/s)')
-    error_axis.legend(handles=error_handles)
+    for component, axis in error_axes.items():
+        axis.set_title(f'{component} error', loc='left')
+        axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
+        axis.set_ylabel(f'{component} error (m/s)')
+        axis.legend(handles=error_handles)
 
     rmses = DataFrame({
         'run': list(rmses.keys()),

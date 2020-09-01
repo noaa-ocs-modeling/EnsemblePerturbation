@@ -63,10 +63,10 @@ if __name__ == '__main__':
 
     observation_color_map = matplotlib.cm.get_cmap('Blues')
     model_color_map = matplotlib.cm.get_cmap('Reds')
-    error_color_map = matplotlib.cm.get_cmap('Spectral')
+    error_color_map = matplotlib.cm.get_cmap('prism')
     run_index_normalizer = matplotlib.colors.Normalize(0, len(output_datasets))
-    station_index_normalizer = matplotlib.colors.Normalize(1, len(
-        output_datasets) * len(stations_within_mesh))
+    station_index_normalizer = matplotlib.colors.Normalize(0, len(
+        stations_within_mesh))
 
     linestyles = {
         'coldstart': ':',
@@ -152,8 +152,8 @@ if __name__ == '__main__':
                 observation_color = observation_color_map(
                     run_index_normalizer(run_index))
                 model_color = model_color_map(run_index_normalizer(run_index))
-                error_color = error_color_map(station_index_normalizer(
-                    (run_index + 1) * (station_index + 1)))
+                error_color = error_color_map(
+                    station_index_normalizer(station_index))
 
                 value_axis = value_axes[station_name]
 
@@ -199,10 +199,8 @@ if __name__ == '__main__':
 
     error_handles = [Line2D([0], [0],
                             color=error_color_map(
-                                station_index_normalizer(
-                                    (run_index + 1) * (station_index + 1))),
-                            label=f'{run_name} station {station["name"]}')
-                     for run_index, run_name in enumerate(output_datasets)
+                                station_index_normalizer(station_index)),
+                            label=f'station {station["name"]}')
                      for station_index, (_, station) in
                      enumerate(stations_within_mesh.iterrows())]
 
