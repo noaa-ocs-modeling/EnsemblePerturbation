@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from adcircpy.validation import COOPS
 from geopandas import GeoDataFrame
 import matplotlib
 from matplotlib import pyplot
@@ -14,10 +13,28 @@ from shapely.ops import nearest_points
 
 from ensemble_perturbation import get_logger
 from ensemble_perturbation.inputs.adcirc import download_test_configuration
-from ensemble_perturbation.outputs.parse_output import fort61_stations_zeta, \
+from ensemble_perturbation.outputs.parse_output import fort62_stations_uv, \
     parse_adcirc_outputs
 
-LOGGER = get_logger('compare.zeta')
+LOGGER = get_logger('compare.uv')
+
+
+def insert_magnitude_components(dataframe: DataFrame,
+                                u: str = 'u',
+                                v: str = 'v',
+                                magnitude: str = 'magnitude',
+                                direction: str = 'direction',
+                                velocity_index: int = None,
+                                direction_index: int = None):
+    if velocity_index is None:
+        velocity_index = len(dataframe.columns)
+    if direction_index is None:
+        direction_index = velocity_index + 1
+    dataframe.insert(velocity_index, magnitude, numpy.hypot(dataframe[u],
+                                                            dataframe[v]))
+    dataframe.insert(direction_index, direction, numpy.arctan2(dataframe[u],
+                                                               dataframe[v]))
+
 
 if __name__ == '__main__':
     input_directory = Path(__file__) / '../data/input'
@@ -35,8 +52,8 @@ if __name__ == '__main__':
 
     first_coldstart = output_datasets[list(output_datasets)[0]]['coldstart']
 
-    stations = first_coldstart['fort.61.nc']
-    mesh = first_coldstart['maxele.63.nc']
+    stations = first_coldstart['fort.62.nc']
+    mesh = first_coldstart['maxvel.63.nc']
 
     stations_within_mesh = stations[stations.within(
         mesh.unary_union.convex_hull.buffer(0.01))]
@@ -72,8 +89,6 @@ if __name__ == '__main__':
     }
 
     figure = pyplot.figure()
-    sharing_axis = None
-
     value_axis = figure.add_subplot(2, 1, 1)
     error_axis = figure.add_subplot(2, 1, 2, sharex=value_axis)
 
@@ -83,17 +98,17 @@ if __name__ == '__main__':
             rmses[run_name] = {}
 
         for stage, datasets in stages.items():
-            fort61_filename = output_directory / run_name / stage / 'fort.61.nc'
+            fort62_filename = output_directory / run_name / stage / 'fort.62.nc'
 
-            coops_tidal_stations = COOPS.TidalStations()
+            model_times = datasets['fort.64.nc']['time']
+            modeled_u = datasets['fort.64.nc']['data']['u-vel']
+            modeled_v = datasets['fort.64.nc']['data']['v-vel']
 
-            model_times = datasets['fort.63.nc']['time']
-            modeled_zeta = datasets['fort.63.nc']['data']['zeta']
-
-            nearest_modeled_zeta = {
+            nearest_modeled_uv = {
                 nearest_mesh_vertex['station']: GeoDataFrame({
                     'time': model_times,
-                    'zeta': modeled_zeta[:, nearest_mesh_point_index],
+                    'u': modeled_u[:, nearest_mesh_point_index],
+                    'v': modeled_v[:, nearest_mesh_point_index],
                     'distance': nearest_mesh_vertex['distance']
                 }, geometry=[nearest_mesh_vertex.geometry
                              for _ in model_times])
@@ -101,66 +116,59 @@ if __name__ == '__main__':
                 nearest_mesh_vertices.iterrows()
             }
 
-            del model_times, modeled_zeta
+            del model_times, modeled_u, modeled_v
 
-            zeta_errors = []
-            for station_name, modeled_zeta in nearest_modeled_zeta.items():
-                coops_tidal_stations.add_station(station_name,
-                                                 modeled_zeta['time'].min(),
-                                                 modeled_zeta['time'].max())
-                coops_tidal_stations.station = station_name
+            uv_errors = []
+            for station_name, modeled_uv in nearest_modeled_uv.items():
+                observed_uv = fort62_stations_uv(fort62_filename,
+                                                 [station_name])
 
-                coops_observed_zeta = DataFrame({
-                    'time': coops_tidal_stations.datetime,
-                    'zeta': coops_tidal_stations.values
-                })
+                uv_error = modeled_uv[['time', 'u', 'v']] - \
+                           observed_uv[['time', 'u', 'v']]
 
-                observed_zeta = fort61_stations_zeta(fort61_filename,
-                                                     [station_name])
+                uv_error.columns = ['time_difference', 'u', 'v']
 
-                zeta_error = modeled_zeta[['time', 'zeta']] - \
-                             observed_zeta[['time', 'zeta']]
+                uv_error = uv_error[['u', 'v',
+                                     'time_difference']]
 
-                zeta_error.columns = ['time_difference', 'zeta']
+                uv_error.insert(0, 'time', modeled_uv['time'])
+                uv_error.insert(len(uv_error.columns) - 1, 'station',
+                                station_name)
+                uv_error.insert(len(uv_error.columns), 'distance',
+                                modeled_uv['distance'])
 
-                zeta_error = zeta_error[['zeta', 'time_difference']]
+                insert_magnitude_components(modeled_uv)
+                insert_magnitude_components(observed_uv)
+                insert_magnitude_components(uv_error, velocity_index=3)
 
-                zeta_error.insert(0, 'time', modeled_zeta['time'])
-                zeta_error.insert(len(zeta_error.columns) - 1,
-                                  'station', station_name)
-                zeta_error.insert(len(zeta_error.columns),
-                                  'distance', modeled_zeta['distance'])
-
-                zeta_errors.append(zeta_error)
+                uv_errors.append(uv_error)
 
                 observation_color = observation_color_map(
                     color_normalizer(run_index))
                 model_color = model_color_map(color_normalizer(run_index))
                 error_color = error_color_map(color_normalizer(run_index))
 
-                value_axis.plot(observed_zeta['time'], observed_zeta['zeta'],
+                value_axis.plot(observed_uv['time'], observed_uv['magnitude'],
                                 color=observation_color,
                                 linestyle=linestyles[stage],
-                                label=f'{run_name} {stage} fort.61')
-                value_axis.plot(coops_observed_zeta['time'],
-                                coops_observed_zeta['zeta'],
-                                color=observation_color,
-                                label=f'{run_name} {stage} CO-OPS')
-                value_axis.plot(observed_zeta['time'], observed_zeta['zeta'],
+                                label=f'{run_name} {stage} fort.62 magnitude')
+                value_axis.plot(modeled_uv['time'], modeled_uv['magnitude'],
                                 color=model_color, linestyle=linestyles[stage],
-                                label=f'{run_name} {stage} model')
-                error_axis.scatter(zeta_error['time'], zeta_error['zeta'],
+                                label=f'{run_name} {stage} model magnitude')
+                error_axis.scatter(uv_error['time'], uv_error['magnitude'],
                                    color=error_color, s=2,
-                                   label=f'{run_name} {stage}')
+                                   label=f'{run_name} {stage} magnitude error')
 
-            zeta_errors = pandas.concat(zeta_errors)
+            uv_errors = pandas.concat(uv_errors)
 
             rmses[run_name][stage] = {
-                'zeta_rmse': numpy.sqrt(
-                    (zeta_errors['zeta'] ** 2).mean()),
-                'mean_time_difference': zeta_errors[
+                'uv_rmse': numpy.sqrt((uv_errors['magnitude'] **
+                                       2).mean()),
+                'u_rmse': numpy.sqrt((uv_errors['u'] ** 2).mean()),
+                'v_rmse': numpy.sqrt((uv_errors['v'] ** 2).mean()),
+                'mean_time_difference': uv_errors[
                     'time_difference'].mean(),
-                'mean_distance': zeta_errors['distance'].mean()
+                'mean_distance': uv_errors['distance'].mean()
             }
 
     value_handles = [
@@ -172,9 +180,9 @@ if __name__ == '__main__':
                label='Hotstart')
     ]
 
-    value_axis.set_title(f'zeta', loc='left')
+    value_axis.set_title(f'uv magnitude', loc='left')
     value_axis.hlines([0], *value_axis.get_xlim(), color='k', linestyle='--')
-    value_axis.set_ylabel('zeta (m)')
+    value_axis.set_ylabel('uv (m/s)')
     value_axis.legend(handles=value_handles)
 
     error_handles = [Line2D([0], [0],
@@ -182,9 +190,9 @@ if __name__ == '__main__':
                             label=run_name)
                      for index, run_name in enumerate(output_datasets)]
 
-    error_axis.set_title(f'zeta error', loc='left')
+    error_axis.set_title(f'uv magnitude error', loc='left')
     error_axis.hlines([0], *error_axis.get_xlim(), color='k', linestyle='--')
-    error_axis.set_ylabel('zeta error (m)')
+    error_axis.set_ylabel('uv error (m/s)')
     error_axis.legend(handles=error_handles)
 
     rmses = DataFrame({
@@ -192,7 +200,7 @@ if __name__ == '__main__':
         **{f'{stage}_{value}': [rmse[stage][value]
                                 for rmse in rmses.values()]
            for stage in ['coldstart', 'hotstart']
-           for value in ['zeta_rmse', 'mean_time_difference', 'mean_distance']
+           for value in ['uv_rmse', 'mean_time_difference', 'mean_distance']
            }
     })
 
@@ -202,14 +210,14 @@ if __name__ == '__main__':
                   for run in rmses['run']]
 
     figure = pyplot.figure()
+    figure.suptitle('RMSE')
     rmse_axis = figure.add_subplot(1, 1, 1)
-    rmse_axis.set_title('RMSE')
     for column in rmses:
-        if 'zeta' in column:
+        if 'uv' in column:
             rmse_axis.plot(mannings_n, rmses[column], label=f'{column}')
-    rmse_axis.set_xlabel('Manning\'s N')
-    rmse_axis.set_ylabel('zeta RMSE (m)')
-    rmse_axis.legend()
+            rmse_axis.set_xlabel('Manning\'s N')
+            rmse_axis.set_ylabel('uv RMSE (m)')
+            rmse_axis.legend()
 
     pyplot.show()
 

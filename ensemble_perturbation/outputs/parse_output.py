@@ -12,15 +12,15 @@ from shapely.geometry import Point
 ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
     'fort.61.nc': ['station_name', 'zeta'],
+    # Depth-averaged Velocity Time Series at Specified Velocity Recording Stations (fort.62)
+    'fort.62.nc': ['station_name', 'u-vel', 'v-vel'],
     # Elevation Time Series at All Nodes in the Model Grid (fort.63)
     'fort.63.nc': ['zeta'],
     # Depth-averaged Velocity Time Series at All Nodes in the Model Grid (fort.64)
     'fort.64.nc': ['u-vel', 'v-vel'],
     # Hot Start Output (fort.67, fort.68)
-    'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel',
-                   'v-vel'],
-    'fort.68.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel',
-                   'v-vel'],
+    'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
+    'fort.68.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
     # Maximum Elevation at All Nodes in the Model Grid (maxele.63)
     'maxele.63.nc': ['zeta_max', 'time_of_zeta_max'],
     # Maximum Velocity at All Nodes in the Model Grid (maxvel.63)
@@ -46,8 +46,8 @@ def decode_time(variable: Variable, unit: str = None) -> numpy.array:
         f'timedelta64[{intervals[unit]}]')
 
 
-def parse_fort61_stations(filename: str,
-                          station_names: [str] = None) -> GeoDataFrame:
+def fort61_stations_zeta(filename: str,
+                         station_names: [str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
     coordinate_variables = ['x', 'y']
@@ -67,6 +67,34 @@ def parse_fort61_stations(filename: str,
         stations.append(GeoDataFrame({
             'time': times,
             'zeta': dataset['zeta'][:, station_index],
+            'station': station_name
+        }, geometry=[station_point for _ in times]))
+
+    return pandas.concat(stations)
+
+
+def fort62_stations_uv(filename: str,
+                       station_names: [str] = None) -> GeoDataFrame:
+    dataset = Dataset(filename)
+
+    coordinate_variables = ['x', 'y']
+    coordinates = numpy.stack([dataset[variable]
+                               for variable in coordinate_variables], axis=1)
+    times = decode_time(dataset['time'])
+
+    all_station_names = [station_name.tobytes().decode().strip().strip('\'')
+                         for station_name in dataset['station_name']]
+
+    stations = []
+    for station_name in station_names:
+        station_index = all_station_names.index(station_name)
+        station_coordinates = coordinates[station_index]
+        station_point = Point(station_coordinates[0], station_coordinates[1])
+
+        stations.append(GeoDataFrame({
+            'time': times,
+            'u': dataset['u-vel'][:, station_index],
+            'v': dataset['v-vel'][:, station_index],
             'station': station_name
         }, geometry=[station_point for _ in times]))
 
@@ -106,7 +134,7 @@ def parse_adcirc_netcdf(
 
     if basename in ['fort.63.nc', 'fort.64.nc']:
         data = {'coordinates': coordinates, 'time': times, 'data': data}
-    elif basename == 'fort.61.nc':
+    elif basename in ['fort.61.nc', 'fort.62.nc']:
         data = GeoDataFrame({
             'name': [station_name.tobytes().decode().strip().strip('\'')
                      for station_name in dataset['station_name']],
