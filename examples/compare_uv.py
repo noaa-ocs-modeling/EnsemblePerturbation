@@ -81,16 +81,33 @@ if __name__ == '__main__':
     observation_color_map = matplotlib.cm.get_cmap('Blues')
     model_color_map = matplotlib.cm.get_cmap('Reds')
     error_color_map = matplotlib.cm.get_cmap('Spectral')
-    color_normalizer = matplotlib.colors.Normalize(0, len(output_datasets))
+    run_index_normalizer = matplotlib.colors.Normalize(0, len(output_datasets))
+    station_index_normalizer = matplotlib.colors.Normalize(1, len(
+        output_datasets) * len(stations_within_mesh))
 
     linestyles = {
         'coldstart': ':',
         'hotstart': '-'
     }
 
-    figure = pyplot.figure()
-    value_axis = figure.add_subplot(2, 1, 1)
-    error_axis = figure.add_subplot(2, 1, 2, sharex=value_axis)
+    value_figure = pyplot.figure()
+    value_figure.suptitle('station uv')
+    sharing_axis = None
+
+    value_axes = {}
+    for station_index, (_station) in \
+            enumerate(stations_within_mesh.iterrows()):
+        axis = value_figure.add_subplot(len(stations_within_mesh), 1,
+                                        station_index + 1, sharex=sharing_axis,
+                                        sharey=sharing_axis)
+        if sharing_axis is None:
+            sharing_axis = axis
+
+        value_axes[station['name']] = axis
+
+    error_figure = pyplot.figure()
+    error_figure.suptitle('uv errors')
+    error_axis = error_figure.add_subplot(1, 1, 1, sharex=sharing_axis)
 
     rmses = {}
     for run_index, (run_name, stages) in enumerate(output_datasets.items()):
@@ -144,10 +161,13 @@ if __name__ == '__main__':
                 uv_errors.append(uv_error)
 
                 observation_color = observation_color_map(
-                    color_normalizer(run_index))
-                model_color = model_color_map(color_normalizer(run_index))
-                error_color = error_color_map(color_normalizer(run_index))
+                    run_index_normalizer(run_index))
+                model_color = model_color_map(run_index_normalizer(run_index))
+                error_color = error_color_map(
+                    station_index_normalizer(
+                        (run_index + 1) * (station_index + 1)))
 
+                value_axis = value_axes[station_name]
                 value_axis.plot(observed_uv['time'], observed_uv['magnitude'],
                                 color=observation_color,
                                 linestyle=linestyles[stage],
@@ -173,22 +193,27 @@ if __name__ == '__main__':
 
     value_handles = [
         Line2D([0], [0], color='b', label='Observation'),
-        Line2D([0], [0], color='g', label='Model'),
+        Line2D([0], [0], color='r', label='Model'),
         Line2D([0], [0], color='k', linestyle=linestyles['coldstart'],
                label='Coldstart'),
         Line2D([0], [0], color='k', linestyle=linestyles['hotstart'],
                label='Hotstart')
     ]
 
-    value_axis.set_title(f'uv magnitude', loc='left')
-    value_axis.hlines([0], *value_axis.get_xlim(), color='k', linestyle='--')
-    value_axis.set_ylabel('uv (m/s)')
-    value_axis.legend(handles=value_handles)
+    for station_name, axis in value_axes.items():
+        axis.set_title(f'station {station_name} uv magnitude', loc='left')
+        axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
+        axis.set_ylabel('uv (m/s)')
+        axis.legend(handles=value_handles)
 
     error_handles = [Line2D([0], [0],
-                            color=error_color_map(color_normalizer(index)),
-                            label=run_name)
-                     for index, run_name in enumerate(output_datasets)]
+                            color=error_color_map(
+                                station_index_normalizer(
+                                    (run_index + 1) * (station_index + 1))),
+                            label=f'{run_name} station {station["name"]}')
+                     for station_index, (_, station) in
+                     enumerate(stations_within_mesh.iterrows())
+                     for run_index, run_name in enumerate(output_datasets)]
 
     error_axis.set_title(f'uv magnitude error', loc='left')
     error_axis.hlines([0], *error_axis.get_xlim(), color='k', linestyle='--')
@@ -210,7 +235,7 @@ if __name__ == '__main__':
                   for run in rmses['run']]
 
     figure = pyplot.figure()
-    figure.suptitle('RMSE')
+    figure.suptitle('uv magnitude RMSE')
     rmse_axis = figure.add_subplot(1, 1, 1)
     for column in rmses:
         if 'uv' in column:

@@ -64,18 +64,33 @@ if __name__ == '__main__':
     observation_color_map = matplotlib.cm.get_cmap('Blues')
     model_color_map = matplotlib.cm.get_cmap('Reds')
     error_color_map = matplotlib.cm.get_cmap('Spectral')
-    color_normalizer = matplotlib.colors.Normalize(0, len(output_datasets))
+    run_index_normalizer = matplotlib.colors.Normalize(0, len(output_datasets))
+    station_index_normalizer = matplotlib.colors.Normalize(1, len(
+        output_datasets) * len(stations_within_mesh))
 
     linestyles = {
         'coldstart': ':',
         'hotstart': '-'
     }
 
-    figure = pyplot.figure()
+    value_figure = pyplot.figure()
+    value_figure.suptitle('station zeta')
     sharing_axis = None
 
-    value_axis = figure.add_subplot(2, 1, 1)
-    error_axis = figure.add_subplot(2, 1, 2, sharex=value_axis)
+    value_axes = {}
+    for station_index, (_, station) in \
+            enumerate(stations_within_mesh.iterrows()):
+        axis = value_figure.add_subplot(len(stations_within_mesh), 1,
+                                        station_index + 1, sharex=sharing_axis,
+                                        sharey=sharing_axis)
+        if sharing_axis is None:
+            sharing_axis = axis
+
+        value_axes[station['name']] = axis
+
+    error_figure = pyplot.figure()
+    error_figure.suptitle('zeta errors')
+    error_axis = error_figure.add_subplot(1, 1, 1)
 
     rmses = {}
     for run_index, (run_name, stages) in enumerate(output_datasets.items()):
@@ -104,7 +119,8 @@ if __name__ == '__main__':
             del model_times, modeled_zeta
 
             zeta_errors = []
-            for station_name, modeled_zeta in nearest_modeled_zeta.items():
+            for station_index, (station_name, modeled_zeta) in \
+                    enumerate(nearest_modeled_zeta.items()):
                 coops_tidal_stations.add_station(station_name,
                                                  modeled_zeta['time'].min(),
                                                  modeled_zeta['time'].max())
@@ -134,9 +150,12 @@ if __name__ == '__main__':
                 zeta_errors.append(zeta_error)
 
                 observation_color = observation_color_map(
-                    color_normalizer(run_index))
-                model_color = model_color_map(color_normalizer(run_index))
-                error_color = error_color_map(color_normalizer(run_index))
+                    run_index_normalizer(run_index))
+                model_color = model_color_map(run_index_normalizer(run_index))
+                error_color = error_color_map(station_index_normalizer(
+                    (run_index + 1) * (station_index + 1)))
+
+                value_axis = value_axes[station_name]
 
                 value_axis.plot(observed_zeta['time'], observed_zeta['zeta'],
                                 color=observation_color,
@@ -165,22 +184,27 @@ if __name__ == '__main__':
 
     value_handles = [
         Line2D([0], [0], color='b', label='Observation'),
-        Line2D([0], [0], color='g', label='Model'),
+        Line2D([0], [0], color='r', label='Model'),
         Line2D([0], [0], color='k', linestyle=linestyles['coldstart'],
                label='Coldstart'),
         Line2D([0], [0], color='k', linestyle=linestyles['hotstart'],
                label='Hotstart')
     ]
 
-    value_axis.set_title(f'zeta', loc='left')
-    value_axis.hlines([0], *value_axis.get_xlim(), color='k', linestyle='--')
-    value_axis.set_ylabel('zeta (m)')
-    value_axis.legend(handles=value_handles)
+    for station_name, axis in value_axes.items():
+        axis.set_title(f'station {station_name} zeta', loc='left')
+        axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
+        axis.set_ylabel('zeta (m)')
+        axis.legend(handles=value_handles)
 
     error_handles = [Line2D([0], [0],
-                            color=error_color_map(color_normalizer(index)),
-                            label=run_name)
-                     for index, run_name in enumerate(output_datasets)]
+                            color=error_color_map(
+                                station_index_normalizer(
+                                    (run_index + 1) * (station_index + 1))),
+                            label=f'{run_name} station {station["name"]}')
+                     for run_index, run_name in enumerate(output_datasets)
+                     for station_index, (_, station) in
+                     enumerate(stations_within_mesh.iterrows())]
 
     error_axis.set_title(f'zeta error', loc='left')
     error_axis.hlines([0], *error_axis.get_xlim(), color='k', linestyle='--')
@@ -201,9 +225,9 @@ if __name__ == '__main__':
     mannings_n = [float(run.replace('mannings_n_', ''))
                   for run in rmses['run']]
 
-    figure = pyplot.figure()
-    rmse_axis = figure.add_subplot(1, 1, 1)
-    rmse_axis.set_title('RMSE')
+    value_figure = pyplot.figure()
+    rmse_axis = value_figure.add_subplot(1, 1, 1)
+    rmse_axis.set_title('zeta RMSE')
     for column in rmses:
         if 'zeta' in column:
             rmse_axis.plot(mannings_n, rmses[column], label=f'{column}')
