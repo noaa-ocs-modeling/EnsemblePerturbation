@@ -20,12 +20,14 @@ from ensemble_perturbation.outputs.parse_output import fort61_stations_zeta, \
 LOGGER = get_logger('compare.zeta')
 
 if __name__ == '__main__':
-    input_directory = Path(__file__) / '../data/input'
+    root_directory = Path(__file__).parent.parent
+
+    input_directory = root_directory / 'data/input'
     download_test_configuration(input_directory)
     fort14_filename = input_directory / 'fort.14'
     fort15_filename = input_directory / 'fort.15'
 
-    output_directory = Path(__file__) / '../data/output'
+    output_directory = root_directory / 'data/output'
     output_datasets = parse_adcirc_outputs(output_directory)
 
     crs = CRS.from_epsg(4326)
@@ -81,8 +83,7 @@ if __name__ == '__main__':
     for station_index, (_, station) in \
             enumerate(stations_within_mesh.iterrows()):
         axis = value_figure.add_subplot(len(stations_within_mesh), 1,
-                                        station_index + 1, sharex=sharing_axis,
-                                        sharey=sharing_axis)
+                                        station_index + 1, sharex=sharing_axis)
         if sharing_axis is None:
             sharing_axis = axis
 
@@ -90,7 +91,7 @@ if __name__ == '__main__':
 
     error_figure = pyplot.figure()
     error_figure.suptitle('zeta errors')
-    error_axis = error_figure.add_subplot(1, 1, 1)
+    error_axis = error_figure.add_subplot(1, 1, 1, sharex=sharing_axis)
 
     rmses = {}
     for run_index, (run_name, stages) in enumerate(output_datasets.items()):

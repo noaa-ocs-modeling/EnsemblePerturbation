@@ -37,12 +37,14 @@ def insert_magnitude_components(dataframe: DataFrame,
 
 
 if __name__ == '__main__':
-    input_directory = Path(__file__) / '../data/input'
+    root_directory = Path(__file__).parent.parent
+
+    input_directory = root_directory / 'data/input'
     download_test_configuration(input_directory)
     fort14_filename = input_directory / 'fort.14'
     fort15_filename = input_directory / 'fort.15'
 
-    output_directory = Path(__file__) / '../data/output'
+    output_directory = root_directory / 'data/output'
     output_datasets = parse_adcirc_outputs(output_directory)
 
     crs = CRS.from_epsg(4326)
@@ -101,14 +103,12 @@ if __name__ == '__main__':
             enumerate(stations_within_mesh.iterrows()):
         u_axis = value_figure.add_subplot(len(stations_within_mesh) * 2, 1,
                                           station_index * 2 + 1,
-                                          sharex=sharing_axis,
-                                          sharey=sharing_axis)
+                                          sharex=sharing_axis)
         if sharing_axis is None:
             sharing_axis = u_axis
         v_axis = value_figure.add_subplot(len(stations_within_mesh) * 2, 1,
                                           station_index * 2 + 2,
-                                          sharex=sharing_axis,
-                                          sharey=sharing_axis)
+                                          sharex=sharing_axis)
 
         value_axes[station['name']] = dict(zip(components, (u_axis, v_axis)))
 
