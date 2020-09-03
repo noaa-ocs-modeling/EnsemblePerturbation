@@ -233,10 +233,11 @@ if __name__ == '__main__':
 
     rmses = DataFrame({
         'run': list(rmses.keys()),
-        **{f'{stage}_{value}': [rmse[stage][value]
+        **{f'{stage}_{field}': [rmse[stage][field]
                                 for rmse in rmses.values()]
            for stage in ['coldstart', 'hotstart']
-           for value in ['uv_rmse', 'mean_time_difference', 'mean_distance']
+           for field in ['u_rmse', 'v_rmse',
+                         'mean_time_difference', 'mean_distance']
            }
     })
 
@@ -246,14 +247,15 @@ if __name__ == '__main__':
                   for run in rmses['run']]
 
     figure = pyplot.figure()
-    figure.suptitle('uv magnitude RMSE')
-    rmse_axis = figure.add_subplot(1, 1, 1)
-    for column in rmses:
-        if 'uv' in column:
-            rmse_axis.plot(mannings_n, rmses[column], label=f'{column}')
-            rmse_axis.set_xlabel('Manning\'s N')
-            rmse_axis.set_ylabel('uv RMSE (m)')
-            rmse_axis.legend()
+    figure.suptitle('uv RMSE')
+    for component_index, component in enumerate(components):
+        axis = figure.add_subplot(len(components), 1, component_index + 1)
+        for column in rmses:
+            if component in column.split('_'):
+                axis.plot(mannings_n, rmses[column], label=column)
+                axis.set_xlabel('Manning\'s N')
+                axis.set_ylabel(f'{column} (m)')
+                axis.legend()
 
     pyplot.show()
 
