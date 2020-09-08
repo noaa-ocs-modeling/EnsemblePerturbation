@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 import sys
 
 import numpy
@@ -10,12 +10,15 @@ from shapely.geometry import Point
 def repository_root(path: str = None) -> str:
     if path is None:
         path = __file__
-    if os.path.isfile(path):
-        path = os.path.dirname(path)
-    if '.git' in os.listdir(path):
+    if not isinstance(path, Path):
+        path = Path(path)
+    if path.is_file():
+        path = path.parent
+    if '.git' in (child.name for child in
+                  path.iterdir()) or path == path.parent:
         return path
     else:
-        return repository_root(os.path.dirname(path))
+        return repository_root(path.parent)
 
 
 def get_logger(name: str, log_filename: str = None, file_level: int = None,
