@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from functools import lru_cache
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,8 +33,14 @@ ADCIRC_VARIABLES = DataFrame({
     'name': ['zeta', 'u-vel', 'v-vel']
 }, index=['zeta', 'u', 'v'])
 
+STATION_PARSERS = {
+    'u': fort62_stations_uv,
+    'v': fort62_stations_uv,
+    'zeta': fort61_stations_zeta
+}
 
-class ReferenceComparison(ABC):
+
+class ReferenceComparison:
     def __init__(self, input_directory: str, output_directory: str,
                  variables: [str], stages: [str] = None):
         if not isinstance(input_directory, Path):
@@ -101,14 +107,27 @@ class ReferenceComparison(ABC):
     @property
     @lru_cache(maxsize=1)
     def values(self) -> GeoDataFrame:
-        observed_values = []
-        for stage in self.stages:
-            stations_filename = self.output_directory / list(self.runs)[
-                0] / stage / ADCIRC_VARIABLES.loc[self.variables[0]][
-                                    'stations']
-            observed_values.append(self.parse_stations(stations_filename,
-                                                       self.stations['name']))
-        observed_values = pandas.concat(observed_values)
+        observed_values = None
+        for variable in self.variables:
+            variable_observed_values = []
+            for stage in self.stages:
+                station_parser = STATION_PARSERS[variable]
+
+                stations_filename = self.output_directory / list(self.runs)[
+                    0] / stage / ADCIRC_VARIABLES.loc[variable]['stations']
+                stage_observed_values = station_parser(stations_filename,
+                                                       self.stations['name'])
+
+                stage_observed_values.insert(1, 'stage', stage)
+                variable_observed_values.append(stage_observed_values)
+            variable_observed_values = pandas.concat(variable_observed_values)
+
+            if observed_values is None:
+                observed_values = variable_observed_values
+            else:
+                observed_values = pandas.merge(observed_values,
+                                               variable_observed_values,
+                                               how='left')
 
         values = []
         model_output_basename = ADCIRC_VARIABLES.loc[self.variables[0]][
@@ -276,11 +295,6 @@ class ReferenceComparison(ABC):
         rmses = pandas.concat(rmses)
         rmses.reset_index(drop=True, inplace=True)
         return rmses
-
-    @abstractmethod
-    def parse_stations(self, filename: str,
-                       station_names: [str]) -> GeoDataFrame:
-        raise NotImplementedError
 
     def plot_values(self, show: bool = False):
         values = self.values
@@ -471,23 +485,15 @@ class ReferenceComparison(ABC):
 
 
 class ZetaComparison(ReferenceComparison):
-    def __init__(self, input_directory: str, output_directory: str):
-        super().__init__(input_directory, output_directory, ['zeta'],
-                         ['coldstart', 'hotstart'])
-
-    def parse_stations(self, filename: str,
-                       station_names: [str]) -> GeoDataFrame:
-        return fort61_stations_zeta(filename, station_names)
+    def __init__(self, input_directory: str, output_directory: str,
+                 stages: [str] = None):
+        super().__init__(input_directory, output_directory, ['zeta'], stages)
 
 
 class VelocityComparison(ReferenceComparison):
-    def __init__(self, input_directory: str, output_directory: str):
-        super().__init__(input_directory, output_directory, ['u', 'v'],
-                         ['coldstart', 'hotstart'])
-
-    def parse_stations(self, filename: str,
-                       station_names: [str]) -> GeoDataFrame:
-        return fort62_stations_uv(filename, station_names)
+    def __init__(self, input_directory: str, output_directory: str,
+                 stages: [str] = None):
+        super().__init__(input_directory, output_directory, ['u', 'v'], stages)
 
 
 def insert_magnitude_components(dataframe: DataFrame,
