@@ -34,17 +34,11 @@ ADCIRC_VARIABLES = DataFrame({
     'name': ['zeta', 'u-vel', 'v-vel']
 }, index=['zeta', 'u', 'v'])
 
-STATION_PARSERS = {
-    'u': fort62_stations_uv,
-    'v': fort62_stations_uv,
-    'zeta': fort61_stations_zeta
-}
-
 
 class StationComparison:
     def __init__(self, input_directory: str, output_directory: str,
-                 variables: [str], stages: [str] = None,
-                 station_parsers: {str: Callable} = None):
+                 variables: [str], station_parsers: {str: Callable},
+                 stages: [str] = None):
         if not isinstance(input_directory, Path):
             input_directory = Path(input_directory)
         if not isinstance(output_directory, Path):
@@ -54,7 +48,7 @@ class StationComparison:
         self.output_directory = output_directory
         self.variables = variables
 
-        self.station_parsers = station_parsers if station_parsers is not None else STATION_PARSERS
+        self.station_parsers = station_parsers
 
         self.fort14_filename = input_directory / 'fort.14'
         self.fort15_filename = input_directory / 'fort.15'
@@ -111,31 +105,22 @@ class StationComparison:
     @property
     @lru_cache(maxsize=1)
     def values(self) -> GeoDataFrame:
-        observed_values = None
-        for variable in self.variables:
-            variable_observed_values = []
+        observed_values = []
+        for variable_info in self.variables:
             for stage in self.stages:
-                station_parser = self.station_parsers[variable]
+                station_parser = self.station_parsers[variable_info]
 
                 stations_filename = self.output_directory / list(self.runs)[
-                    0] / stage / ADCIRC_VARIABLES.loc[variable]['stations']
+                    0] / stage / ADCIRC_VARIABLES.loc[variable_info][
+                                        'stations']
                 stage_observed_values = station_parser(stations_filename,
                                                        self.stations['name'])
 
                 stage_observed_values.insert(1, 'stage', stage)
-                variable_observed_values.append(stage_observed_values)
-            variable_observed_values = pandas.concat(variable_observed_values)
-
-            if observed_values is None:
-                observed_values = variable_observed_values
-            else:
-                observed_values = pandas.merge(observed_values,
-                                               variable_observed_values,
-                                               how='left')
+                observed_values.append(stage_observed_values)
+        observed_values = pandas.concat(observed_values)
 
         values = []
-        model_output_basename = ADCIRC_VARIABLES.loc[self.variables[0]][
-            'model']
         for nearest_mesh_index, nearest_mesh_vertex in self.station_mesh_vertices.iterrows():
             station_name = nearest_mesh_vertex['station']
 
@@ -143,24 +128,30 @@ class StationComparison:
             for run_name, stages in self.runs.items():
                 run_values = []
                 for stage, datasets in stages.items():
-                    model_times = datasets[model_output_basename]['time']
-                    modeled_values = {
-                        variable_name: datasets[model_output_basename]['data'][
-                            ADCIRC_VARIABLES.loc[variable_name]['name']]
-                        for variable_name in self.variables}
+                    stage_values = None
+                    for variable_name in self.variables:
+                        variable_info = ADCIRC_VARIABLES.loc[variable_name]
+                        times = datasets[variable_info['model']]['time']
+                        variable_data = GeoDataFrame({
+                            'stage': stage,
+                            'time': times,
+                            'distance': nearest_mesh_vertex['distance'],
+                            'geometry': [nearest_mesh_vertex.geometry
+                                         for _ in times],
+                            variable_name:
+                                datasets[variable_info['model']]['data'][
+                                    variable_info['name']][:,
+                                nearest_mesh_index]
+                        })
 
-                    run_values.append(GeoDataFrame({
-                        'stage': stage,
-                        'time': model_times,
-                        'distance': nearest_mesh_vertex['distance'],
-                        'geometry': [nearest_mesh_vertex.geometry
-                                     for _ in model_times],
-                        **{variable_name: variable_data[:, nearest_mesh_index]
-                           for variable_name, variable_data in
-                           modeled_values.items()}
-                    }))
+                        if stage_values is None:
+                            stage_values = variable_data
+                        else:
+                            stage_values = pandas.merge(stage_values,
+                                                        variable_data,
+                                                        how='left')
+                    run_values.append(stage_values)
 
-                    del model_times, modeled_values
                 run_values = pandas.concat(run_values)
                 run_values.columns = [f'{run_name}_{column}'
                                       if column in self.variables else column
@@ -175,9 +166,7 @@ class StationComparison:
                            for variable in self.variables)]]
                     station_values = pandas.merge(station_values,
                                                   station_run_values,
-                                                  how='left',
-                                                  on=['stage', 'time',
-                                                      'distance', 'geometry'])
+                                                  how='left')
 
             station_observed_values = observed_values[
                 observed_values['station'] == station_name]
@@ -190,7 +179,7 @@ class StationComparison:
 
             station_values = pandas.merge(station_values,
                                           station_observed_values,
-                                          how='left', on='time')
+                                          how='left')
 
             station_values.insert(0, 'station', station_name)
             values.append(station_values)
@@ -249,7 +238,7 @@ class StationComparison:
                         ['time', *(f'{run_name}_{variable}'
                                    for variable in self.variables)]]
                     station_errors = pandas.merge(station_errors, run_errors,
-                                                  how='left', on=['time'])
+                                                  how='left')
 
             station_errors.insert(0, 'station', station['name'])
             errors.append(station_errors)
@@ -489,11 +478,17 @@ class StationComparison:
 
 
 class ObservationComparison(StationComparison):
+    station_parsers = {
+        'u': fort62_stations_uv,
+        'v': fort62_stations_uv,
+        'zeta': fort61_stations_zeta
+    }
+
     def __init__(self, input_directory: str, output_directory: str,
                  variables: [str], stages: [str] = None):
-        super().__init__(input_directory, output_directory, variables, stages,
-                         {variable: STATION_PARSERS[variable]
-                          for variable in variables})
+        super().__init__(input_directory, output_directory, variables,
+                         {variable: self.station_parsers[variable]
+                          for variable in variables}, stages)
 
 
 def insert_magnitude_components(dataframe: DataFrame,
