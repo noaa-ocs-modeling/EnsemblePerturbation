@@ -3,9 +3,9 @@ from pathlib import Path
 from matplotlib import pyplot
 
 from ensemble_perturbation import get_logger
-from ensemble_perturbation.outputs.comparison import ObservationComparison
+from ensemble_perturbation.outputs.comparison import StationComparison
 
-LOGGER = get_logger('reference.zeta')
+LOGGER = get_logger('reference.uv')
 
 if __name__ == '__main__':
     root_directory = Path(__file__).parent.parent
@@ -13,8 +13,8 @@ if __name__ == '__main__':
     input_directory = root_directory / 'data/input'
     output_directory = root_directory / 'data/output'
 
-    comparison = ObservationComparison(input_directory, output_directory,
-                                       ['zeta'])
+    comparison = StationComparison(input_directory, output_directory,
+                                   ['u', 'v'])
 
     comparison.plot_values()
     comparison.plot_errors()

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable
 
 from geopandas import GeoDataFrame
 from matplotlib import cm, colors, pyplot
@@ -40,9 +41,10 @@ STATION_PARSERS = {
 }
 
 
-class ReferenceComparison:
+class StationComparison:
     def __init__(self, input_directory: str, output_directory: str,
-                 variables: [str], stages: [str] = None):
+                 variables: [str], stages: [str] = None,
+                 station_parsers: {str: Callable} = None):
         if not isinstance(input_directory, Path):
             input_directory = Path(input_directory)
         if not isinstance(output_directory, Path):
@@ -51,6 +53,8 @@ class ReferenceComparison:
         self.inout_directory = input_directory
         self.output_directory = output_directory
         self.variables = variables
+
+        self.station_parsers = station_parsers if station_parsers is not None else STATION_PARSERS
 
         self.fort14_filename = input_directory / 'fort.14'
         self.fort15_filename = input_directory / 'fort.15'
@@ -111,7 +115,7 @@ class ReferenceComparison:
         for variable in self.variables:
             variable_observed_values = []
             for stage in self.stages:
-                station_parser = STATION_PARSERS[variable]
+                station_parser = self.station_parsers[variable]
 
                 stations_filename = self.output_directory / list(self.runs)[
                     0] / stage / ADCIRC_VARIABLES.loc[variable]['stations']
@@ -484,16 +488,12 @@ class ReferenceComparison:
             pyplot.show()
 
 
-class ZetaComparison(ReferenceComparison):
+class ObservationComparison(StationComparison):
     def __init__(self, input_directory: str, output_directory: str,
-                 stages: [str] = None):
-        super().__init__(input_directory, output_directory, ['zeta'], stages)
-
-
-class VelocityComparison(ReferenceComparison):
-    def __init__(self, input_directory: str, output_directory: str,
-                 stages: [str] = None):
-        super().__init__(input_directory, output_directory, ['u', 'v'], stages)
+                 variables: [str], stages: [str] = None):
+        super().__init__(input_directory, output_directory, variables, stages,
+                         {variable: STATION_PARSERS[variable]
+                          for variable in variables})
 
 
 def insert_magnitude_components(dataframe: DataFrame,
