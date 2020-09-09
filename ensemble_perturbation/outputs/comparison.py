@@ -3,6 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable
 
+import geopandas
 from geopandas import GeoDataFrame
 from matplotlib import cm, colors, pyplot
 from matplotlib.lines import Line2D
@@ -34,28 +35,39 @@ ADCIRC_VARIABLES = DataFrame({
     'name': ['zeta', 'u-vel', 'v-vel']
 }, index=['zeta', 'u', 'v'])
 
+STATION_PARSERS = {
+    'u': fort62_stations_uv,
+    'v': fort62_stations_uv,
+    'zeta': fort61_stations_zeta
+}
+
 
 class StationComparison:
     def __init__(self, input_directory: str, output_directory: str,
-                 variables: [str], station_parsers: {str: Callable},
-                 stages: [str] = None):
+                 variables: [str], stages: [str] = None,
+                 station_parsers: {str: Callable} = None,
+                 reference_label: str = None):
         if not isinstance(input_directory, Path):
             input_directory = Path(input_directory)
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
-        self.inout_directory = input_directory
+        self.input_directory = input_directory
         self.output_directory = output_directory
         self.variables = variables
+        self.station_parsers = station_parsers if station_parsers is not None else {
+            variable: station_parser
+            for variable, station_parser in STATION_PARSERS.items()
+            if variable in self.variables
+        }
+        self.reference_label = reference_label if reference_label is not None else 'reference'
 
-        self.station_parsers = station_parsers
+        self.fort14_filename = self.input_directory / 'fort.14'
+        self.fort15_filename = self.input_directory / 'fort.15'
 
-        self.fort14_filename = input_directory / 'fort.14'
-        self.fort15_filename = input_directory / 'fort.15'
+        download_test_configuration(self.input_directory)
 
-        download_test_configuration(input_directory)
-
-        self.runs = parse_adcirc_outputs(output_directory)
+        self.runs = parse_adcirc_outputs(self.output_directory)
 
         self.stages = stages if stages is not None else ['coldstart',
                                                          'hotstart']
@@ -80,32 +92,32 @@ class StationComparison:
     @property
     @lru_cache(maxsize=1)
     def station_mesh_vertices(self):
-        nearest_mesh_vertices = []
+        mesh_vertices = []
         for station_index, station in self.stations.iterrows():
-            nearest_mesh_vertex = shapely.ops.nearest_points(
+            mesh_vertex = shapely.ops.nearest_points(
                 station.geometry,
                 self.mesh.unary_union
             )[1]
 
             distance = self.geodetic.line_length(
-                [station.geometry.x, nearest_mesh_vertex.x],
-                [station.geometry.y, nearest_mesh_vertex.y])
-            mesh_index = self.mesh.cx[nearest_mesh_vertex.x,
-                                      nearest_mesh_vertex.y].index.item()
-            nearest_mesh_vertices.append(GeoDataFrame({
+                [station.geometry.x, mesh_vertex.x],
+                [station.geometry.y, mesh_vertex.y])
+            mesh_index = self.mesh.cx[mesh_vertex.x,
+                                      mesh_vertex.y].index.item()
+            mesh_vertices.append(GeoDataFrame({
                 'station': station['name'],
-                'station_x': station.geometry.x,
-                'station_y': station.geometry.y,
+                'x': station.geometry.x,
+                'y': station.geometry.y,
                 'distance': distance
-            }, geometry=[nearest_mesh_vertex], index=[mesh_index]))
-        nearest_mesh_vertices = pandas.concat(nearest_mesh_vertices)
-        nearest_mesh_vertices.reset_index(drop=True, inplace=True)
-        return nearest_mesh_vertices
+            }, geometry=[mesh_vertex], index=[mesh_index]))
+        mesh_vertices = pandas.concat(mesh_vertices)
+        mesh_vertices.reset_index(drop=True, inplace=True)
+        return mesh_vertices
 
     @property
     @lru_cache(maxsize=1)
     def values(self) -> GeoDataFrame:
-        observed_values = []
+        reference_values = []
         for variable_info in self.variables:
             for stage in self.stages:
                 station_parser = self.station_parsers[variable_info]
@@ -113,12 +125,12 @@ class StationComparison:
                 stations_filename = self.output_directory / list(self.runs)[
                     0] / stage / ADCIRC_VARIABLES.loc[variable_info][
                                         'stations']
-                stage_observed_values = station_parser(stations_filename,
-                                                       self.stations['name'])
+                stage_reference_values = station_parser(stations_filename,
+                                                        self.stations['name'])
 
-                stage_observed_values.insert(1, 'stage', stage)
-                observed_values.append(stage_observed_values)
-        observed_values = pandas.concat(observed_values)
+                stage_reference_values.insert(1, 'stage', stage)
+                reference_values.append(stage_reference_values)
+        reference_values = pandas.concat(reference_values)
 
         values = []
         for nearest_mesh_index, nearest_mesh_vertex in self.station_mesh_vertices.iterrows():
@@ -168,17 +180,16 @@ class StationComparison:
                                                   station_run_values,
                                                   how='left')
 
-            station_observed_values = observed_values[
-                observed_values['station'] == station_name]
-            station_observed_values = station_observed_values[['time',
-                                                               *self.variables]]
-            station_observed_values.columns = ['time',
-                                               *(f'observed_{variable}'
-                                                 for variable in
-                                                 self.variables)]
+            station_reference_values = reference_values[
+                reference_values['station'] == station_name]
+            station_reference_values = station_reference_values[['time',
+                                                                 *self.variables]]
+            station_reference_values.columns = [
+                'time', *(f'{self.reference_label}_{variable}'
+                          for variable in self.variables)]
 
             station_values = pandas.merge(station_values,
-                                          station_observed_values,
+                                          station_reference_values,
                                           how='left')
 
             station_values.insert(0, 'station', station_name)
@@ -197,8 +208,8 @@ class StationComparison:
     @lru_cache(maxsize=1)
     def errors(self) -> GeoDataFrame:
         values = self.values
-        observed_values = values.iloc[:, [0, 2,
-                                          *range(5, 5 + len(self.variables))]]
+        reference_values = values.iloc[:, [0, 2,
+                                           *range(5, 5 + len(self.variables))]]
 
         errors = []
         for _, station in self.stations.iterrows():
@@ -207,10 +218,10 @@ class StationComparison:
             station_distance = pandas.unique(
                 station_modeled_values['distance'])[0]
 
-            station_observed_values = observed_values[
-                                          observed_values['station'] ==
-                                          station['name']].iloc[:, 1:]
-            station_observed_values.columns = ['time', *self.variables]
+            station_reference_values = reference_values[
+                                           reference_values['station'] ==
+                                           station['name']].iloc[:, 1:]
+            station_reference_values.columns = ['time', *self.variables]
 
             station_errors = None
             for run_name in self.runs:
@@ -219,7 +230,7 @@ class StationComparison:
                               if run_name in column)]]
                 run_modeled_values.columns = ['time', *self.variables]
 
-                run_errors = run_modeled_values - station_observed_values
+                run_errors = run_modeled_values - station_reference_values
                 del run_modeled_values
 
                 run_errors.columns = ['time_difference', *self.variables]
@@ -317,10 +328,10 @@ class StationComparison:
             station_values = values[values['station'] == station['name']]
             for stage in self.stages:
                 stage_values = station_values[station_values['stage'] == stage]
-                observed_values = stage_values[
+                reference_values = stage_values[
                     ['time', *(column for column in stage_values.columns
-                               if 'observed_' in column)]]
-                observed_values.columns = ['time', *self.variables]
+                               if f'{self.reference_label}_' in column)]]
+                reference_values.columns = ['time', *self.variables]
 
                 for run_index, run_name in enumerate(self.runs):
                     observation_color = OBSERVATION_COLOR_MAP(
@@ -334,8 +345,8 @@ class StationComparison:
                     modeled_values.columns = ['time', *self.variables]
 
                     for variable, axis in axes.items():
-                        axis.plot(observed_values['time'],
-                                  observed_values[variable],
+                        axis.plot(reference_values['time'],
+                                  reference_values[variable],
                                   color=observation_color,
                                   linestyle=LINESTYLES[stage])
                         axis.plot(modeled_values['time'],
@@ -477,32 +488,26 @@ class StationComparison:
             pyplot.show()
 
 
-class ObservationComparison(StationComparison):
-    station_parsers = {
-        'u': fort62_stations_uv,
-        'v': fort62_stations_uv,
-        'zeta': fort61_stations_zeta
-    }
-
+class ObservationStationComparison(StationComparison):
     def __init__(self, input_directory: str, output_directory: str,
                  variables: [str], stages: [str] = None):
+        super().__init__(input_directory, output_directory, variables, stages,
+                         reference_label='observed')
+
+
+class VirtualStationComparison(StationComparison):
+    def __init__(self, input_directory: str, output_directory: str,
+                 variables: [str], stations_filename: str,
+                 stages: [str] = None, method: Callable = numpy.mean):
         super().__init__(input_directory, output_directory, variables,
-                         {variable: self.station_parsers[variable]
-                          for variable in variables}, stages)
+                         stages, station_parsers={}, reference_label='virtual')
+        self.stations = geopandas.read_file(stations_filename)
 
 
-def insert_magnitude_components(dataframe: DataFrame,
-                                u: str = 'u',
-                                v: str = 'v',
-                                magnitude: str = 'magnitude',
-                                direction: str = 'direction',
-                                velocity_index: int = None,
-                                direction_index: int = None):
-    if velocity_index is None:
-        velocity_index = len(dataframe.columns)
-    if direction_index is None:
-        direction_index = velocity_index + 1
-    dataframe.insert(velocity_index, magnitude, numpy.hypot(dataframe[u],
-                                                            dataframe[v]))
-    dataframe.insert(direction_index, direction, numpy.arctan2(dataframe[u],
-                                                               dataframe[v]))
+def vector_magnitude(vectors: numpy.array):
+    if not isinstance(vectors, numpy.ndarray):
+        vectors = numpy.array(vectors)
+    if len(vectors.shape) < 2:
+        vectors = numpy.expand_dims(vectors, axis=0)
+    return numpy.stack([numpy.hypot(vectors[:, 0], vectors[:, 1]),
+                        numpy.arctan2(vectors[:, 0], vectors[:, 1])], axis=1)
