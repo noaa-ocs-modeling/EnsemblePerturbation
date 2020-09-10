@@ -1,5 +1,4 @@
 from functools import lru_cache
-from functools import lru_cache
 from pathlib import Path
 from typing import Callable
 
@@ -14,9 +13,8 @@ from pyproj import CRS, Geod
 import shapely
 
 from ensemble_perturbation.inputs.adcirc import download_test_configuration
-from ensemble_perturbation.outputs.parse_output import fort61_stations_zeta, \
-    fort62_stations_uv, \
-    parse_adcirc_outputs
+from ensemble_perturbation.outputs.parse_output import ADCIRC_VARIABLES, \
+    fort61_stations_zeta, fort62_stations_uv, parse_adcirc_outputs
 
 OBSERVATION_COLOR_MAP = cm.get_cmap('Blues')
 MODEL_COLOR_MAP = cm.get_cmap('Reds')
@@ -26,14 +24,6 @@ LINESTYLES = {
     'coldstart': ':',
     'hotstart': '-'
 }
-
-ADCIRC_VARIABLES = DataFrame({
-    'stations': ['fort.61.nc', 'fort.62.nc', 'fort.62.nc'],
-    'model': ['fort.63.nc', 'fort.64.nc', 'fort.64.nc'],
-    'max': ['maxele.63.nc', 'maxvel.63.nc', 'maxvel.63.nc'],
-    'unit': ['m', 'm/s', 'm/s'],
-    'name': ['zeta', 'u-vel', 'v-vel']
-}, index=['zeta', 'u', 'v'])
 
 STATION_PARSERS = {
     'u': fort62_stations_uv,
@@ -499,9 +489,14 @@ class VirtualStationComparison(StationComparison):
     def __init__(self, input_directory: str, output_directory: str,
                  variables: [str], stations_filename: str,
                  stages: [str] = None, method: Callable = numpy.mean):
+        station_parsers = {variable: None
+                           for variable in self.variables}
         super().__init__(input_directory, output_directory, variables,
-                         stages, station_parsers={}, reference_label='virtual')
-        self.stations = geopandas.read_file(stations_filename)
+                         stages, station_parsers, reference_label='virtual')
+        stations = geopandas.read_file(stations_filename)
+        if 'name' not in stations.columns:
+            stations.insert(0, 'name', range(len(stations)))
+        self.stations = stations
 
 
 def vector_magnitude(vectors: numpy.array):

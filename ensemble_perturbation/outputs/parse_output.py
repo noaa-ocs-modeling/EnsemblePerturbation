@@ -9,7 +9,7 @@ import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
 
-ADCIRC_OUTPUT_DATA_VARIABLES = {
+ADCIRC_OUTPUTS = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
     'fort.61.nc': ['station_name', 'zeta'],
     # Depth-averaged Velocity Time Series at Specified Velocity Recording Stations (fort.62)
@@ -26,6 +26,14 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Maximum Velocity at All Nodes in the Model Grid (maxvel.63)
     'maxvel.63.nc': ['vel_max', 'time_of_vel_max']
 }
+
+ADCIRC_VARIABLES = DataFrame({
+    'stations': ['fort.61.nc', 'fort.62.nc', 'fort.62.nc'],
+    'model': ['fort.63.nc', 'fort.64.nc', 'fort.64.nc'],
+    'max': ['maxele.63.nc', 'maxvel.63.nc', 'maxvel.63.nc'],
+    'unit': ['m', 'm/s', 'm/s'],
+    'name': ['zeta', 'u-vel', 'v-vel']
+}, index=['zeta', 'u', 'v'])
 
 NODATA = -99999.0
 
@@ -66,7 +74,8 @@ def fort61_stations_zeta(filename: str,
 
         stations.append(GeoDataFrame({
             'time': times,
-            'zeta': dataset['zeta'][:, station_index],
+            'zeta': dataset[ADCIRC_VARIABLES.loc['zeta']['name']][:,
+                    station_index],
             'station': station_name
         }, geometry=[station_point for _ in times]))
 
@@ -93,8 +102,8 @@ def fort62_stations_uv(filename: str,
 
         stations.append(GeoDataFrame({
             'time': times,
-            'u': dataset['u-vel'][:, station_index],
-            'v': dataset['v-vel'][:, station_index],
+            'u': dataset[ADCIRC_VARIABLES.loc['u']['name']][:, station_index],
+            'v': dataset[ADCIRC_VARIABLES.loc['v']['name']][:, station_index],
             'station': station_name
         }, geometry=[station_point for _ in times]))
 
@@ -118,7 +127,7 @@ def parse_adcirc_netcdf(
     basename = filename.parts[-1]
 
     if variables is None:
-        variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
+        variables = ADCIRC_OUTPUTS[basename]
 
     dataset = Dataset(filename)
 
@@ -137,9 +146,7 @@ def parse_adcirc_netcdf(
     elif basename in ['fort.61.nc', 'fort.62.nc']:
         data = GeoDataFrame({
             'name': [station_name.tobytes().decode().strip().strip('\'')
-                     for station_name in dataset['station_name']],
-            'x': coordinates[:, 0],
-            'y': coordinates[:, 1]
+                     for station_name in dataset['station_name']]
         }, geometry=geopandas.points_from_xy(coordinates[:, 0],
                                              coordinates[:, 1]))
     else:
@@ -177,9 +184,9 @@ def parse_adcirc_output(
         directory = Path(directory)
 
     if file_data_variables is None:
-        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+        file_data_variables = ADCIRC_OUTPUTS
     else:
-        file_data_variables = {filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+        file_data_variables = {filename: ADCIRC_OUTPUTS[filename]
                                for filename in file_data_variables}
 
     output_data = {}
