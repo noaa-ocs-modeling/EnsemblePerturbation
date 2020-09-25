@@ -8,7 +8,7 @@ from osgeo import gdal
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon, \
     shape as shapely_shape
 
-from ensemble_perturbation import get_logger
+from ensemble_perturbation.utilities import get_logger
 
 LOGGER = get_logger('plotting')
 

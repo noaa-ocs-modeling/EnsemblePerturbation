@@ -2,8 +2,8 @@ from pathlib import Path
 
 from matplotlib import pyplot
 
-from ensemble_perturbation import get_logger
 from ensemble_perturbation.outputs.comparison import VelocityComparison
+from ensemble_perturbation.utilities import get_logger
 
 LOGGER = get_logger('compare.uv')
 
