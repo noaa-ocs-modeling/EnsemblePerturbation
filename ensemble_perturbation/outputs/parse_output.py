@@ -1,3 +1,4 @@
+from os import PathLike
 from pathlib import Path
 from typing import Union
 
@@ -12,11 +13,13 @@ from shapely.geometry import Point
 ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
     'fort.61.nc': ['station_name', 'zeta'],
-    # Depth-averaged Velocity Time Series at Specified Velocity Recording Stations (fort.62)
+    # Depth-averaged Velocity Time Series at Specified Velocity Recording
+    # Stations (fort.62)
     'fort.62.nc': ['station_name', 'u-vel', 'v-vel'],
     # Elevation Time Series at All Nodes in the Model Grid (fort.63)
     'fort.63.nc': ['zeta'],
-    # Depth-averaged Velocity Time Series at All Nodes in the Model Grid (fort.64)
+    # Depth-averaged Velocity Time Series at All Nodes in the Model Grid (
+    # fort.64)
     'fort.64.nc': ['u-vel', 'v-vel'],
     # Hot Start Output (fort.67, fort.68)
     'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
@@ -46,7 +49,7 @@ def decode_time(variable: Variable, unit: str = None) -> numpy.array:
         f'timedelta64[{intervals[unit]}]')
 
 
-def fort61_stations_zeta(filename: str,
+def fort61_stations_zeta(filename: PathLike,
                          station_names: [str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
@@ -73,7 +76,7 @@ def fort61_stations_zeta(filename: str,
     return pandas.concat(stations)
 
 
-def fort62_stations_uv(filename: str,
+def fort62_stations_uv(filename: PathLike,
                        station_names: [str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
@@ -101,10 +104,8 @@ def fort62_stations_uv(filename: str,
     return pandas.concat(stations)
 
 
-def parse_adcirc_netcdf(
-        filename: str,
-        variables: [str] = None
-) -> Union[dict, DataFrame]:
+def parse_adcirc_netcdf(filename: PathLike,
+                        variables: [str] = None) -> Union[dict, DataFrame]:
     """
     Parse ADCIRC output files
 
@@ -168,7 +169,8 @@ def parse_adcirc_output(
     """
     Parse ADCIRC output files
 
-    :param directory: path to directory containing ADCIRC output files in NetCDF format
+    :param directory: path to directory containing ADCIRC output files in
+    NetCDF format
     :param file_data_variables: output files to outputs
     :return: dictionary of output data
     """

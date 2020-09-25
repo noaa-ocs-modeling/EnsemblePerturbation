@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from glob import glob
 import os
 from pathlib import Path
+from shutil import copyfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
@@ -102,5 +103,8 @@ if __name__ == '__main__':
                 text.replace('padcirc', 'NEMS.x')
                 with open(job_filename, 'w') as job_file:
                     job_file.write(text)
+
+    copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
+             OUTPUT_DIRECTORY / 'slurm.job')
 
     print('done')
