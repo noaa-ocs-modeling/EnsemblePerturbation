@@ -114,7 +114,4 @@ if __name__ == '__main__':
     copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
              OUTPUT_DIRECTORY / 'slurm.job')
 
-    copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
-             OUTPUT_DIRECTORY / 'slurm.job')
-
     print('done')
