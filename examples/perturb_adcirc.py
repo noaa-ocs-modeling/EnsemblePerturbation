@@ -12,8 +12,8 @@ from nemspy import ModelingSystem
 from nemspy.model import ADCIRC, AtmosphericMesh, WaveMesh
 import numpy
 
-from ensemble_perturbation import get_logger, repository_root
 from ensemble_perturbation.inputs.adcirc import download_test_configuration
+from ensemble_perturbation.utilities import get_logger, repository_root
 
 LOGGER = get_logger('perturb.adcirc')
 
