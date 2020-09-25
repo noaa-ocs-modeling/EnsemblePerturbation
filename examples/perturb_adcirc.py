@@ -1,9 +1,9 @@
 #! /usr/bin/env python
-
 from datetime import datetime, timedelta
 from glob import glob
 import os
 from pathlib import Path
+import re
 from shutil import copyfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
@@ -94,17 +94,18 @@ if __name__ == '__main__':
         driver.write(output_directory, overwrite=True)
         nems.write(output_directory, overwrite=True)
 
-        for job_filename in glob(str(output_directory / '**' / 'slurm.job')):
-            with open(job_filename) as job_file:
-                text = job_file.read()
-            if 'padcirc' in text:
-                LOGGER.info(f'replacing `padcirc` with `NEMS.x` in '
-                            f'"{job_filename}"')
-                text.replace('padcirc', 'NEMS.x')
-                with open(job_filename, 'w') as job_file:
-                    job_file.write(text)
-
     copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
              OUTPUT_DIRECTORY / 'slurm.job')
+
+    pattern = re.compile('(p)*(adcirc)')
+    for job_filename in glob(str(OUTPUT_DIRECTORY / '**' / 'slurm.job')):
+        with open(job_filename) as job_file:
+            text = job_file.read()
+        if re.match(pattern, text):
+            LOGGER.info(f'replacing `adcirc` with `NEMS.x` in '
+                        f'"{job_filename}"')
+            text = re.sub(pattern, 'NEMS.x', text)
+            with open(job_filename, 'w') as job_file:
+                job_file.write(text)
 
     print('done')
