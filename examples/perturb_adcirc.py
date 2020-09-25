@@ -111,7 +111,4 @@ if __name__ == '__main__':
             with open(job_filename, 'w') as job_file:
                 job_file.write(text)
 
-    copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
-             OUTPUT_DIRECTORY / 'slurm.job')
-
     print('done')
