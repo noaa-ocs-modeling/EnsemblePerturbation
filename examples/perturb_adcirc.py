@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+from shutil import copyfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
@@ -79,5 +80,8 @@ if __name__ == '__main__':
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)], fill_value=mannings_n)
         driver.write(output_directory, overwrite=True)
+
+    copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
+             OUTPUT_DIRECTORY / 'slurm.job')
 
     print('done')

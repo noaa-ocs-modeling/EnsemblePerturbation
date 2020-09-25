@@ -1,5 +1,6 @@
 import logging
-import os
+from os import PathLike
+from pathlib import Path
 import sys
 
 import numpy
@@ -7,19 +8,21 @@ from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point
 
 
-def repository_root(path: str = None) -> str:
+def repository_root(path: PathLike = None) -> Path:
     if path is None:
-        path = __file__
-    if os.path.isfile(path):
-        path = os.path.dirname(path)
-    if '.git' in os.listdir(path):
+        path = Path(__file__)
+    if not isinstance(path, Path):
+        path = Path(path)
+    if path.is_file():
+        path = path.parent
+    if '.git' in path.iterdir():
         return path
     else:
-        return repository_root(os.path.dirname(path))
+        return repository_root(path.parent)
 
 
-def get_logger(name: str, log_filename: str = None, file_level: int = None,
-               console_level: int = None,
+def get_logger(name: str, log_filename: PathLike = None,
+               file_level: int = None, console_level: int = None,
                log_format: str = None) -> logging.Logger:
     if file_level is None:
         file_level = logging.DEBUG
