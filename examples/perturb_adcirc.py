@@ -97,14 +97,17 @@ if __name__ == '__main__':
     copyfile(repository_root() / 'ensemble_perturbation/inputs/slurm.job',
              OUTPUT_DIRECTORY / 'slurm.job')
 
-    pattern = re.compile('(p)*(adcirc)')
-    for job_filename in glob(str(OUTPUT_DIRECTORY / '**' / 'slurm.job')):
+    pattern = re.compile(' p*adcirc')
+    replacement = ' NEMS.x'
+    for job_filename in glob(str(OUTPUT_DIRECTORY / '**' / 'slurm.job'),
+                             recursive=True):
         with open(job_filename) as job_file:
             text = job_file.read()
-        if re.match(pattern, text):
-            LOGGER.info(f'replacing `adcirc` with `NEMS.x` in '
-                        f'"{job_filename}"')
-            text = re.sub(pattern, 'NEMS.x', text)
+        matched = pattern.search(text)
+        if matched:
+            LOGGER.info(f'replacing `{matched.group(0)}` with `{replacement}` '
+                        f'in "{job_filename}"')
+            text = re.sub(pattern, replacement, text)
             with open(job_filename, 'w') as job_file:
                 job_file.write(text)
 
