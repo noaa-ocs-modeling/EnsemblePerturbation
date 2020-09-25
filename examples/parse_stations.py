@@ -1,13 +1,14 @@
+from os import PathLike
 from pathlib import Path
 
 import fiona
 from pyproj import CRS
 from shapely.geometry import Point, mapping
 
-from ensemble_perturbation import repository_root
+from ensemble_perturbation.utilities import repository_root
 
 
-def parse_stations(filename: str) -> {str: Point}:
+def parse_stations(filename: PathLike) -> {str: Point}:
     with open(filename) as stations_file:
         lines = [line.split()
                  for line in list(stations_file.readlines())[2:]]

@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 import os
+from os import PathLike
 
 from geopandas import GeoDataFrame
 from pyproj import CRS
 
-from ensemble_perturbation import get_logger
+from ensemble_perturbation.utilities import get_logger
 
 LOGGER = get_logger('seabed')
 
@@ -48,7 +49,7 @@ class SeabedDescriptions(ABC):
         for survey in self.surveys:
             yield self[survey]
 
-    def write(self, filename: str, **kwargs):
+    def write(self, filename: PathLike, **kwargs):
         drivers = {
             '.csv': 'CSV',
             '.gpkg': 'GPKG',

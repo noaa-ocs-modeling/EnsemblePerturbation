@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import lru_cache
+from os import PathLike
 from pathlib import Path
 
 from geopandas import GeoDataFrame
@@ -113,7 +114,8 @@ class ReferenceComparison(ABC):
         values = []
         model_output_basename = ADCIRC_VARIABLES.loc[self.variables[0]][
             'model']
-        for nearest_mesh_index, nearest_mesh_vertex in self.station_mesh_vertices.iterrows():
+        for nearest_mesh_index, nearest_mesh_vertex in \
+                self.station_mesh_vertices.iterrows():
             station_name = nearest_mesh_vertex['station']
 
             station_values = None
@@ -278,7 +280,7 @@ class ReferenceComparison(ABC):
         return rmses
 
     @abstractmethod
-    def parse_stations(self, filename: str,
+    def parse_stations(self, filename: PathLike,
                        station_names: [str]) -> GeoDataFrame:
         raise NotImplementedError
 
@@ -386,7 +388,8 @@ class ReferenceComparison(ABC):
                     variable_errors = station_errors[['time', 'stage',
                                                       *(column for column in
                                                         errors if column ==
-                                                        f'{run_name}_{variable}')]]
+                                                        f'{run_name}_'
+                                                        f'{variable}')]]
                     variable_errors.columns = ['time', 'stage', variable]
                     for stage in self.stages:
                         stage_errors = variable_errors[
@@ -475,7 +478,7 @@ class ZetaComparison(ReferenceComparison):
         super().__init__(input_directory, output_directory, ['zeta'],
                          ['coldstart', 'hotstart'])
 
-    def parse_stations(self, filename: str,
+    def parse_stations(self, filename: PathLike,
                        station_names: [str]) -> GeoDataFrame:
         return fort61_stations_zeta(filename, station_names)
 
@@ -485,7 +488,7 @@ class VelocityComparison(ReferenceComparison):
         super().__init__(input_directory, output_directory, ['u', 'v'],
                          ['coldstart', 'hotstart'])
 
-    def parse_stations(self, filename: str,
+    def parse_stations(self, filename: PathLike,
                        station_names: [str]) -> GeoDataFrame:
         return fort62_stations_uv(filename, station_names)
 

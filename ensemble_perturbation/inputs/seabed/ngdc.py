@@ -11,8 +11,8 @@ import requests
 from requests import Response, Session
 from requests_futures.sessions import FuturesSession
 
-from ensemble_perturbation import get_logger
 from ensemble_perturbation.inputs.seabed.seabed import SeabedDescriptions
+from ensemble_perturbation.utilities import get_logger
 
 LOGGER = get_logger('seabed.ngdc')
 
