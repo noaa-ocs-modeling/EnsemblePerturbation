@@ -14,7 +14,7 @@ from ensemble_perturbation.inputs.adcirc import download_test_configuration
 
 LOGGER = get_logger('perturb.adcirc')
 
-DATA_DIRECTORY = Path(repository_root()) / 'examples/data'
+DATA_DIRECTORY = repository_root() / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
 OUTPUT_DIRECTORY = DATA_DIRECTORY / 'output'
 
