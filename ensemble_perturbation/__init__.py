@@ -8,14 +8,15 @@ from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point
 
 
-def repository_root(path: PathLike = None) -> Path:
+def repository_root(path: PathLike = None) -> str:
     if path is None:
-        path = Path(__file__)
+        path = __file__
     if not isinstance(path, Path):
         path = Path(path)
     if path.is_file():
         path = path.parent
-    if '.git' in path.iterdir():
+    if '.git' in (child.name for child in
+                  path.iterdir()) or path == path.parent:
         return path
     else:
         return repository_root(path.parent)
