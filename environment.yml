@@ -17,5 +17,6 @@ dependencies:
       - adcircpy==1.0.12
       - coverage
       - flake8
+      - nemspy>=0.3
       - nose
       - requests_futures

@@ -1,11 +1,14 @@
 #! /usr/bin/env python
 
 from datetime import datetime, timedelta
+from glob import glob
 import os
 from pathlib import Path
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
+from nemspy import ModelingSystem
+from nemspy.model import ADCIRC, AtmosphericMesh, WaveMesh
 import numpy
 
 from ensemble_perturbation import get_logger, repository_root
@@ -40,6 +43,15 @@ if __name__ == '__main__':
 
     mesh.add_forcing(tidal_forcing)
 
+    start_time = datetime(2020, 6, 1)
+    duration = timedelta(days=7)
+    interval = timedelta(hours=1)
+
+    nems = ModelingSystem(start_time, duration, interval,
+                          atm=AtmosphericMesh('atm.nc'),
+                          wav=WaveMesh('wav.nc'),
+                          ocn=ADCIRC(10))
+
     # instantiate AdcircRun object.
     slurm = SlurmConfig(
         account=None,
@@ -57,8 +69,8 @@ if __name__ == '__main__':
     )
     driver = AdcircRun(
         mesh=mesh,
-        start_date=datetime.now(),
-        end_date=timedelta(days=7),
+        start_date=start_time,
+        end_date=start_time + duration,
         spinup_time=timedelta(days=5),
         server_config=slurm
     )
@@ -79,5 +91,16 @@ if __name__ == '__main__':
         driver.mesh.mannings_n_at_sea_floor = numpy.full(
             [len(driver.mesh.coords)], fill_value=mannings_n)
         driver.write(output_directory, overwrite=True)
+        nems.write(output_directory, overwrite=True)
+
+        for job_filename in glob(str(output_directory / '**' / 'slurm.job')):
+            with open(job_filename) as job_file:
+                text = job_file.read()
+            if 'padcirc' in text:
+                LOGGER.info(f'replacing `padcirc` with `NEMS.x` in '
+                            f'"{job_filename}"')
+                text.replace('padcirc', 'NEMS.x')
+                with open(job_filename, 'w') as job_file:
+                    job_file.write(text)
 
     print('done')
