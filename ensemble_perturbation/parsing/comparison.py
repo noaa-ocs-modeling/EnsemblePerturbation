@@ -12,10 +12,13 @@ from pandas import DataFrame
 from pyproj import CRS, Geod
 import shapely
 
-from ensemble_perturbation.inputs.adcirc import download_test_configuration
-from ensemble_perturbation.outputs.parse_output import fort61_stations_zeta, \
-    fort62_stations_uv, \
-    parse_adcirc_outputs
+from ensemble_perturbation.configuration.adcirc import \
+    download_test_configuration
+from ensemble_perturbation.parsing.adcirc import fort61_stations_zeta, \
+    fort62_stations_uv, parse_adcirc_outputs
+from ensemble_perturbation.utilities import get_logger
+
+LOGGER = get_logger('parsing.comparison')
 
 OBSERVATION_COLOR_MAP = cm.get_cmap('Blues')
 MODEL_COLOR_MAP = cm.get_cmap('Reds')

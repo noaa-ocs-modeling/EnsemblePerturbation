@@ -17,7 +17,8 @@ def geoarray_to_xyz(data: numpy.array, origin: (float, float),
                     resolution: (float, float),
                     nodata: float = None) -> numpy.array:
     """
-    Extract XYZ points from an array of data using the given raster-like georeference (origin  and resolution).
+    Extract XYZ points from an array of data using the given raster-like
+    georeference (origin  and resolution).
 
     Parameters
     ----------
@@ -429,7 +430,8 @@ def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
 #                        output_index: int = 0,
 #                        show: bool = False):
 #     """
-#     Plot original data side-by-side with an interpolated raster for comparison.
+#     Plot original data side-by-side with an interpolated raster for
+#     comparison.
 #
 #     Parameters
 #     ----------
@@ -448,7 +450,8 @@ def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
 #     """
 #
 #     if original_dataset.RasterCount > 0:
-#         original_raster_band = original_dataset.GetRasterBand(input_index + 1)
+#         original_raster_band = original_dataset.GetRasterBand(input_index
+#         + 1)
 #         original_data = original_raster_band.ReadAsArray()
 #         original_nodata = original_raster_band.GetNoDataValue()
 #         original_data[original_data == original_nodata] = numpy.nan

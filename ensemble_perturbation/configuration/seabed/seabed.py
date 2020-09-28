@@ -7,7 +7,7 @@ from pyproj import CRS
 
 from ensemble_perturbation.utilities import get_logger
 
-LOGGER = get_logger('seabed')
+LOGGER = get_logger('configuration.seabed')
 
 
 class SeabedDescriptions(ABC):

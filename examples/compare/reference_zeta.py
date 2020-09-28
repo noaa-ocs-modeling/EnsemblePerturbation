@@ -2,7 +2,7 @@ from pathlib import Path
 
 from matplotlib import pyplot
 
-from ensemble_perturbation.outputs.comparison import ZetaComparison
+from ensemble_perturbation.parsing.comparison import ZetaComparison
 from ensemble_perturbation.utilities import get_logger
 
 LOGGER = get_logger('compare.zeta')

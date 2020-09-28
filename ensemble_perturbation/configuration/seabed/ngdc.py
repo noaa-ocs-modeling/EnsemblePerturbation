@@ -11,10 +11,11 @@ import requests
 from requests import Response, Session
 from requests_futures.sessions import FuturesSession
 
-from ensemble_perturbation.inputs.seabed.seabed import SeabedDescriptions
+from ensemble_perturbation.configuration.seabed.seabed import \
+    SeabedDescriptions
 from ensemble_perturbation.utilities import get_logger
 
-LOGGER = get_logger('seabed.ngdc')
+LOGGER = get_logger('configuration.seabed.ngdc')
 
 URL = 'https://www.ngdc.noaa.gov/geosamples/surveydisplay.jsp'
 DATA_CRS = CRS.from_epsg(4326)

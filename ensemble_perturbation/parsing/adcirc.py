@@ -4,11 +4,16 @@ from typing import Union
 
 import geopandas
 from geopandas import GeoDataFrame
-from netCDF4 import Dataset, Variable
+from netCDF4 import Dataset
 import numpy
 import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
+
+from ensemble_perturbation.parsing.utilities import decode_time
+from ensemble_perturbation.utilities import get_logger
+
+LOGGER = get_logger('parsing.adcirc')
 
 ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
@@ -31,22 +36,6 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
 }
 
 NODATA = -99999.0
-
-
-def decode_time(variable: Variable, unit: str = None) -> numpy.array:
-    if unit is None:
-        unit = variable.units
-    unit, direction, base_date = unit.split(' ', 2)
-    intervals = {
-        'years': 'Y',
-        'months': 'M',
-        'days': 'D',
-        'hours': 'h',
-        'minutes': 'm',
-        'seconds': 's'
-    }
-    return numpy.datetime64(base_date) + numpy.array(variable).astype(
-        f'timedelta64[{intervals[unit]}]')
 
 
 def fort61_stations_zeta(filename: PathLike,
@@ -171,7 +160,7 @@ def parse_adcirc_output(
 
     :param directory: path to directory containing ADCIRC output files in
     NetCDF format
-    :param file_data_variables: output files to outputs
+    :param file_data_variables: output files to parsing
     :return: dictionary of output data
     """
 
