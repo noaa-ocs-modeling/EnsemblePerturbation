@@ -63,4 +63,4 @@ class SeabedDescriptions(ABC):
         extension = os.path.splitext(filename)[-1]
         kwargs['driver'] = drivers[extension]
 
-        self.data.to_file(filename, **kwargs)
+        self.data.to_file(str(filename), **kwargs)

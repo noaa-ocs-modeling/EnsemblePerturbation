@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from glob import glob
 import os
+from os import PathLike
 from pathlib import Path
 import re
 from shutil import copyfile
@@ -52,9 +53,14 @@ def write_adcirc_configurations(runs: {str: (float, str)},
     :param output_directory: path to store run configuration
     """
 
-    if not os.path.exists(input_directory):
+    if not isinstance(input_directory, Path):
+        input_directory = Path(input_directory)
+    if not isinstance(output_directory, Path):
+        input_directory = Path(output_directory)
+
+    if not input_directory.exists():
         os.makedirs(input_directory, exist_ok=True)
-    if not os.path.exists(output_directory):
+    if not output_directory.exists():
         os.makedirs(output_directory, exist_ok=True)
 
     fort14_filename = input_directory / "fort.14"
@@ -123,9 +129,9 @@ def write_adcirc_configurations(runs: {str: (float, str)},
         driver.write(run_directory, overwrite=True)
         nems.write(run_directory, overwrite=True)
 
-    copyfile(
-        repository_root() / 'ensemble_perturbation/configuration/slurm.job',
-        output_directory / 'slurm.job')
+    copyfile(repository_root() /
+             'ensemble_perturbation/configuration/slurm.job',
+             output_directory / 'slurm.job')
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'

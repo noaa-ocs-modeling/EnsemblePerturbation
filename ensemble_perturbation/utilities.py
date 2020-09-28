@@ -8,7 +8,7 @@ from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point
 
 
-def repository_root(path: PathLike = None) -> str:
+def repository_root(path: PathLike = None) -> Path:
     if path is None:
         path = __file__
     if not isinstance(path, Path):
