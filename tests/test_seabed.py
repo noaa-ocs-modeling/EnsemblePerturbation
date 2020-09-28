@@ -3,7 +3,8 @@ import unittest
 import numpy
 from pyproj import CRS, Transformer
 
-from ensemble_perturbation.inputs.seabed.ngdc import NGDCSeabedDescriptions
+from ensemble_perturbation.configuration.seabed.ngdc import \
+    NGDCSeabedDescriptions
 
 
 class TestSeabedDescriptions(unittest.TestCase):
