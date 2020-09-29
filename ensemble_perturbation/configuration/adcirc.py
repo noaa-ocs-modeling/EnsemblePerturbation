@@ -31,20 +31,19 @@ def download_test_configuration(directory: str):
     if not directory.exists():
         os.makedirs(directory, exist_ok=True)
 
-    url = "https://www.dropbox.com/s/1wk91r67cacf132/" \
-          "NetCDF_shinnecock_inlet.tar.bz2?dl=1"
+    url = 'https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1'
     remote_file = requests.get(url, stream=True)
     temporary_filename = directory / 'temp.tar.gz'
     with open(temporary_filename, 'b+w') as local_file:
         local_file.write(remote_file.raw.read())
-    with tarfile.open(temporary_filename, "r:bz2") as local_file:
+    with tarfile.open(temporary_filename, 'r:bz2') as local_file:
         local_file.extractall(directory)
     os.remove(temporary_filename)
 
 
-def write_adcirc_configurations(runs: {str: (float, str)},
-                                input_directory: PathLike,
-                                output_directory: PathLike):
+def write_adcirc_configurations(
+        runs: {str: (float, str)}, input_directory: PathLike, output_directory: PathLike
+):
     """
     Generate ADCIRC run configuration for given variable values.
 
@@ -63,7 +62,7 @@ def write_adcirc_configurations(runs: {str: (float, str)},
     if not output_directory.exists():
         os.makedirs(output_directory, exist_ok=True)
 
-    fort14_filename = input_directory / "fort.14"
+    fort14_filename = input_directory / 'fort.14'
 
     if not fort14_filename.is_file():
         download_test_configuration(input_directory)
@@ -81,10 +80,14 @@ def write_adcirc_configurations(runs: {str: (float, str)},
     duration = timedelta(days=7)
     interval = timedelta(hours=1)
 
-    nems = ModelingSystem(start_time, duration, interval,
-                          atm=AtmosphericMesh('atm.nc'),
-                          wav=WaveMesh('wav.nc'),
-                          ocn=ADCIRC(10))
+    nems = ModelingSystem(
+        start_time,
+        duration,
+        interval,
+        atm=AtmosphericMesh('atm.nc'),
+        wav=WaveMesh('wav.nc'),
+        ocn=ADCIRC(10),
+    )
 
     # instantiate AdcircRun object.
     slurm = SlurmConfig(
@@ -99,25 +102,20 @@ def write_adcirc_configurations(runs: {str: (float, str)},
         log_filename='mannings_n_perturbation.log',
         modules=['intel', 'impi', 'netcdf'],
         path_prefix='$HOME/adcirc/build',
-        launcher='ibrun'
+        launcher='ibrun',
     )
     driver = AdcircRun(
         mesh=mesh,
         start_date=start_time,
         end_date=start_time + duration,
         spinup_time=timedelta(days=5),
-        server_config=slurm
+        server_config=slurm,
     )
-    driver.import_stations(Path(repository_root()) /
-                           'examples/data/stations.txt')
-    driver.set_elevation_stations_output(timedelta(minutes=6),
-                                         spinup=timedelta(minutes=6))
-    driver.set_elevation_surface_output(timedelta(minutes=6),
-                                        spinup=timedelta(minutes=6))
-    driver.set_velocity_stations_output(timedelta(minutes=6),
-                                        spinup=timedelta(minutes=6))
-    driver.set_velocity_surface_output(timedelta(minutes=6),
-                                       spinup=timedelta(minutes=6))
+    driver.import_stations(Path(repository_root()) / 'examples/data/stations.txt')
+    driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_elevation_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_velocity_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_velocity_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
     for run_name, (value, attribute_name) in runs.items():
         run_directory = output_directory / run_name
         LOGGER.info(f'writing config files for "{run_directory}"')
@@ -129,20 +127,21 @@ def write_adcirc_configurations(runs: {str: (float, str)},
         driver.write(run_directory, overwrite=True)
         nems.write(run_directory, overwrite=True)
 
-    copyfile(repository_root() /
-             'ensemble_perturbation/configuration/slurm.job',
-             output_directory / 'slurm.job')
+    copyfile(
+        repository_root() / 'ensemble_perturbation/configuration/slurm.job',
+        output_directory / 'slurm.job',
+    )
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
-    for job_filename in glob(str(output_directory / '**' / 'slurm.job'),
-                             recursive=True):
+    for job_filename in glob(str(output_directory / '**' / 'slurm.job'), recursive=True):
         with open(job_filename) as job_file:
             text = job_file.read()
         matched = pattern.search(text)
         if matched:
-            LOGGER.debug(f'replacing `{matched.group(0)}` with `{replacement}`'
-                         f' in "{job_filename}"')
+            LOGGER.debug(
+                f'replacing `{matched.group(0)}` with `{replacement}`' f' in "{job_filename}"'
+            )
             text = re.sub(pattern, replacement, text)
             with open(job_filename, 'w') as job_file:
                 job_file.write(text)

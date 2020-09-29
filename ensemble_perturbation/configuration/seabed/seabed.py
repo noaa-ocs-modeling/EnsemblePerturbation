@@ -15,8 +15,12 @@ class SeabedDescriptions(ABC):
     latitude_field = 'Latitude'
     description_field = 'Description'
 
-    def __init__(self, bounds: (float, float, float, float) = None,
-                 surveys: [str] = None, crs: CRS = None):
+    def __init__(
+            self,
+            bounds: (float, float, float, float) = None,
+            surveys: [str] = None,
+            crs: CRS = None,
+    ):
         self.bounds = bounds
         self.__surveys = surveys
         self.crs = CRS.from_user_input(crs) if crs is not None else None
@@ -57,7 +61,7 @@ class SeabedDescriptions(ABC):
             '.shp': 'Esri Shapefile',
             '.gdb': 'OpenFileGDB',
             '.gml': 'GML',
-            '.xml': 'GML'
+            '.xml': 'GML',
         }
 
         extension = os.path.splitext(filename)[-1]

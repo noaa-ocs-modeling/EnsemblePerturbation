@@ -12,7 +12,8 @@ def decode_time(variable: Variable, unit: str = None) -> numpy.array:
         'days': 'D',
         'hours': 'h',
         'minutes': 'm',
-        'seconds': 's'
+        'seconds': 's',
     }
     return numpy.datetime64(base_date) + numpy.array(variable).astype(
-        f'timedelta64[{intervals[unit]}]')
+        f'timedelta64[{intervals[unit]}]'
+    )
