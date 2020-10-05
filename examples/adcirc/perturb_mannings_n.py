@@ -19,8 +19,8 @@ if __name__ == '__main__':
     }
 
     models = {
-        'atm': AtmosphericMeshEntry('atm.nc'),
-        'wav': WaveMeshEntry('wav.nc'),
+        'atm': AtmosphericMeshEntry('../data/wind_atm_fin_ch_time_vec.nc'),
+        'wav': WaveMeshEntry('../data/ww3.Constant.20151214_sxy_ike_date.nc'),
         'ocn': ADCIRCEntry(11)
     }
 
