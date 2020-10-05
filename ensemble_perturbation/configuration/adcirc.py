@@ -10,7 +10,7 @@ import tarfile
 from adcircpy import AdcircMesh, AdcircRun, Tides
 from adcircpy.server import SlurmConfig
 from nemspy import ModelingSystem
-from nemspy.model import ADCIRC, AtmosphericMesh, WaveMesh
+from nemspy.model import ADCIRCEntry
 import numpy
 import requests
 
@@ -41,9 +41,7 @@ def download_test_configuration(directory: str):
     os.remove(temporary_filename)
 
 
-def write_adcirc_configurations(
-        runs: {str: (float, str)}, input_directory: PathLike, output_directory: PathLike
-):
+def write_adcirc_configurations(runs: {str: (float, str)}, input_directory: PathLike, output_directory: PathLike, **models):
     """
     Generate ADCIRC run configuration for given variable values.
 
@@ -61,6 +59,9 @@ def write_adcirc_configurations(
         os.makedirs(input_directory, exist_ok=True)
     if not output_directory.exists():
         os.makedirs(output_directory, exist_ok=True)
+
+    if 'ocn' not in models or not isinstance(models['ocn'], ADCIRCEntry):
+        models['ocn'] = ADCIRCEntry(11)
 
     fort14_filename = input_directory / 'fort.14'
 
@@ -84,9 +85,7 @@ def write_adcirc_configurations(
         start_time,
         duration,
         interval,
-        atm=AtmosphericMesh('atm.nc'),
-        wav=WaveMesh('wav.nc'),
-        ocn=ADCIRC(10),
+        **models,
     )
 
     # instantiate AdcircRun object.

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 import numpy
 
 from ensemble_perturbation.configuration.adcirc import write_adcirc_configurations
@@ -17,5 +18,11 @@ if __name__ == '__main__':
         for mannings_n in numpy.linspace(0.016, 0.08, 5)
     }
 
-    write_adcirc_configurations(runs, INPUT_DIRECTORY, OUTPUT_DIRECTORY)
+    models = {
+        'atm': AtmosphericMeshEntry('atm.nc'),
+        'wav': WaveMeshEntry('wav.nc'),
+        'ocn': ADCIRCEntry(11)
+    }
+
+    write_adcirc_configurations(runs, INPUT_DIRECTORY, OUTPUT_DIRECTORY, **models)
     print('done')
