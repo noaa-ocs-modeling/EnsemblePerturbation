@@ -1,5 +1,7 @@
 #! /usr/bin/env python
+from datetime import datetime, timedelta
 
+from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 import numpy
 
@@ -18,11 +20,13 @@ if __name__ == '__main__':
         for mannings_n in numpy.linspace(0.016, 0.08, 5)
     }
 
-    models = {
-        'atm': AtmosphericMeshEntry('../data/wind_atm_fin_ch_time_vec.nc'),
-        'wav': WaveMeshEntry('../data/ww3.Constant.20151214_sxy_ike_date.nc'),
-        'ocn': ADCIRCEntry(11)
-    }
+    nems = ModelingSystem(start_time=datetime(2020, 6, 1),
+                          model_duration=timedelta(days=7),
+                          interval=timedelta(hours=1),
+                          atm=AtmosphericMeshEntry('../data/wind_atm_fin_ch_time_vec.nc'),
+                          wav=WaveMeshEntry('../data/ww3.Constant.20151214_sxy_ike_date.nc'),
+                          ocn=ADCIRCEntry(11))
 
-    write_adcirc_configurations(runs, INPUT_DIRECTORY, OUTPUT_DIRECTORY, **models)
+    write_adcirc_configurations(nems, runs, INPUT_DIRECTORY, OUTPUT_DIRECTORY, name='mannings_n_perturbation',
+                                email_address='zachary.r.burnett@gmail.com')
     print('done')

@@ -1,10 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from glob import glob
 import os
 from os import PathLike
 from pathlib import Path
 import re
-from shutil import copyfile
+import shutil
 import tarfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
@@ -14,9 +14,12 @@ from nemspy.model import ADCIRCEntry
 import numpy
 import requests
 
+from ensemble_perturbation.configuration.job_script import EnsembleSlurmScript, SlurmEmailType
 from ensemble_perturbation.utilities import get_logger, repository_root
 
 LOGGER = get_logger('configuration.adcirc')
+
+TACC_TASKS_PER_NODE = 68
 
 
 def download_test_configuration(directory: str):
@@ -41,13 +44,21 @@ def download_test_configuration(directory: str):
     os.remove(temporary_filename)
 
 
-def write_adcirc_configurations(runs: {str: (float, str)}, input_directory: PathLike, output_directory: PathLike, **models):
+def write_adcirc_configurations(nems: ModelingSystem, runs: {str: (float, str)}, input_directory: PathLike,
+                                output_directory: PathLike, name: str = None, partition: str = None, email_address: str = None,
+                                tacc: bool = False, wall_clock_time: timedelta = None):
     """
     Generate ADCIRC run configuration for given variable values.
 
     :param runs: dictionary of run name to run value and mesh attribute name
+    :param nems: NEMSpy ModelingSystem object, populated with models and connections
     :param input_directory: path to input data
     :param output_directory: path to store run configuration
+    :param name: name of this perturbation
+    :param partition: Slurm partition
+    :param email_address: email address
+    :param tacc: whether to configure for TACC
+    :param wall_clock_time: wall clock time of job
     """
 
     if not isinstance(input_directory, Path):
@@ -60,10 +71,23 @@ def write_adcirc_configurations(runs: {str: (float, str)}, input_directory: Path
     if not output_directory.exists():
         os.makedirs(output_directory, exist_ok=True)
 
-    if 'ocn' not in models or not isinstance(models['ocn'], ADCIRCEntry):
-        models['ocn'] = ADCIRCEntry(11)
+    if name is None:
+        name = 'perturbation'
+
+    if 'ocn' not in nems or not isinstance(nems['ocn'], ADCIRCEntry):
+        nems['ocn'] = ADCIRCEntry(11)
 
     fort14_filename = input_directory / 'fort.14'
+    nems_executable = output_directory / 'NEMS.x'
+
+    launcher = 'ibrun' if tacc else 'srun'
+    run_name = 'ADCIRC_GAHM_GENERIC'
+
+    if partition is None:
+        partition = 'development'
+
+    if wall_clock_time is None:
+        wall_clock_time = timedelta(minutes=30)
 
     if not fort14_filename.is_file():
         download_test_configuration(input_directory)
@@ -77,36 +101,26 @@ def write_adcirc_configurations(runs: {str: (float, str)}, input_directory: Path
 
     mesh.add_forcing(tidal_forcing)
 
-    start_time = datetime(2020, 6, 1)
-    duration = timedelta(days=7)
-    interval = timedelta(hours=1)
-
-    nems = ModelingSystem(
-        start_time,
-        duration,
-        interval,
-        **models,
+    slurm = SlurmConfig(
+        account=None,
+        ntasks=nems.processors,
+        run_name=run_name,
+        partition=partition,
+        walltime=wall_clock_time,
+        nodes=divmod(nems.processors, TACC_TASKS_PER_NODE)[0] if tacc else None,
+        mail_type='all' if email_address is not None else None,
+        mail_user=email_address,
+        log_filename=f'{name}.log',
+        modules=['intel', 'impi', 'netcdf'],
+        path_prefix='$HOME/adcirc/build',
+        launcher=launcher,
     )
 
     # instantiate AdcircRun object.
-    slurm = SlurmConfig(
-        account=None,
-        ntasks=100,
-        run_name='ADCIRC_GAHM_GENERIC',
-        partition='development',
-        walltime=timedelta(hours=2),
-        nodes=100,
-        mail_type='all',
-        mail_user='zachary.burnett@noaa.gov',
-        log_filename='mannings_n_perturbation.log',
-        modules=['intel', 'impi', 'netcdf'],
-        path_prefix='$HOME/adcirc/build',
-        launcher='ibrun',
-    )
     driver = AdcircRun(
         mesh=mesh,
-        start_date=start_time,
-        end_date=start_time + duration,
+        start_date=nems.start_time,
+        end_date=nems.start_time + nems.duration,
         spinup_time=timedelta(days=5),
         server_config=slurm,
     )
@@ -115,6 +129,7 @@ def write_adcirc_configurations(runs: {str: (float, str)}, input_directory: Path
     driver.set_elevation_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
     driver.set_velocity_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
     driver.set_velocity_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+
     for run_name, (value, attribute_name) in runs.items():
         run_directory = output_directory / run_name
         LOGGER.info(f'writing config files for "{run_directory}"')
@@ -125,11 +140,24 @@ def write_adcirc_configurations(runs: {str: (float, str)}, input_directory: Path
         driver.mesh.set_attribute(attribute_name, value)
         driver.write(run_directory, overwrite=True)
         nems.write(run_directory, overwrite=True)
+        if nems_executable.exists():
+            shutil.copyfile(nems_executable, run_directory / 'NEMS.x')
 
-    copyfile(
-        repository_root() / 'ensemble_perturbation/configuration/slurm.job',
-        output_directory / 'slurm.job',
+    ensemble_slurm_script = EnsembleSlurmScript(
+        account=None,
+        tasks=nems.processors,
+        duration=timedelta(hours=2),
+        partition=partition,
+        launcher=launcher,
+        run=run_name,
+        email_type=SlurmEmailType.ALL if email_address is not None else None,
+        email_address=email_address,
+        log_filename=f'{name}.log',
+        nodes=divmod(nems.processors, TACC_TASKS_PER_NODE)[0] if tacc else None,
+        modules=['intel', 'impi', 'netcdf'],
+        path_prefix='$HOME/adcirc/build',
     )
+    ensemble_slurm_script.write(output_directory, overwrite=True)
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
