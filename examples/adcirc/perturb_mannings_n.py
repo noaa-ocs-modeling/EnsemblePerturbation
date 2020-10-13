@@ -28,5 +28,5 @@ if __name__ == '__main__':
                           ocn=ADCIRCEntry(11))
 
     write_adcirc_configurations(nems, runs, INPUT_DIRECTORY, OUTPUT_DIRECTORY, name='mannings_n_perturbation',
-                                email_address='zachary.r.burnett@gmail.com')
+                                email_address='zachary.r.burnett@gmail.com', tacc=True)
     print('done')

@@ -92,10 +92,13 @@ class EnsembleSlurmScript:
 
     @property
     def nodes(self) -> int:
-        if self.hpc == HPC.TACC:
-            return (self.tasks % 68)[0] + 1
-        else:
-            return None
+        return self.__nodes
+
+    @nodes.setter
+    def nodes(self, nodes: int):
+        if nodes is None and self.hpc == HPC.TACC:
+            nodes = (self.tasks % 68)[0] + 1
+        self.__nodes = nodes
 
     @property
     def configuration(self) -> str:
