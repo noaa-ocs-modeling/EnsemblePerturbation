@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import unittest
 
 from ensemble_perturbation.parsing.adcirc import (
@@ -6,9 +6,7 @@ from ensemble_perturbation.parsing.adcirc import (
     parse_adcirc_output,
 )
 
-ADCIRC_OUTPUT_DIRECTORY = os.path.join(
-    __file__, os.pardir, 'data/Shinnecock_Inlet_NetCDF_output'
-)
+ADCIRC_OUTPUT_DIRECTORY = Path(__file__).parent / 'data/Shinnecock_Inlet_NetCDF_output'
 
 
 class TestParser(unittest.TestCase):

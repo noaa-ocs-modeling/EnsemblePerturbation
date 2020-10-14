@@ -163,7 +163,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
 
 
 def parse_adcirc_output(
-        directory: str, file_data_variables: [str] = None
+        directory: PathLike, file_data_variables: [str] = None
 ) -> {str: Union[dict, DataFrame]}:
     """
     Parse ADCIRC output files

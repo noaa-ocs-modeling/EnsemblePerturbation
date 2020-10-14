@@ -44,9 +44,17 @@ def download_test_configuration(directory: str):
     os.remove(temporary_filename)
 
 
-def write_adcirc_configurations(nems: ModelingSystem, runs: {str: (float, str)}, input_directory: PathLike,
-                                output_directory: PathLike, name: str = None, partition: str = None, email_address: str = None,
-                                tacc: bool = False, wall_clock_time: timedelta = None):
+def write_adcirc_configurations(
+        nems: ModelingSystem,
+        runs: {str: (float, str)},
+        input_directory: PathLike,
+        output_directory: PathLike,
+        name: str = None,
+        partition: str = None,
+        email_address: str = None,
+        tacc: bool = False,
+        wall_clock_time: timedelta = None,
+):
     """
     Generate ADCIRC run configuration for given variable values.
 
