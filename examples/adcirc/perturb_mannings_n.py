@@ -21,7 +21,7 @@ if __name__ == '__main__':
     }
 
     nems = ModelingSystem(start_time=datetime(2020, 6, 1),
-                          model_duration=timedelta(days=7),
+                          duration=timedelta(days=7),
                           interval=timedelta(hours=1),
                           atm=AtmosphericMeshEntry('../data/wind_atm_fin_ch_time_vec.nc'),
                           wav=WaveMeshEntry('../data/ww3.Constant.20151214_sxy_ike_date.nc'),

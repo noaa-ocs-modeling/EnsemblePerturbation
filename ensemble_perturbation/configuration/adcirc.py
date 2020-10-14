@@ -132,7 +132,7 @@ def write_adcirc_configurations(nems: ModelingSystem, runs: {str: (float, str)},
 
     for run_name, (value, attribute_name) in runs.items():
         run_directory = output_directory / run_name
-        LOGGER.info(f'writing config files for "{run_directory}"')
+        LOGGER.info(f'writing config to "{run_directory}"')
         if not isinstance(value, numpy.ndarray):
             value = numpy.full([len(driver.mesh.coords)], fill_value=value)
         if not driver.mesh.has_attribute(attribute_name):
@@ -146,7 +146,7 @@ def write_adcirc_configurations(nems: ModelingSystem, runs: {str: (float, str)},
     ensemble_slurm_script = EnsembleSlurmScript(
         account=None,
         tasks=nems.processors,
-        duration=timedelta(hours=2),
+        duration=wall_clock_time,
         partition=partition,
         launcher=launcher,
         run=run_name,
