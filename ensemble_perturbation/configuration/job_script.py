@@ -74,7 +74,7 @@ class EnsembleSlurmScript:
         """
 
         self.account = account
-        self.tasks = tasks
+        self.tasks = int(tasks)
         self.duration = duration
         self.partition = partition
         self.hpc = hpc
@@ -101,7 +101,7 @@ class EnsembleSlurmScript:
     def nodes(self, nodes: int):
         if nodes is None and self.hpc == HPC.TACC:
             nodes = numpy.ceil(self.tasks / 68)
-        self.__nodes = nodes
+        self.__nodes = int(nodes)
 
     @property
     def configuration(self) -> str:
