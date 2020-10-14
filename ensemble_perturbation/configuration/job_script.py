@@ -133,6 +133,7 @@ class EnsembleSlurmScript:
 
     def __str__(self) -> str:
         lines = [
+            self.shebang,
             self.configuration,
             '',
             'set -e',
