@@ -14,8 +14,8 @@ from nemspy.model import ADCIRCEntry
 import numpy
 import requests
 
-from ensemble_perturbation.configuration.job_script import EnsembleSlurmScript, SlurmEmailType
-from ensemble_perturbation.utilities import get_logger, repository_root
+from .job_script import EnsembleSlurmScript, SlurmEmailType
+from ..utilities import get_logger, repository_root
 
 LOGGER = get_logger('configuration.adcirc')
 

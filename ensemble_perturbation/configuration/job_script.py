@@ -98,7 +98,7 @@ class EnsembleSlurmScript:
     @nodes.setter
     def nodes(self, nodes: int):
         if nodes is None and self.hpc == HPC.TACC:
-            nodes = (self.tasks % 68)[0] + 1
+            nodes = self.tasks % 68 + 1
         self.__nodes = nodes
 
     @property
@@ -133,6 +133,7 @@ class EnsembleSlurmScript:
 
     def __str__(self) -> str:
         lines = [
+            self.shebang,
             self.configuration,
             '',
             'set -e',

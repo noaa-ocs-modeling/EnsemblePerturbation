@@ -5,7 +5,7 @@ from os import PathLike
 from geopandas import GeoDataFrame
 from pyproj import CRS
 
-from ensemble_perturbation.utilities import get_logger
+from ...utilities import get_logger
 
 LOGGER = get_logger('configuration.seabed')
 
