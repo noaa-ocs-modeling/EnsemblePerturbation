@@ -134,20 +134,24 @@ class EnsembleSlurmScript:
     def __str__(self) -> str:
         lines = [
             self.configuration,
+            '',
             'set -e',
         ]
 
         if self.modules is not None:
+            lines.append('')
             modules_string = ' '.join(module for module in self.modules)
-            lines.extend([f'', f'module load {modules_string}'])
+            lines.append(f'module load {modules_string}')
 
         if self.path_prefix is not None:
-            lines.extend([f'', f'PATH={self.path_prefix}:$PATH'])
+            lines.append('')
+            lines.append(f'PATH={self.path_prefix}:$PATH')
 
         if self.commands is not None:
             lines.append('')
-            lines.extend([str(command) for command in self.commands])
+            lines.extend(str(command) for command in self.commands)
 
+        lines.append('')
         lines.extend(
             [
                 bash_function(
