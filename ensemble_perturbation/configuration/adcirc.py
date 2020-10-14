@@ -14,12 +14,10 @@ from nemspy.model import ADCIRCEntry
 import numpy
 import requests
 
-from .job_script import EnsembleSlurmScript, SlurmEmailType
+from .job_script import EnsembleSlurmScript, HPC, SlurmEmailType
 from ..utilities import get_logger, repository_root
 
 LOGGER = get_logger('configuration.adcirc')
-
-TACC_TASKS_PER_NODE = 68
 
 
 def download_test_configuration(directory: str):
@@ -115,7 +113,7 @@ def write_adcirc_configurations(
         run_name=run_name,
         partition=partition,
         walltime=wall_clock_time,
-        nodes=divmod(nems.processors, TACC_TASKS_PER_NODE)[0] if tacc else None,
+        nodes=numpy.ceil(nems.processors / 68) if tacc else None,
         mail_type='all' if email_address is not None else None,
         mail_user=email_address,
         log_filename=f'{name}.log',
@@ -156,12 +154,12 @@ def write_adcirc_configurations(
         tasks=nems.processors,
         duration=wall_clock_time,
         partition=partition,
+        hpc=HPC.TACC if tacc else HPC.ORION,
         launcher=launcher,
         run=run_name,
         email_type=SlurmEmailType.ALL if email_address is not None else None,
         email_address=email_address,
         log_filename=f'{name}.log',
-        nodes=divmod(nems.processors, TACC_TASKS_PER_NODE)[0] if tacc else None,
         modules=['intel', 'impi', 'netcdf'],
         path_prefix='$HOME/adcirc/build',
     )

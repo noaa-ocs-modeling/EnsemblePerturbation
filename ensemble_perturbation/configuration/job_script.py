@@ -6,6 +6,8 @@ import textwrap
 from typing import Sequence
 import uuid
 
+import numpy
+
 
 class SlurmEmailType(Enum):
     NONE = 'NONE'
@@ -37,6 +39,7 @@ class EnsembleSlurmScript:
             tasks: int,
             duration: timedelta,
             partition: str,
+            hpc: HPC,
             basename: str = None,
             directory: str = None,
             launcher: str = None,
@@ -48,7 +51,6 @@ class EnsembleSlurmScript:
             modules: [str] = None,
             path_prefix: str = None,
             commands: [str] = None,
-            hpc: HPC = False,
     ):
         """
         Instantiate a new Slurm shell script (`*.job`).
@@ -57,6 +59,7 @@ class EnsembleSlurmScript:
         :param tasks: number of total tasks for Slurm to run
         :param duration: duration to run job in job manager
         :param partition: partition to run on
+        :param hpc: HPC to run script on
         :param basename: file name of driver shell script
         :param directory: directory to run in
         :param launcher: command to start processes on target system (`srun`, `ibrun`, etc.)
@@ -68,13 +71,13 @@ class EnsembleSlurmScript:
         :param modules: list of file paths to modules to load
         :param path_prefix: file path to prepend to the PATH
         :param commands: list of extra shell commands to insert into script
-        :param hpc: HPC to run script on
         """
 
         self.account = account
         self.tasks = tasks
         self.duration = duration
         self.partition = partition
+        self.hpc = hpc
 
         self.basename = basename if basename is not None else 'slurm.job'
         self.directory = directory if directory is not None else '.'
@@ -89,7 +92,6 @@ class EnsembleSlurmScript:
         self.modules = modules
         self.path_prefix = path_prefix
         self.commands = commands
-        self.hpc = hpc
 
     @property
     def nodes(self) -> int:
@@ -98,7 +100,7 @@ class EnsembleSlurmScript:
     @nodes.setter
     def nodes(self, nodes: int):
         if nodes is None and self.hpc == HPC.TACC:
-            nodes = self.tasks % 68 + 1
+            nodes = numpy.ceil(self.tasks / 68)
         self.__nodes = nodes
 
     @property
@@ -181,7 +183,7 @@ class EnsembleSlurmScript:
                                 'else',
                                 [
                                     'run_hotstart_phase',
-                                    'duration =$SECONDS',
+                                    'duration=$SECONDS',
                                     bash_if_statement(
                                         f'if grep - Rq "ERROR: Elevation.gt.ErrorElev, ADCIRC stopping." {self.log_filename}',
                                         [
