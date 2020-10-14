@@ -11,8 +11,7 @@ import requests
 from requests import Response, Session
 from requests_futures.sessions import FuturesSession
 
-from ensemble_perturbation.configuration.seabed.seabed import \
-    SeabedDescriptions
+from ensemble_perturbation.configuration.seabed.seabed import SeabedDescriptions
 from ensemble_perturbation.utilities import get_logger
 
 LOGGER = get_logger('configuration.seabed.ngdc')
@@ -23,10 +22,13 @@ NO_SURVEY_OPTION = 'select a survey'
 
 
 class NGDCSeabedDescriptions(SeabedDescriptions):
-    def __init__(self, surveys: [str] = None,
-                 bounds: (float, float, float, float) = None, crs: CRS = None):
-        super().__init__(bounds, surveys,
-                         crs if crs is not None else DATA_CRS)
+    def __init__(
+            self,
+            surveys: [str] = None,
+            bounds: (float, float, float, float) = None,
+            crs: CRS = None,
+    ):
+        super().__init__(bounds, surveys, crs if crs is not None else DATA_CRS)
 
     @classmethod
     def all_surveys(cls) -> [str]:
@@ -34,8 +36,13 @@ class NGDCSeabedDescriptions(SeabedDescriptions):
         survey_form = page.find('form', {'name': 'geographic'})
         survey_selection = survey_form.find('select', {'name': 's'})
         survey_options = survey_selection.find_all('option')
-        surveys = sorted([option.text.upper() for option in survey_options
-                          if option.text != NO_SURVEY_OPTION])
+        surveys = sorted(
+            [
+                option.text.upper()
+                for option in survey_options
+                if option.text != NO_SURVEY_OPTION
+            ]
+        )
         subsurvey_indices = []
         for survey_index, survey in enumerate(surveys):
             for character_index in range(len(survey)):
@@ -57,22 +64,25 @@ class NGDCSeabedDescriptions(SeabedDescriptions):
         return self.__table(response.content)
 
     @lru_cache(maxsize=None)
-    def __survey_html(self, survey: str = None,
-                      session: Session = None) -> Response:
+    def __survey_html(self, survey: str = None, session: Session = None) -> Response:
         if session is None:
             session = Session()
 
         query = {'s': survey}
         if self.bounds is not None:
-            query.update({
-                'llon': self.bounds[0], 'llat': self.bounds[1],
-                'rlon': self.bounds[2], 'ulat': self.bounds[3]
-            })
+            query.update(
+                {
+                    'llon': self.bounds[0],
+                    'llat': self.bounds[1],
+                    'rlon': self.bounds[2],
+                    'ulat': self.bounds[3],
+                }
+            )
 
         return session.post(URL, data=query)
 
     def __table(self, html: str) -> GeoDataFrame:
-        results = BeautifulSoup(html, "html.parser")
+        results = BeautifulSoup(html, 'html.parser')
         tables = results.find_all('table', {'summary': 'layout table'})
 
         summary = tables[2].find_all('h1')[1].text.strip()
@@ -116,16 +126,16 @@ class NGDCSeabedDescriptions(SeabedDescriptions):
 
         table = GeoDataFrame(data, crs=crs)
         if self.bounds is not None and table.shape[0] > 0:
-            table = table.cx[self.bounds[0]:self.bounds[2],
-                    self.bounds[1]:self.bounds[3]]
+            table = table.cx[self.bounds[0]: self.bounds[2], self.bounds[1]: self.bounds[3]]
         return table
 
     @property
     @lru_cache(maxsize=1)
     def data(self) -> GeoDataFrame:
         session = FuturesSession()
-        future_responses = [self.__survey_html(survey, session)
-                            for survey in self.surveys]
-        tables = [self.__table(response.result().content)
-                  for response in futures.as_completed(future_responses)]
+        future_responses = [self.__survey_html(survey, session) for survey in self.surveys]
+        tables = [
+            self.__table(response.result().content)
+            for response in futures.as_completed(future_responses)
+        ]
         return pandas.concat(tables)
