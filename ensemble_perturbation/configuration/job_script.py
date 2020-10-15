@@ -74,7 +74,7 @@ class EnsembleSlurmScript:
         """
 
         self.account = account
-        self.tasks = tasks
+        self.tasks = int(tasks)
         self.duration = duration
         self.partition = partition
         self.hpc = hpc
