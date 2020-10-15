@@ -29,6 +29,16 @@ if __name__ == '__main__':
         ocn=ADCIRCEntry(11),
     )
 
+    nems.connect('ATM', 'OCN')
+    nems.connect('WAV', 'OCN')
+    nems.sequence = [
+        'ATM -> OCN',
+        'WAV -> OCN',
+        'ATM',
+        'WAV',
+        'OCN'
+    ]
+
     write_adcirc_configurations(
         nems,
         runs,
@@ -37,5 +47,6 @@ if __name__ == '__main__':
         name='mannings_n_perturbation',
         email_address='zachary.r.burnett@gmail.com',
         tacc=True,
+        spinup=timedelta(hours=6),
     )
     print('done')

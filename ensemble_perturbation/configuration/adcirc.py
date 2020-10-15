@@ -4,7 +4,6 @@ import os
 from os import PathLike
 from pathlib import Path
 import re
-import shutil
 import tarfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
@@ -20,28 +19,6 @@ from ..utilities import get_logger, repository_root
 LOGGER = get_logger('configuration.adcirc')
 
 
-def download_test_configuration(directory: str):
-    """
-    fetch shinnecock inlet test data
-    :param directory: local directory
-    """
-
-    if not isinstance(directory, Path):
-        directory = Path(directory)
-
-    if not directory.exists():
-        os.makedirs(directory, exist_ok=True)
-
-    url = 'https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1'
-    remote_file = requests.get(url, stream=True)
-    temporary_filename = directory / 'temp.tar.gz'
-    with open(temporary_filename, 'b+w') as local_file:
-        local_file.write(remote_file.raw.read())
-    with tarfile.open(temporary_filename, 'r:bz2') as local_file:
-        local_file.extractall(directory)
-    os.remove(temporary_filename)
-
-
 def write_adcirc_configurations(
         nems: ModelingSystem,
         runs: {str: (float, str)},
@@ -52,6 +29,7 @@ def write_adcirc_configurations(
         email_address: str = None,
         tacc: bool = False,
         wall_clock_time: timedelta = None,
+        spinup: timedelta = None,
 ):
     """
     Generate ADCIRC run configuration for given variable values.
@@ -65,6 +43,7 @@ def write_adcirc_configurations(
     :param email_address: email address
     :param tacc: whether to configure for TACC
     :param wall_clock_time: wall clock time of job
+    :param spinup: spinup time for ADCIRC coldstart
     """
 
     if not isinstance(input_directory, Path):
@@ -86,6 +65,8 @@ def write_adcirc_configurations(
     fort14_filename = input_directory / 'fort.14'
     nems_executable = output_directory / 'NEMS.x'
 
+    assert nems_executable.exists(), f'NEMS.x not found at {nems_executable}'
+
     launcher = 'ibrun' if tacc else 'srun'
     run_name = 'ADCIRC_GAHM_GENERIC'
 
@@ -97,6 +78,15 @@ def write_adcirc_configurations(
 
     if not fort14_filename.is_file():
         download_test_configuration(input_directory)
+
+    if spinup is not None:
+        spinup = ModelingSystem(
+            nems.start_time - spinup,
+            spinup,
+            nems.interval,
+            nems.verbose,
+            ocn=nems['OCN'],
+        )
 
     # open mesh file
     mesh = AdcircMesh.open(fort14_filename, crs=4326)
@@ -145,9 +135,30 @@ def write_adcirc_configurations(
             driver.mesh.add_attribute(attribute_name)
         driver.mesh.set_attribute(attribute_name, value)
         driver.write(run_directory, overwrite=True)
-        nems.write(run_directory, overwrite=True)
-        if nems_executable.exists():
-            shutil.copyfile(nems_executable, run_directory / 'NEMS.x')
+
+    atm_namelist_filename = output_directory / 'atm_namelist.rc'
+
+    if spinup is None:
+        coldstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
+    else:
+        coldstart_filenames = spinup.write(output_directory, overwrite=True, include_version=True)
+
+    for filename in coldstart_filenames + [atm_namelist_filename]:
+        coldstart_filename = Path(f'{filename}.coldstart')
+        if coldstart_filename.exists():
+            os.remove(coldstart_filename)
+        filename.rename(coldstart_filename)
+
+    if spinup is not None:
+        hotstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
+    else:
+        hotstart_filenames = []
+
+    for filename in hotstart_filenames + [atm_namelist_filename]:
+        hotstart_filename = Path(f'{filename}.hotstart')
+        if hotstart_filename.exists():
+            os.remove(hotstart_filename)
+        filename.rename(hotstart_filename)
 
     ensemble_slurm_script = EnsembleSlurmScript(
         account=None,
@@ -178,3 +189,25 @@ def write_adcirc_configurations(
             text = re.sub(pattern, replacement, text)
             with open(job_filename, 'w') as job_file:
                 job_file.write(text)
+
+
+def download_test_configuration(directory: str):
+    """
+    fetch shinnecock inlet test data
+    :param directory: local directory
+    """
+
+    if not isinstance(directory, Path):
+        directory = Path(directory)
+
+    if not directory.exists():
+        os.makedirs(directory, exist_ok=True)
+
+    url = 'https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1'
+    remote_file = requests.get(url, stream=True)
+    temporary_filename = directory / 'temp.tar.gz'
+    with open(temporary_filename, 'b+w') as local_file:
+        local_file.write(remote_file.raw.read())
+    with tarfile.open(temporary_filename, 'r:bz2') as local_file:
+        local_file.extractall(directory)
+    os.remove(temporary_filename)
