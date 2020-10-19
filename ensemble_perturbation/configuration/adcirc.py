@@ -139,8 +139,10 @@ def write_adcirc_configurations(
             driver.mesh.add_attribute(attribute_name)
         driver.mesh.set_attribute(attribute_name, value)
         driver.write(run_directory, overwrite=True)
-        (run_directory / 'coldstart').mkdir()
-        (run_directory / 'hotstart').mkdir()
+        for phase in ['coldstart', 'hotstart']:
+            directory = run_directory / phase
+            if not directory.exists():
+                directory.mkdir()
 
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
 
@@ -179,6 +181,10 @@ def write_adcirc_configurations(
         log_filename=f'{name}.log',
         modules=['intel', 'impi', 'netcdf'],
         path_prefix='$HOME/adcirc/build',
+        commands=[
+            'module use /work/07380/panvel/Modules/modulefiles',
+            'module load impi-intel/esmf-7.1.0r'
+        ] if tacc else [],
     )
     ensemble_slurm_script.write(output_directory, overwrite=True)
 
