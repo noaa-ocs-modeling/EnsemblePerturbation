@@ -45,7 +45,7 @@ if __name__ == '__main__':
         INPUT_DIRECTORY,
         OUTPUT_DIRECTORY,
         name='mannings_n_perturbation',
-        email_address='zachary.r.burnett@gmail.com',
+        email_address='zachary.burnett@noaa.gov',
         tacc=True,
         spinup=timedelta(hours=6),
     )

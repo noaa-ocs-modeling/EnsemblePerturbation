@@ -174,7 +174,7 @@ class EnsembleSlurmScript:
                 bash_function(
                     'main',
                     bash_for_loop(
-                        'for directory in /*',
+                        'for directory in ./*/',
                         [
                             'echo "Starting configuration $directory..."',
                             'cd "$directory"',
@@ -211,9 +211,8 @@ class EnsembleSlurmScript:
                 bash_function(
                     'run_coldstart_phase',
                     [
-                        'rm -rf coldstart',
-                        'mkdir coldstart',
-                        'cd coldstart',
+                        'rm -rf ./coldstart/*',
+                        'cd ./coldstart',
                         'ln -sf ../fort.13 ./fort.13',
                         'ln -sf ../fort.14 ./fort.14',
                         'ln -sf ../fort.15.coldstart ./fort.15',
@@ -233,9 +232,8 @@ class EnsembleSlurmScript:
                 bash_function(
                     'run_hotstart_phase',
                     [
-                        'rm -rf hotstart',
-                        'mkdir hotstart',
-                        'cd hotstart',
+                        'rm -rf ./hotstart/*',
+                        'cd ./hotstart',
                         'ln -sf ../fort.13 ./fort.13',
                         'ln -sf ../fort.14 ./fort.14',
                         'ln -sf ../fort.15.hotstart ./fort.15',

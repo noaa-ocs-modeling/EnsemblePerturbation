@@ -110,6 +110,10 @@ def write_adcirc_configurations(
         modules=['intel', 'impi', 'netcdf'],
         path_prefix='$HOME/adcirc/build',
         launcher=launcher,
+        extra_commands=[
+            'module use /work/07380/panvel/Modules/modulefiles',
+            'module load impi-intel/esmf-7.1.0r'
+        ] if tacc else []
     )
 
     # instantiate AdcircRun object.
@@ -135,6 +139,8 @@ def write_adcirc_configurations(
             driver.mesh.add_attribute(attribute_name)
         driver.mesh.set_attribute(attribute_name, value)
         driver.write(run_directory, overwrite=True)
+        (run_directory / 'coldstart').mkdir()
+        (run_directory / 'hotstart').mkdir()
 
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
 
@@ -167,7 +173,7 @@ def write_adcirc_configurations(
         partition=partition,
         hpc=HPC.TACC if tacc else HPC.ORION,
         launcher=launcher,
-        run=run_name,
+        run='mannings_perturbation',
         email_type=SlurmEmailType.ALL if email_address is not None else None,
         email_address=email_address,
         log_filename=f'{name}.log',

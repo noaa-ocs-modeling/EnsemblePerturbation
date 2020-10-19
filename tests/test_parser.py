@@ -13,9 +13,8 @@ class TestParser(unittest.TestCase):
     def test_parse_adcirc_output(self):
         output_data = parse_adcirc_output(ADCIRC_OUTPUT_DIRECTORY)
 
-        assert all(
-            data_variable in output_data for data_variable in ADCIRC_OUTPUT_DATA_VARIABLES
-        )
+        for data_variable in ADCIRC_OUTPUT_DATA_VARIABLES:
+            self.assertIn(data_variable, output_data)
 
 
 if __name__ == '__main__':
