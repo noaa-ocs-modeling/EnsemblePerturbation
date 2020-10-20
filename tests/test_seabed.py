@@ -22,10 +22,10 @@ class TestSeabedDescriptions(unittest.TestCase):
     def test_seabed_descriptions(self):
         seabed = NGDCSeabedDescriptions(bounds=self.bounds, surveys=self.surveys, crs=self.crs)
 
-        assert seabed.data.shape[0] > 0
-        assert seabed.data.shape[1] == 14
-        assert len(seabed.descriptions) > 0
-        assert any(seabed.data['Survey'].isin(['492']))
+        self.assertGreater(seabed.data.shape[0], 0)
+        self.assertEqual(14, seabed.data.shape[1])
+        self.assertGreater(len(seabed.descriptions), 0)
+        self.assertTrue(any(seabed.data['Survey'].isin(['492'])))
 
 
 if __name__ == '__main__':

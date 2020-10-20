@@ -74,7 +74,7 @@ class EnsembleSlurmScript:
         """
 
         self.account = account
-        self.tasks = int(tasks)
+        self.tasks = tasks
         self.duration = duration
         self.partition = partition
         self.hpc = hpc
@@ -92,6 +92,14 @@ class EnsembleSlurmScript:
         self.modules = modules
         self.path_prefix = path_prefix
         self.commands = commands
+
+    @property
+    def tasks(self) -> int:
+        return self.__tasks
+
+    @tasks.setter
+    def tasks(self, tasks: int = 1):
+        self.__tasks = int(tasks)
 
     @property
     def nodes(self) -> int:
@@ -166,7 +174,7 @@ class EnsembleSlurmScript:
                 bash_function(
                     'main',
                     bash_for_loop(
-                        'for directory in /*',
+                        'for directory in ./*/',
                         [
                             'echo "Starting configuration $directory..."',
                             'cd "$directory"',
@@ -185,7 +193,7 @@ class EnsembleSlurmScript:
                                     'run_hotstart_phase',
                                     'duration=$SECONDS',
                                     bash_if_statement(
-                                        f'if grep - Rq "ERROR: Elevation.gt.ErrorElev, ADCIRC stopping." {self.log_filename}',
+                                        f'if grep -Rq "ERROR: Elevation.gt.ErrorElev, ADCIRC stopping." {self.log_filename}',
                                         [
                                             'echo "ERROR: Elevation.gt.ErrorElev, ADCIRC stopping."',
                                             'echo "Wallclock time: $($duration / 60) minutes and $($duration % 60) seconds."',
@@ -203,16 +211,18 @@ class EnsembleSlurmScript:
                 bash_function(
                     'run_coldstart_phase',
                     [
-                        'rm - rf coldstart',
-                        'mkdir coldstart',
-                        'cd coldstart',
-                        'ln - sf.. / fort.14',
-                        'ln - sf.. / fort.13',
-                        'ln - sf.. / fort.15.coldstart. / fort.15',
-                        'adcprep - -np $SLURM_NTASKS - -partmesh',
-                        'adcprep - -np $SLURM_NTASKS - -prepall',
-                        'ibrun',
-                        'NEMS.x',
+                        'rm -rf ./coldstart/*',
+                        'cd ./coldstart',
+                        'ln -sf ../fort.13 ./fort.13',
+                        'ln -sf ../fort.14 ./fort.14',
+                        'ln -sf ../fort.15.coldstart ./fort.15',
+                        'ln -sf ../../nems.configure.coldstart ./nems.configure',
+                        'ln -sf ../../model_configure.coldstart ./model_configure',
+                        'ln -sf ../../atm_namelist.rc.coldstart ./atm_namelist.rc',
+                        'ln -sf ../../config.rc.coldstart ./config.rc',
+                        'adcprep --np $SLURM_NTASKS --partmesh',
+                        'adcprep --np $SLURM_NTASKS --prepall',
+                        'ibrun NEMS.x',
                         'clean_directory',
                         'cd ..',
                     ],
@@ -221,13 +231,17 @@ class EnsembleSlurmScript:
                 bash_function(
                     'run_hotstart_phase',
                     [
-                        'rm -rf hotstart',
-                        'mkdir hotstart',
-                        'cd hotstart',
-                        'ln -sf ../fort.14',
-                        'ln -sf ../fort.13',
+                        'rm -rf ./hotstart/*',
+                        'cd ./hotstart',
+                        'ln -sf ../fort.13 ./fort.13',
+                        'ln -sf ../fort.14 ./fort.14',
                         'ln -sf ../fort.15.hotstart ./fort.15',
-                        'ln -sf ../coldstart/fort.67.nc',
+                        'ln -sf ../coldstart/fort.67.nc ./fort.67.nc',
+                        'ln -sf ../../nems.configure.hotstart ./nems.configure',
+                        'ln -sf ../../nems.configure.hotstart ./nems.configure',
+                        'ln -sf ../../model_configure.hotstart ./model_configure',
+                        'ln -sf ../../atm_namelist.rc.hotstart ./atm_namelist.rc',
+                        'ln -sf ../../config.rc.hotstart ./config.rc',
                         'adcprep --np $SLURM_NTASKS --partmesh',
                         'adcprep --np $SLURM_NTASKS --prepall',
                         'ibrun NEMS.x',
@@ -239,15 +253,22 @@ class EnsembleSlurmScript:
                 bash_function(
                     'clean_directory',
                     [
-                        'rm - rf PE *',
-                        'rm -rf partmesh.txt',
-                        'rm -rf metis_graph.txt',
-                        'rm -rf fort.13',
-                        'rm -rf fort.14',
-                        'rm -rf fort.15',
-                        'rm -rf fort.16',
-                        'rm -rf fort.80',
-                        'rm -rf fort.68.nc',
+                        f'rm -rf {pattern}' for pattern in
+                        [
+                            'PE*',
+                            'partmesh.txt',
+                            'metis_graph.txt',
+                            'fort.13',
+                            'fort.14',
+                            'fort.15',
+                            'fort.16',
+                            'fort.80',
+                            'fort.68.nc',
+                            'nems.configure',
+                            'model_configure',
+                            'atm_namelist.rc',
+                            'config.rc',
+                        ]
                     ],
                 ),
                 '',

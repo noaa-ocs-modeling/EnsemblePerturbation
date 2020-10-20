@@ -14,6 +14,7 @@ def decode_time(variable: Variable, unit: str = None) -> numpy.array:
         'minutes': 'm',
         'seconds': 's',
     }
+    base_date = base_date.strip(' UTC')
     return numpy.datetime64(base_date) + numpy.array(variable).astype(
         f'timedelta64[{intervals[unit]}]'
     )
