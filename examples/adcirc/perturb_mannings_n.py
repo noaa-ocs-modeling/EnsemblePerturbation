@@ -12,7 +12,7 @@ LOGGER = get_logger('perturb.adcirc')
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
-OUTPUT_DIRECTORY = DATA_DIRECTORY / 'output'
+OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration'
 
 if __name__ == '__main__':
     runs = {
