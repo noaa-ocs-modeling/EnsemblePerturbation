@@ -12,7 +12,7 @@ LOGGER = get_logger('perturb.adcirc')
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
-OUTPUT_DIRECTORY = DATA_DIRECTORY / 'output'
+OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration'
 
 if __name__ == '__main__':
     runs = {
@@ -24,8 +24,8 @@ if __name__ == '__main__':
         start_time=datetime(2020, 6, 1),
         duration=timedelta(days=7),
         interval=timedelta(hours=1),
-        atm=AtmosphericMeshEntry('../data/wind_atm_fin_ch_time_vec.nc'),
-        wav=WaveMeshEntry('../data/ww3.Constant.20151214_sxy_ike_date.nc'),
+        atm=AtmosphericMeshEntry('../../data/wind_atm_fin_ch_time_vec.nc'),
+        wav=WaveMeshEntry('../../data/ww3.Constant.20151214_sxy_ike_date.nc'),
         ocn=ADCIRCEntry(11),
     )
 

@@ -63,9 +63,6 @@ def write_adcirc_configurations(
         nems['ocn'] = ADCIRCEntry(11)
 
     fort14_filename = input_directory / 'fort.14'
-    nems_executable = output_directory / 'NEMS.x'
-
-    assert nems_executable.exists(), f'NEMS.x not found at {nems_executable}'
 
     launcher = 'ibrun' if tacc else 'srun'
     run_name = 'ADCIRC_GAHM_GENERIC'
@@ -97,23 +94,22 @@ def write_adcirc_configurations(
 
     mesh.add_forcing(tidal_forcing)
 
+    module_file = f'$HOME/build/ADC-WW3-NWM-NEMS-TACC/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
+
     slurm = SlurmConfig(
         account=None,
         ntasks=nems.processors,
         run_name=run_name,
         partition=partition,
         walltime=wall_clock_time,
-        nodes=numpy.ceil(nems.processors / 68) if tacc else None,
+        nodes=int(numpy.ceil(nems.processors / 68)) if tacc else None,
         mail_type='all' if email_address is not None else None,
         mail_user=email_address,
         log_filename=f'{name}.log',
-        modules=['intel', 'impi', 'netcdf'],
+        modules=[],
         path_prefix='$HOME/adcirc/build',
         launcher=launcher,
-        extra_commands=[
-            'module use /work/07380/panvel/Modules/modulefiles',
-            'module load impi-intel/esmf-7.1.0r'
-        ] if tacc else []
+        extra_commands=[f'source {module_file}'],
     )
 
     # instantiate AdcircRun object.
@@ -179,12 +175,9 @@ def write_adcirc_configurations(
         email_type=SlurmEmailType.ALL if email_address is not None else None,
         email_address=email_address,
         log_filename=f'{name}.log',
-        modules=['intel', 'impi', 'netcdf'],
+        modules=[],
         path_prefix='$HOME/adcirc/build',
-        commands=[
-            'module use /work/07380/panvel/Modules/modulefiles',
-            'module load impi-intel/esmf-7.1.0r'
-        ] if tacc else [],
+        commands=[f'source {module_file}'],
     )
     ensemble_slurm_script.write(output_directory, overwrite=True)
 
