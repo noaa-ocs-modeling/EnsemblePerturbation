@@ -63,10 +63,6 @@ def write_adcirc_configurations(
         nems['ocn'] = ADCIRCEntry(11)
 
     fort14_filename = input_directory / 'fort.14'
-    nems_executable = output_directory / 'NEMS.x'
-
-    if not nems_executable.exists():
-        LOGGER.warning(f'NEMS.x not found at {nems_executable}')
 
     launcher = 'ibrun' if tacc else 'srun'
     run_name = 'ADCIRC_GAHM_GENERIC'
