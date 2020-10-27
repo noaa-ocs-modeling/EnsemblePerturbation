@@ -25,7 +25,7 @@ if __name__ == '__main__':
     schema = {'geometry': 'Point', 'properties': {'id': 'str'}}
     crs = CRS.from_epsg(4326)
     with fiona.open(
-            stations_vector_filename, 'w', 'GPKG', schema, crs.to_dict()
+        stations_vector_filename, 'w', 'GPKG', schema, crs.to_dict()
     ) as stations_vector_file:
         stations_vector_file.writerecords(
             [

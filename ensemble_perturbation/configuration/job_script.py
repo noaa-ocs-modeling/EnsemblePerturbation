@@ -34,24 +34,24 @@ class EnsembleSlurmScript:
     shebang = '#!/bin/bash --login'
 
     def __init__(
-            self,
-            account: str,
-            tasks: int,
-            duration: timedelta,
-            partition: str,
-            hpc: HPC,
-            basename: str = None,
-            directory: str = None,
-            launcher: str = None,
-            run: str = None,
-            email_type: SlurmEmailType = None,
-            email_address: str = None,
-            error_filename: str = None,
-            log_filename: str = None,
-            nodes: int = None,
-            modules: [str] = None,
-            path_prefix: str = None,
-            commands: [str] = None,
+        self,
+        account: str,
+        tasks: int,
+        duration: timedelta,
+        partition: str,
+        hpc: HPC,
+        basename: str = None,
+        directory: str = None,
+        launcher: str = None,
+        run: str = None,
+        email_type: SlurmEmailType = None,
+        email_address: str = None,
+        error_filename: str = None,
+        log_filename: str = None,
+        nodes: int = None,
+        modules: [str] = None,
+        path_prefix: str = None,
+        commands: [str] = None,
     ):
         """
         Instantiate a new Slurm shell script (`*.job`).
@@ -160,22 +160,19 @@ class EnsembleSlurmScript:
 
         if self.modules is not None:
             modules_string = ' '.join(module for module in self.modules)
-            lines.extend([
-                f'module load {modules_string}',
-                '',
-            ])
+            lines.extend(
+                [f'module load {modules_string}', '', ]
+            )
 
         if self.path_prefix is not None:
-            lines.extend([
-                f'PATH={self.path_prefix}:$PATH',
-                '',
-            ])
+            lines.extend(
+                [f'PATH={self.path_prefix}:$PATH', '', ]
+            )
 
         if self.commands is not None:
-            lines.extend([
-                *(str(command) for command in self.commands),
-                '',
-            ])
+            lines.extend(
+                [*(str(command) for command in self.commands), '', ]
+            )
 
         lines.extend(
             [
@@ -261,18 +258,18 @@ class EnsembleSlurmScript:
                 bash_function(
                     'clean_directory',
                     [
-                        f'rm -rf {pattern}' for pattern in
-                        [
-                            'PE*',
-                            'partmesh.txt',
-                            'metis_graph.txt',
-                            'fort.13',
-                            'fort.14',
-                            'fort.15',
-                            'fort.16',
-                            'fort.80',
-                            'fort.68.nc',
-                            'nems.configure',
+                        f'rm -rf {pattern}'
+                        for pattern in [
+                        'PE*',
+                        'partmesh.txt',
+                        'metis_graph.txt',
+                        'fort.13',
+                        'fort.14',
+                        'fort.15',
+                        'fort.16',
+                        'fort.80',
+                        'fort.68.nc',
+                        'nems.configure',
                             'model_configure',
                             'atm_namelist.rc',
                             'config.rc',
@@ -307,7 +304,7 @@ class EnsembleSlurmScript:
 
 
 def bash_if_statement(
-        condition: str, then: [str], *else_then: [[str]], indentation: str = '  '
+    condition: str, then: [str], *else_then: [[str]], indentation: str = '  '
 ) -> str:
     """
     Create a if statement in Bash syntax using the given condition, then statement(s), and else condition(s) / statement(s).

@@ -23,10 +23,10 @@ NO_SURVEY_OPTION = 'select a survey'
 
 class NGDCSeabedDescriptions(SeabedDescriptions):
     def __init__(
-            self,
-            surveys: [str] = None,
-            bounds: (float, float, float, float) = None,
-            crs: CRS = None,
+        self,
+        surveys: [str] = None,
+        bounds: (float, float, float, float) = None,
+        crs: CRS = None,
     ):
         super().__init__(bounds, surveys, crs if crs is not None else DATA_CRS)
 

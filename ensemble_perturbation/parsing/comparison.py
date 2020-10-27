@@ -42,11 +42,11 @@ ADCIRC_VARIABLES = DataFrame(
 
 class ReferenceComparison(ABC):
     def __init__(
-            self,
-            input_directory: str,
-            output_directory: str,
-            variables: [str],
-            stages: [str] = None,
+        self,
+        input_directory: str,
+        output_directory: str,
+        variables: [str],
+        stages: [str] = None,
     ):
         if not isinstance(input_directory, Path):
             input_directory = Path(input_directory)
@@ -121,10 +121,10 @@ class ReferenceComparison(ABC):
         observed_values = []
         for stage in self.stages:
             stations_filename = (
-                    self.output_directory
-                    / list(self.runs)[0]
-                    / stage
-                    / ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
+                self.output_directory
+                / list(self.runs)[0]
+                / stage
+                / ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
             )
             observed_values.append(
                 self.parse_stations(stations_filename, self.stations['name'])
@@ -561,13 +561,13 @@ class VelocityComparison(ReferenceComparison):
 
 
 def insert_magnitude_components(
-        dataframe: DataFrame,
-        u: str = 'u',
-        v: str = 'v',
-        magnitude: str = 'magnitude',
-        direction: str = 'direction',
-        velocity_index: int = None,
-        direction_index: int = None,
+    dataframe: DataFrame,
+    u: str = 'u',
+    v: str = 'v',
+    magnitude: str = 'magnitude',
+    direction: str = 'direction',
+    velocity_index: int = None,
+    direction_index: int = None,
 ):
     if velocity_index is None:
         velocity_index = len(dataframe.columns)
