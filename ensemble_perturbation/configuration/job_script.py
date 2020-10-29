@@ -161,17 +161,17 @@ class EnsembleSlurmScript:
         if self.modules is not None:
             modules_string = ' '.join(module for module in self.modules)
             lines.extend(
-                [f'module load {modules_string}', '', ]
+                [f'module load {modules_string}', '']
             )
 
         if self.path_prefix is not None:
             lines.extend(
-                [f'PATH={self.path_prefix}:$PATH', '', ]
+                [f'PATH={self.path_prefix}:$PATH', '']
             )
 
         if self.commands is not None:
             lines.extend(
-                [*(str(command) for command in self.commands), '', ]
+                [*(str(command) for command in self.commands), '']
             )
 
         lines.extend(
@@ -270,10 +270,10 @@ class EnsembleSlurmScript:
                         'fort.80',
                         'fort.68.nc',
                         'nems.configure',
-                            'model_configure',
-                            'atm_namelist.rc',
-                            'config.rc',
-                        ]
+                        'model_configure',
+                        'atm_namelist.rc',
+                        'config.rc',
+                    ]
                     ],
                 ),
                 '',
