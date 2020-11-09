@@ -81,8 +81,8 @@ def write_adcirc_configurations(
             nems.start_time - spinup,
             spinup,
             nems.interval,
-            nems.verbose,
             ocn=nems['OCN'],
+            **nems.attributes,
         )
 
     # open mesh file
