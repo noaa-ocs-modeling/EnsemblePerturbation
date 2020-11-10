@@ -16,10 +16,10 @@ class SeabedDescriptions(ABC):
     description_field = 'Description'
 
     def __init__(
-            self,
-            bounds: (float, float, float, float) = None,
-            surveys: [str] = None,
-            crs: CRS = None,
+        self,
+        bounds: (float, float, float, float) = None,
+        surveys: [str] = None,
+        crs: CRS = None,
     ):
         self.bounds = bounds
         self.__surveys = surveys

@@ -34,23 +34,23 @@ class EnsembleSlurmScript:
     shebang = '#!/bin/bash --login'
 
     def __init__(
-            self,
-            account: str,
-            tasks: int,
-            duration: timedelta,
-            partition: str,
-            hpc: HPC,
-            basename: str = None,
-            directory: str = None,
-            launcher: str = None,
-            run: str = None,
-            email_type: SlurmEmailType = None,
-            email_address: str = None,
-            log_filename: str = None,
-            nodes: int = None,
-            modules: [str] = None,
-            path_prefix: str = None,
-            commands: [str] = None,
+        self,
+        account: str,
+        tasks: int,
+        duration: timedelta,
+        partition: str,
+        hpc: HPC,
+        basename: str = None,
+        directory: str = None,
+        launcher: str = None,
+        run: str = None,
+        email_type: SlurmEmailType = None,
+        email_address: str = None,
+        log_filename: str = None,
+        nodes: int = None,
+        modules: [str] = None,
+        path_prefix: str = None,
+        commands: [str] = None,
     ):
         """
         Instantiate a new Slurm shell script (`*.job`).
@@ -296,8 +296,7 @@ class EnsembleSlurmScript:
 
 
 def bash_if_statement(
-        condition: str, then: [str], *else_then: [[str]],
-        indentation: str = '  '
+    condition: str, then: [str], *else_then: [[str]], indentation: str = '  '
 ) -> str:
     """
     Create a if statement in Bash syntax using the given condition, then statement(s), and else condition(s) / statement(s).
@@ -317,8 +316,7 @@ def bash_if_statement(
     lines = [f'if {condition}; then', textwrap.indent(then, indentation)]
 
     for else_block in else_then:
-        if not isinstance(else_block, str) and isinstance(else_block,
-                                                          Sequence):
+        if not isinstance(else_block, str) and isinstance(else_block, Sequence):
             else_block = '\n'.join(else_block)
 
         currently_else = else_block.startswith('else')
@@ -326,10 +324,8 @@ def bash_if_statement(
         currently_then = else_block.startswith('then')
 
         previous_line = lines[-1].strip()
-        hanging_else = previous_line.startswith(
-            'else') and not previous_line.endswith(';')
-        hanging_elif = previous_line.startswith(
-            'elif') and not previous_line.endswith(';')
+        hanging_else = previous_line.startswith('else') and not previous_line.endswith(';')
+        hanging_elif = previous_line.startswith('elif') and not previous_line.endswith(';')
 
         if currently_else or currently_elif:
             if hanging_else or hanging_elif:
@@ -366,8 +362,7 @@ def bash_for_loop(iteration: str, do: [str], indentation='  ') -> str:
     if not isinstance(do, str) and isinstance(do, Sequence):
         do = '\n'.join(do)
 
-    return '\n'.join(
-        (f'{iteration}; do', textwrap.indent(do, indentation), 'done',))
+    return '\n'.join((f'{iteration}; do', textwrap.indent(do, indentation), 'done',))
 
 
 def bash_function(name: str, body: [str], indentation: str = '  ') -> str:

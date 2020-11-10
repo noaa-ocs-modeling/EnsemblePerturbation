@@ -38,13 +38,11 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
 NODATA = -99999.0
 
 
-def fort61_stations_zeta(filename: PathLike,
-                         station_names: [str] = None) -> GeoDataFrame:
+def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
     coordinate_variables = ['x', 'y']
-    coordinates = numpy.stack(
-        [dataset[variable] for variable in coordinate_variables], axis=1)
+    coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
     times = decode_time(dataset['time'])
 
     all_station_names = [
@@ -72,13 +70,11 @@ def fort61_stations_zeta(filename: PathLike,
     return pandas.concat(stations)
 
 
-def fort62_stations_uv(filename: PathLike,
-                       station_names: [str] = None) -> GeoDataFrame:
+def fort62_stations_uv(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
     coordinate_variables = ['x', 'y']
-    coordinates = numpy.stack(
-        [dataset[variable] for variable in coordinate_variables], axis=1)
+    coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
     times = decode_time(dataset['time'])
 
     all_station_names = [
@@ -107,8 +103,7 @@ def fort62_stations_uv(filename: PathLike,
     return pandas.concat(stations)
 
 
-def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[
-    dict, DataFrame]:
+def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[dict, DataFrame]:
     """
     Parse ADCIRC output files
 
@@ -131,8 +126,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[
     coordinate_variables = ['x', 'y']
     if 'depth' in dataset.variables:
         coordinate_variables += ['depth']
-    coordinates = numpy.stack(
-        [dataset[variable] for variable in coordinate_variables], axis=1)
+    coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
 
     times = decode_time(dataset['time'])
 
@@ -148,13 +142,11 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[
                 'x': coordinates[:, 0],
                 'y': coordinates[:, 1],
             },
-            geometry=geopandas.points_from_xy(coordinates[:, 0],
-                                              coordinates[:, 1]),
+            geometry=geopandas.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
         )
     else:
         for array in data.values():
-            assert numpy.prod(
-                array.shape) > 0, f'invalid data shape "{array.shape}"'
+            assert numpy.prod(array.shape) > 0, f'invalid data shape "{array.shape}"'
         variables = {}
         for name, variable in data.items():
             if 'time_of' in name:
@@ -163,8 +155,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[
         columns = dict(zip(coordinate_variables, coordinates.T))
         columns.update(variables)
         data = GeoDataFrame(
-            columns,
-            geometry=geopandas.points_from_xy(columns['x'], columns['y'])
+            columns, geometry=geopandas.points_from_xy(columns['x'], columns['y'])
         )
         data[data == NODATA] = numpy.nan
 
@@ -172,7 +163,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[
 
 
 def parse_adcirc_output(
-        directory: PathLike, file_data_variables: [str] = None
+    directory: PathLike, file_data_variables: [str] = None
 ) -> {str: Union[dict, DataFrame]}:
     """
     Parse ADCIRC output files

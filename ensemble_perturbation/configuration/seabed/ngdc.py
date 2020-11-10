@@ -23,10 +23,10 @@ NO_SURVEY_OPTION = 'select a survey'
 
 class NGDCSeabedDescriptions(SeabedDescriptions):
     def __init__(
-            self,
-            surveys: [str] = None,
-            bounds: (float, float, float, float) = None,
-            crs: CRS = None,
+        self,
+        surveys: [str] = None,
+        bounds: (float, float, float, float) = None,
+        crs: CRS = None,
     ):
         super().__init__(bounds, surveys, crs if crs is not None else DATA_CRS)
 
@@ -64,8 +64,7 @@ class NGDCSeabedDescriptions(SeabedDescriptions):
         return self.__table(response.content)
 
     @lru_cache(maxsize=None)
-    def __survey_html(self, survey: str = None,
-                      session: Session = None) -> Response:
+    def __survey_html(self, survey: str = None, session: Session = None) -> Response:
         if session is None:
             session = Session()
 
@@ -127,16 +126,14 @@ class NGDCSeabedDescriptions(SeabedDescriptions):
 
         table = GeoDataFrame(data, crs=crs)
         if self.bounds is not None and table.shape[0] > 0:
-            table = table.cx[self.bounds[0]: self.bounds[2],
-                    self.bounds[1]: self.bounds[3]]
+            table = table.cx[self.bounds[0]: self.bounds[2], self.bounds[1]: self.bounds[3]]
         return table
 
     @property
     @lru_cache(maxsize=1)
     def data(self) -> GeoDataFrame:
         session = FuturesSession()
-        future_responses = [self.__survey_html(survey, session) for survey in
-                            self.surveys]
+        future_responses = [self.__survey_html(survey, session) for survey in self.surveys]
         tables = [
             self.__table(response.result().content)
             for response in futures.as_completed(future_responses)

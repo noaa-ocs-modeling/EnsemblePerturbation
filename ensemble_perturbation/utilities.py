@@ -15,19 +15,18 @@ def repository_root(path: PathLike = None) -> Path:
         path = Path(path)
     if path.is_file():
         path = path.parent
-    if '.git' in (child.name for child in
-                  path.iterdir()) or path == path.parent:
+    if '.git' in (child.name for child in path.iterdir()) or path == path.parent:
         return path
     else:
         return repository_root(path.parent)
 
 
 def get_logger(
-        name: str,
-        log_filename: PathLike = None,
-        file_level: int = None,
-        console_level: int = None,
-        log_format: str = None,
+    name: str,
+    log_filename: PathLike = None,
+    file_level: int = None,
+    console_level: int = None,
+    log_format: str = None,
 ) -> logging.Logger:
     if file_level is None:
         file_level = logging.DEBUG
@@ -62,8 +61,7 @@ def get_logger(
         file_handler = logging.FileHandler(log_filename)
         file_handler.setLevel(file_level)
         for existing_file_handler in [
-            handler for handler in logger.handlers if
-            type(handler) is logging.FileHandler
+            handler for handler in logger.handlers if type(handler) is logging.FileHandler
         ]:
             logger.removeHandler(existing_file_handler)
         logger.addHandler(file_handler)
@@ -78,8 +76,7 @@ def get_logger(
 
 
 def ellipsoidal_distance(
-        point_a: (float, float), point_b: (float, float), crs_a: CRS,
-        crs_b: CRS = None
+    point_a: (float, float), point_b: (float, float), crs_a: CRS, crs_b: CRS = None
 ) -> float:
     if isinstance(point_a, Point):
         point_a = [*point_a.coords]
@@ -90,6 +87,5 @@ def ellipsoidal_distance(
         point_b = transformer.transform(*point_b)
     points = numpy.stack((point_a, point_b), axis=0)
     ellipsoid = crs_a.datum.to_json_dict()['ellipsoid']
-    geodetic = Geod(a=ellipsoid['semi_major_axis'],
-                    rf=ellipsoid['inverse_flattening'])
+    geodetic = Geod(a=ellipsoid['semi_major_axis'], rf=ellipsoid['inverse_flattening'])
     return geodetic.line_length(points[:, 0], points[:, 1])

@@ -5,8 +5,7 @@ from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 import numpy
 
-from ensemble_perturbation.configuration.adcirc import \
-    write_adcirc_configurations
+from ensemble_perturbation.configuration.adcirc import write_adcirc_configurations
 from ensemble_perturbation.utilities import get_logger, repository_root
 
 LOGGER = get_logger('perturb.adcirc')

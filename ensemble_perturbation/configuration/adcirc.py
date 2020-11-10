@@ -22,16 +22,16 @@ LOGGER = get_logger('configuration.adcirc')
 
 
 def write_adcirc_configurations(
-        nems: ModelingSystem,
-        runs: {str: (float, str)},
-        input_directory: PathLike,
-        output_directory: PathLike,
-        name: str = None,
-        partition: str = None,
-        email_address: str = None,
-        tacc: bool = False,
-        wall_clock_time: timedelta = None,
-        spinup: timedelta = None,
+    nems: ModelingSystem,
+    runs: {str: (float, str)},
+    input_directory: PathLike,
+    output_directory: PathLike,
+    name: str = None,
+    partition: str = None,
+    email_address: str = None,
+    tacc: bool = False,
+    wall_clock_time: timedelta = None,
+    spinup: timedelta = None,
 ):
     """
     Generate ADCIRC run configuration for given variable values.
@@ -124,16 +124,11 @@ def write_adcirc_configurations(
         wind_forcing=WindForcing(17, 3600),
         wave_forcing=WaveForcing(5, 3600),
     )
-    driver.import_stations(
-        Path(repository_root()) / 'examples/data/stations.txt')
-    driver.set_elevation_stations_output(timedelta(minutes=6),
-                                         spinup=timedelta(minutes=6))
-    driver.set_elevation_surface_output(timedelta(minutes=6),
-                                        spinup=timedelta(minutes=6))
-    driver.set_velocity_stations_output(timedelta(minutes=6),
-                                        spinup=timedelta(minutes=6))
-    driver.set_velocity_surface_output(timedelta(minutes=6),
-                                       spinup=timedelta(minutes=6))
+    driver.import_stations(Path(repository_root()) / 'examples/data/stations.txt')
+    driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_elevation_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_velocity_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.set_velocity_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
 
     for run_name, (value, attribute_name) in runs.items():
         run_directory = output_directory / run_name
@@ -167,8 +162,7 @@ def write_adcirc_configurations(
         filename.rename(coldstart_filename)
 
     if spinup is not None:
-        hotstart_filenames = nems.write(output_directory, overwrite=True,
-                                        include_version=True)
+        hotstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
     else:
         hotstart_filenames = []
 
@@ -197,8 +191,7 @@ def write_adcirc_configurations(
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
-    for job_filename in glob(str(output_directory / '**' / 'slurm.job'),
-                             recursive=True):
+    for job_filename in glob(str(output_directory / '**' / 'slurm.job'), recursive=True):
         with open(job_filename) as job_file:
             text = job_file.read()
         matched = pattern.search(text)
