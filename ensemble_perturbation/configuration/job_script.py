@@ -152,22 +152,19 @@ class EnsembleSlurmScript:
 
         if self.modules is not None:
             modules_string = ' '.join(module for module in self.modules)
-            lines.extend([
-                f'module load {modules_string}',
-                '',
-            ])
+            lines.extend(
+                [f'module load {modules_string}', '', ]
+            )
 
         if self.path_prefix is not None:
-            lines.extend([
-                f'PATH={self.path_prefix}:$PATH',
-                '',
-            ])
+            lines.extend(
+                [f'PATH={self.path_prefix}:$PATH', '', ]
+            )
 
         if self.commands is not None:
-            lines.extend([
-                *(str(command) for command in self.commands),
-                '',
-            ])
+            lines.extend(
+                [*(str(command) for command in self.commands), '', ]
+            )
 
         lines.extend(
             [
@@ -253,22 +250,22 @@ class EnsembleSlurmScript:
                 bash_function(
                     'clean_directory',
                     [
-                        f'rm -rf {pattern}' for pattern in
-                        [
-                            'PE*',
-                            'partmesh.txt',
-                            'metis_graph.txt',
-                            'fort.13',
-                            'fort.14',
-                            'fort.15',
-                            'fort.16',
-                            'fort.80',
-                            'fort.68.nc',
-                            'nems.configure',
-                            'model_configure',
-                            'atm_namelist.rc',
-                            'config.rc',
-                        ]
+                        f'rm -rf {pattern}'
+                        for pattern in [
+                        'PE*',
+                        'partmesh.txt',
+                        'metis_graph.txt',
+                        'fort.13',
+                        'fort.14',
+                        'fort.15',
+                        'fort.16',
+                        'fort.80',
+                        'fort.68.nc',
+                        'nems.configure',
+                        'model_configure',
+                        'atm_namelist.rc',
+                        'config.rc',
+                    ]
                     ],
                 ),
                 '',
@@ -299,7 +296,8 @@ class EnsembleSlurmScript:
 
 
 def bash_if_statement(
-        condition: str, then: [str], *else_then: [[str]], indentation: str = '  '
+        condition: str, then: [str], *else_then: [[str]],
+        indentation: str = '  '
 ) -> str:
     """
     Create a if statement in Bash syntax using the given condition, then statement(s), and else condition(s) / statement(s).
@@ -319,7 +317,8 @@ def bash_if_statement(
     lines = [f'if {condition}; then', textwrap.indent(then, indentation)]
 
     for else_block in else_then:
-        if not isinstance(else_block, str) and isinstance(else_block, Sequence):
+        if not isinstance(else_block, str) and isinstance(else_block,
+                                                          Sequence):
             else_block = '\n'.join(else_block)
 
         currently_else = else_block.startswith('else')
@@ -327,8 +326,10 @@ def bash_if_statement(
         currently_then = else_block.startswith('then')
 
         previous_line = lines[-1].strip()
-        hanging_else = previous_line.startswith('else') and not previous_line.endswith(';')
-        hanging_elif = previous_line.startswith('elif') and not previous_line.endswith(';')
+        hanging_else = previous_line.startswith(
+            'else') and not previous_line.endswith(';')
+        hanging_elif = previous_line.startswith(
+            'elif') and not previous_line.endswith(';')
 
         if currently_else or currently_elif:
             if hanging_else or hanging_elif:
@@ -365,7 +366,8 @@ def bash_for_loop(iteration: str, do: [str], indentation='  ') -> str:
     if not isinstance(do, str) and isinstance(do, Sequence):
         do = '\n'.join(do)
 
-    return '\n'.join((f'{iteration}; do', textwrap.indent(do, indentation), 'done',))
+    return '\n'.join(
+        (f'{iteration}; do', textwrap.indent(do, indentation), 'done',))
 
 
 def bash_function(name: str, body: [str], indentation: str = '  ') -> str:

@@ -64,7 +64,8 @@ class ReferenceComparison(ABC):
 
         self.runs = parse_adcirc_outputs(output_directory)
 
-        self.stages = stages if stages is not None else ['coldstart', 'hotstart']
+        self.stages = stages if stages is not None else ['coldstart',
+                                                         'hotstart']
 
         self.crs = CRS.from_epsg(4326)
         ellipsoid = self.crs.datum.to_json_dict()['ellipsoid']
@@ -74,12 +75,15 @@ class ReferenceComparison(ABC):
 
         first_run_stage = self.runs[list(self.runs)[0]][self.stages[0]]
 
-        self.stations = first_run_stage[ADCIRC_VARIABLES.loc[self.variables[0]]['stations']]
+        self.stations = first_run_stage[
+            ADCIRC_VARIABLES.loc[self.variables[0]]['stations']]
 
-        self.mesh = first_run_stage[ADCIRC_VARIABLES.loc[self.variables[0]]['max']]
+        self.mesh = first_run_stage[
+            ADCIRC_VARIABLES.loc[self.variables[0]]['max']]
 
         self.stations = self.stations[
-            self.stations.within(self.mesh.unary_union.convex_hull.buffer(0.01))
+            self.stations.within(
+                self.mesh.unary_union.convex_hull.buffer(0.01))
         ]
         self.stations.reset_index(drop=True, inplace=True)
 
@@ -132,7 +136,8 @@ class ReferenceComparison(ABC):
         observed_values = pandas.concat(observed_values)
 
         values = []
-        model_output_basename = ADCIRC_VARIABLES.loc[self.variables[0]]['model']
+        model_output_basename = ADCIRC_VARIABLES.loc[self.variables[0]][
+            'model']
         for nearest_mesh_index, nearest_mesh_vertex in self.station_mesh_vertices.iterrows():
             station_name = nearest_mesh_vertex['station']
 
@@ -155,11 +160,14 @@ class ReferenceComparison(ABC):
                                 'time': model_times,
                                 'distance': nearest_mesh_vertex['distance'],
                                 'geometry': [
-                                    nearest_mesh_vertex.geometry for _ in model_times
+                                    nearest_mesh_vertex.geometry for _ in
+                                    model_times
                                 ],
                                 **{
-                                    variable_name: variable_data[:, nearest_mesh_index]
-                                    for variable_name, variable_data in modeled_values.items()
+                                    variable_name: variable_data[:,
+                                                   nearest_mesh_index]
+                                    for variable_name, variable_data in
+                                    modeled_values.items()
                                 },
                             }
                         )
@@ -181,7 +189,8 @@ class ReferenceComparison(ABC):
                             'time',
                             'distance',
                             'geometry',
-                            *(f'{run_name}_{variable}' for variable in self.variables),
+                            *(f'{run_name}_{variable}' for variable in
+                              self.variables),
                         ]
                     ]
                     station_values = pandas.merge(
@@ -193,8 +202,9 @@ class ReferenceComparison(ABC):
 
             station_observed_values = observed_values[
                 observed_values['station'] == station_name
-            ]
-            station_observed_values = station_observed_values[['time', *self.variables]]
+                ]
+            station_observed_values = station_observed_values[
+                ['time', *self.variables]]
             station_observed_values.columns = [
                 'time',
                 *(f'observed_{variable}' for variable in self.variables),
@@ -225,22 +235,27 @@ class ReferenceComparison(ABC):
     @lru_cache(maxsize=1)
     def errors(self) -> GeoDataFrame:
         values = self.values
-        observed_values = values.iloc[:, [0, 2, *range(5, 5 + len(self.variables))]]
+        observed_values = values.iloc[:,
+                          [0, 2, *range(5, 5 + len(self.variables))]]
 
         errors = []
         for _, station in self.stations.iterrows():
-            station_modeled_values = values[values['station'] == station['name']]
-            station_distance = pandas.unique(station_modeled_values['distance'])[0]
+            station_modeled_values = values[
+                values['station'] == station['name']]
+            station_distance = \
+                pandas.unique(station_modeled_values['distance'])[0]
 
             station_observed_values = observed_values[
-                                          observed_values['station'] == station['name']
+                                          observed_values['station'] ==
+                                          station['name']
                                           ].iloc[:, 1:]
             station_observed_values.columns = ['time', *self.variables]
 
             station_errors = None
             for run_name in self.runs:
                 run_modeled_values = station_modeled_values[
-                    ['time', *(column for column in values.columns if run_name in column)]
+                    ['time', *(column for column in values.columns if
+                               run_name in column)]
                 ]
                 run_modeled_values.columns = ['time', *self.variables]
 
@@ -261,7 +276,8 @@ class ReferenceComparison(ABC):
                     station_errors = run_errors
                 else:
                     run_errors = run_errors[
-                        ['time', *(f'{run_name}_{variable}' for variable in self.variables)]
+                        ['time', *(f'{run_name}_{variable}' for variable in
+                                   self.variables)]
                     ]
                     station_errors = pandas.merge(
                         station_errors, run_errors, how='left', on=['time']
@@ -289,7 +305,8 @@ class ReferenceComparison(ABC):
                     [
                         'stage',
                         'time',
-                        *(column for column in errors.columns if run_name in column),
+                        *(column for column in errors.columns if
+                          run_name in column),
                     ]
                 ]
                 run_rmses = []
@@ -298,7 +315,8 @@ class ReferenceComparison(ABC):
                     stage_rmses = {'stage': stage}
                     for column in stage_errors.iloc[:, 2:]:
                         variable = column.replace(f'{run_name}_', '')
-                        stage_rmses[variable] = numpy.sqrt((stage_errors[column] ** 2).mean())
+                        stage_rmses[variable] = numpy.sqrt(
+                            (stage_errors[column] ** 2).mean())
                     run_rmses.append(stage_rmses)
                 run_rmses = DataFrame.from_dict(
                     dict(zip(range(len(run_rmses)), run_rmses)), orient='index'
@@ -308,7 +326,8 @@ class ReferenceComparison(ABC):
 
             station_rmses = pandas.concat(station_rmses)
             station_rmses = GeoDataFrame(
-                station_rmses, geometry=[station.geometry for _ in range(len(station_rmses))]
+                station_rmses,
+                geometry=[station.geometry for _ in range(len(station_rmses))]
             )
 
             station_rmses.insert(1, 'station', station['name'])
@@ -320,7 +339,8 @@ class ReferenceComparison(ABC):
         return rmses
 
     @abstractmethod
-    def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
+    def parse_stations(self, filename: PathLike,
+                       station_names: [str]) -> GeoDataFrame:
         raise NotImplementedError
 
     def plot_values(self, show: bool = False):
@@ -356,14 +376,17 @@ class ReferenceComparison(ABC):
                 observed_values = stage_values[
                     [
                         'time',
-                        *(column for column in stage_values.columns if 'observed_' in column),
+                        *(column for column in stage_values.columns if
+                          'observed_' in column),
                     ]
                 ]
                 observed_values.columns = ['time', *self.variables]
 
                 for run_index, run_name in enumerate(self.runs):
-                    observation_color = OBSERVATION_COLOR_MAP(run_index_normalizer(run_index))
-                    model_color = MODEL_COLOR_MAP(run_index_normalizer(run_index))
+                    observation_color = OBSERVATION_COLOR_MAP(
+                        run_index_normalizer(run_index))
+                    model_color = MODEL_COLOR_MAP(
+                        run_index_normalizer(run_index))
 
                     modeled_values = stage_values[
                         [
@@ -394,15 +417,19 @@ class ReferenceComparison(ABC):
         handles = [
             Line2D([0], [0], color='b', label='observation'),
             Line2D([0], [0], color='r', label='model'),
-            Line2D([0], [0], color='k', linestyle=LINESTYLES['coldstart'], label='coldstart'),
-            Line2D([0], [0], color='k', linestyle=LINESTYLES['hotstart'], label='hotstart'),
+            Line2D([0], [0], color='k', linestyle=LINESTYLES['coldstart'],
+                   label='coldstart'),
+            Line2D([0], [0], color='k', linestyle=LINESTYLES['hotstart'],
+                   label='hotstart'),
         ]
 
         for station_name, axes in value_axes.items():
             for variable, axis in axes.items():
-                axis.set_title(f'station {station_name} {variable}', loc='left')
+                axis.set_title(f'station {station_name} {variable}',
+                               loc='left')
                 axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
-                axis.set_ylabel(f'{variable} ({ADCIRC_VARIABLES.loc[variable]["unit"]})')
+                axis.set_ylabel(
+                    f'{variable} ({ADCIRC_VARIABLES.loc[variable]["unit"]})')
                 axis.legend(handles=handles)
 
         if show:
@@ -429,7 +456,8 @@ class ReferenceComparison(ABC):
 
         for variable, axis in error_axes.items():
             for station_index, station in self.stations.iterrows():
-                error_color = ERROR_COLOR_MAP(station_index_normalizer(station_index))
+                error_color = ERROR_COLOR_MAP(
+                    station_index_normalizer(station_index))
 
                 station_errors = errors[errors['station'] == station['name']]
 
@@ -447,7 +475,8 @@ class ReferenceComparison(ABC):
                     ]
                     variable_errors.columns = ['time', 'stage', variable]
                     for stage in self.stages:
-                        stage_errors = variable_errors[variable_errors['stage'] == stage]
+                        stage_errors = variable_errors[
+                            variable_errors['stage'] == stage]
                         axis.plot(
                             stage_errors['time'],
                             stage_errors[variable],
@@ -460,19 +489,23 @@ class ReferenceComparison(ABC):
                 Line2D(
                     [0],
                     [0],
-                    color=ERROR_COLOR_MAP(station_index_normalizer(station_index)),
+                    color=ERROR_COLOR_MAP(
+                        station_index_normalizer(station_index)),
                     label=f'station {station["name"]}',
                 )
                 for station_index, station in self.stations.iterrows()
             ),
-            Line2D([0], [0], color='k', linestyle=LINESTYLES['coldstart'], label='coldstart'),
-            Line2D([0], [0], color='k', linestyle=LINESTYLES['hotstart'], label='hotstart'),
+            Line2D([0], [0], color='k', linestyle=LINESTYLES['coldstart'],
+                   label='coldstart'),
+            Line2D([0], [0], color='k', linestyle=LINESTYLES['hotstart'],
+                   label='hotstart'),
         ]
 
         for variable, axis in error_axes.items():
             axis.set_title(f'{variable} error', loc='left')
             axis.hlines([0], *axis.get_xlim(), color='k', linestyle='--')
-            axis.set_ylabel(f'{variable} error ' f'({ADCIRC_VARIABLES.loc[variable]["unit"]})')
+            axis.set_ylabel(
+                f'{variable} error ' f'({ADCIRC_VARIABLES.loc[variable]["unit"]})')
             axis.legend(handles=handles)
 
         if show:
@@ -489,7 +522,8 @@ class ReferenceComparison(ABC):
 
         axes = {}
         for variable_index, variable in enumerate(self.variables):
-            axis = figure.add_subplot(len(self.variables), 1, variable_index + 1)
+            axis = figure.add_subplot(len(self.variables), 1,
+                                      variable_index + 1)
             if sharing_axis is None:
                 sharing_axis = axis
             axes[variable] = axis
@@ -500,7 +534,8 @@ class ReferenceComparison(ABC):
                     'run',
                     'station',
                     'stage',
-                    *(column for column in rmses.columns if column == variable),
+                    *(column for column in rmses.columns if
+                      column == variable),
                 ]
             ]
 
@@ -508,11 +543,13 @@ class ReferenceComparison(ABC):
             for stage in self.stages:
                 stage_rmses = variable_rmses[variable_rmses['stage'] == stage]
                 for station_index, station in self.stations.iterrows():
-                    station_rmses = stage_rmses[stage_rmses['station'] == station['name']]
+                    station_rmses = stage_rmses[
+                        stage_rmses['station'] == station['name']]
                     axis.plot(
                         station_rmses['run'],
                         station_rmses[variable],
-                        color=ERROR_COLOR_MAP(station_index_normalizer(station_index)),
+                        color=ERROR_COLOR_MAP(
+                            station_index_normalizer(station_index)),
                         linestyle=LINESTYLES[stage],
                         label=f'{stage} {variable}',
                     )
@@ -522,18 +559,22 @@ class ReferenceComparison(ABC):
                 Line2D(
                     [0],
                     [0],
-                    color=ERROR_COLOR_MAP(station_index_normalizer(station_index)),
+                    color=ERROR_COLOR_MAP(
+                        station_index_normalizer(station_index)),
                     label=f'station {station["name"]}',
                 )
                 for station_index, station in self.stations.iterrows()
             ),
-            Line2D([0], [0], color='k', linestyle=LINESTYLES['coldstart'], label='coldstart'),
-            Line2D([0], [0], color='k', linestyle=LINESTYLES['hotstart'], label='hotstart'),
+            Line2D([0], [0], color='k', linestyle=LINESTYLES['coldstart'],
+                   label='coldstart'),
+            Line2D([0], [0], color='k', linestyle=LINESTYLES['hotstart'],
+                   label='hotstart'),
         ]
 
         for variable, axis in axes.items():
             axis.set_xlabel('run')
-            axis.set_ylabel(f'{variable} ({ADCIRC_VARIABLES.loc[variable]["unit"]})')
+            axis.set_ylabel(
+                f'{variable} ({ADCIRC_VARIABLES.loc[variable]["unit"]})')
             axis.legend(handles=handles)
 
         if show:
@@ -543,20 +584,24 @@ class ReferenceComparison(ABC):
 class ZetaComparison(ReferenceComparison):
     def __init__(self, input_directory: str, output_directory: str):
         super().__init__(
-            input_directory, output_directory, ['zeta'], ['coldstart', 'hotstart']
+            input_directory, output_directory, ['zeta'],
+            ['coldstart', 'hotstart']
         )
 
-    def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
+    def parse_stations(self, filename: PathLike,
+                       station_names: [str]) -> GeoDataFrame:
         return fort61_stations_zeta(filename, station_names)
 
 
 class VelocityComparison(ReferenceComparison):
     def __init__(self, input_directory: str, output_directory: str):
         super().__init__(
-            input_directory, output_directory, ['u', 'v'], ['coldstart', 'hotstart']
+            input_directory, output_directory, ['u', 'v'],
+            ['coldstart', 'hotstart']
         )
 
-    def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
+    def parse_stations(self, filename: PathLike,
+                       station_names: [str]) -> GeoDataFrame:
         return fort62_stations_uv(filename, station_names)
 
 
@@ -573,5 +618,7 @@ def insert_magnitude_components(
         velocity_index = len(dataframe.columns)
     if direction_index is None:
         direction_index = velocity_index + 1
-    dataframe.insert(velocity_index, magnitude, numpy.hypot(dataframe[u], dataframe[v]))
-    dataframe.insert(direction_index, direction, numpy.arctan2(dataframe[u], dataframe[v]))
+    dataframe.insert(velocity_index, magnitude,
+                     numpy.hypot(dataframe[u], dataframe[v]))
+    dataframe.insert(direction_index, direction,
+                     numpy.arctan2(dataframe[u], dataframe[v]))

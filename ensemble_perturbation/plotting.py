@@ -5,7 +5,8 @@ from matplotlib import pyplot
 from matplotlib.cm import get_cmap
 import numpy
 from osgeo import gdal
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon, \
+    shape as shapely_shape
 
 from .utilities import get_logger
 
@@ -13,7 +14,8 @@ LOGGER = get_logger('plotting')
 
 
 def geoarray_to_xyz(
-        data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
+        data: numpy.array, origin: (float, float), resolution: (float, float),
+        nodata: float = None
 ) -> numpy.array:
     """
     Extract XYZ points from an array of data using the given raster-like
@@ -46,12 +48,17 @@ def geoarray_to_xyz(
 
     data_coverage = where_not_nodata(data, nodata)
     x_values, y_values = numpy.meshgrid(
-        numpy.linspace(origin[0], origin[0] + resolution[0] * data.shape[1], data.shape[1]),
-        numpy.linspace(origin[1], origin[1] + resolution[1] * data.shape[0], data.shape[0]),
+        numpy.linspace(origin[0], origin[0] + resolution[0] * data.shape[1],
+                       data.shape[1]),
+        numpy.linspace(origin[1], origin[1] + resolution[1] * data.shape[0],
+                       data.shape[0]),
     )
 
     return numpy.stack(
-        (x_values[data_coverage], y_values[data_coverage], data[data_coverage]), axis=1
+        (
+            x_values[data_coverage], y_values[data_coverage],
+            data[data_coverage]),
+        axis=1
     )
 
 
@@ -105,7 +112,8 @@ def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
                     [
                         feature_geometry.GetGeometryRef(point_index).GetPoint()
                         for point_index in range(num_points)
-                        if feature_geometry.GetGeometryRef(point_index).GetPoint()[2] != nodata
+                        if feature_geometry.GetGeometryRef(
+                        point_index).GetPoint()[2] != nodata
                     ]
                 )
 
@@ -114,7 +122,8 @@ def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
                 layers_data.append(points[:, 2])
 
     return numpy.concatenate(
-        [coordinates] + [numpy.expand_dims(data, axis=1) for data in layers_data], axis=1
+        [coordinates] + [numpy.expand_dims(data, axis=1) for data in
+                         layers_data], axis=1
     )
 
 
@@ -137,7 +146,8 @@ def bounds_from_opposite_corners(
         min X, min Y, max X, max Y
     """
 
-    return numpy.ravel(numpy.sort(numpy.stack((corner_1, corner_2), axis=0), axis=0))
+    return numpy.ravel(
+        numpy.sort(numpy.stack((corner_1, corner_2), axis=0), axis=0))
 
 
 def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
@@ -164,7 +174,8 @@ def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
     if numpy.any(rotation != 0):
         raise NotImplementedError('rotated rasters not supported')
 
-    return bounds_from_opposite_corners(origin, origin + numpy.flip(shape) * resolution)
+    return bounds_from_opposite_corners(origin, origin + numpy.flip(
+        shape) * resolution)
 
 
 def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
@@ -192,7 +203,8 @@ def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
         else:
             nodata = numpy.nan
 
-    coverage = array != nodata if not numpy.isnan(nodata) else ~numpy.isnan(array)
+    coverage = array != nodata if not numpy.isnan(nodata) else ~numpy.isnan(
+        array)
 
     if len(array.shape) > 2:
         coverage = numpy.any(coverage, axis=0)
@@ -343,7 +355,8 @@ def plot_points(
     """
 
     if type(points) is MultiPoint:
-        points = numpy.squeeze(numpy.stack((point._get_coords() for point in points), axis=0))
+        points = numpy.squeeze(
+            numpy.stack((point._get_coords() for point in points), axis=0))
 
     if axis is None:
         axis = pyplot.gca()

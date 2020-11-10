@@ -7,6 +7,8 @@ import re
 import tarfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
+from adcircpy.forcing.waves import WaveForcing
+from adcircpy.forcing.winds import WindForcing
 from adcircpy.server import SlurmConfig
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry
@@ -119,12 +121,19 @@ def write_adcirc_configurations(
         end_date=nems.start_time + nems.duration,
         spinup_time=timedelta(days=5),
         server_config=slurm,
+        wind_forcing=WindForcing(17, 3600),
+        wave_forcing=WaveForcing(5, 3600),
     )
-    driver.import_stations(Path(repository_root()) / 'examples/data/stations.txt')
-    driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
-    driver.set_elevation_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
-    driver.set_velocity_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
-    driver.set_velocity_surface_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
+    driver.import_stations(
+        Path(repository_root()) / 'examples/data/stations.txt')
+    driver.set_elevation_stations_output(timedelta(minutes=6),
+                                         spinup=timedelta(minutes=6))
+    driver.set_elevation_surface_output(timedelta(minutes=6),
+                                        spinup=timedelta(minutes=6))
+    driver.set_velocity_stations_output(timedelta(minutes=6),
+                                        spinup=timedelta(minutes=6))
+    driver.set_velocity_surface_output(timedelta(minutes=6),
+                                       spinup=timedelta(minutes=6))
 
     for run_name, (value, attribute_name) in runs.items():
         run_directory = output_directory / run_name
@@ -143,9 +152,13 @@ def write_adcirc_configurations(
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
 
     if spinup is None:
-        coldstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
+        coldstart_filenames = nems.write(
+            output_directory, overwrite=True, include_version=True
+        )
     else:
-        coldstart_filenames = spinup.write(output_directory, overwrite=True, include_version=True)
+        coldstart_filenames = spinup.write(
+            output_directory, overwrite=True, include_version=True
+        )
 
     for filename in coldstart_filenames + [atm_namelist_filename]:
         coldstart_filename = Path(f'{filename}.coldstart')
@@ -154,7 +167,8 @@ def write_adcirc_configurations(
         filename.rename(coldstart_filename)
 
     if spinup is not None:
-        hotstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
+        hotstart_filenames = nems.write(output_directory, overwrite=True,
+                                        include_version=True)
     else:
         hotstart_filenames = []
 
@@ -183,7 +197,8 @@ def write_adcirc_configurations(
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
-    for job_filename in glob(str(output_directory / '**' / 'slurm.job'), recursive=True):
+    for job_filename in glob(str(output_directory / '**' / 'slurm.job'),
+                             recursive=True):
         with open(job_filename) as job_file:
             text = job_file.read()
         matched = pattern.search(text)
