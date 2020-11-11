@@ -22,15 +22,6 @@ ij_editorconfig_space_before_colon = false
 ij_editorconfig_space_before_comma = false
 ij_editorconfig_spaces_around_assignment_operators = true
 
-[{*.bash, *.job, *.sh, *.zsh}]
-indent_size = 2
-tab_width = 2
-ij_shell_binary_ops_start_line = false
-ij_shell_keep_column_alignment_padding = false
-ij_shell_minify_program = false
-ij_shell_redirect_followed_by_space = false
-ij_shell_switch_cases_indented = false
-
 [{*.py, *.pyw, soundings}]
 ij_continuation_indent_size = 4
 ij_python_align_collections_and_comprehensions = true

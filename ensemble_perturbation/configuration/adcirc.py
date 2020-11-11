@@ -1,3 +1,4 @@
+import copy
 from datetime import timedelta
 from glob import glob
 import os
@@ -78,12 +79,12 @@ def write_adcirc_configurations(
     if not fort14_filename.is_file():
         download_test_configuration(input_directory)
 
-    if spinup is not None:
+    if spinup is not None and isinstance(spinup, timedelta):
         spinup = ModelingSystem(
             nems.start_time - spinup,
             spinup,
             nems.interval,
-            ocn=nems['OCN'],
+            ocn=copy.deepcopy(nems['OCN']),
             **nems.attributes,
         )
 
@@ -97,6 +98,52 @@ def write_adcirc_configurations(
     mesh.add_forcing(tidal_forcing)
 
     module_file = f'$HOME/build/ADC-WW3-NWM-NEMS-TACC/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
+
+    atm_namelist_filename = output_directory / 'atm_namelist.rc'
+
+    if spinup is None:
+        coldstart_filenames = nems.write(
+            output_directory, overwrite=True, include_version=True
+        )
+    else:
+        coldstart_filenames = spinup.write(
+            output_directory, overwrite=True, include_version=True
+        )
+
+    for filename in coldstart_filenames + [atm_namelist_filename]:
+        coldstart_filename = Path(f'{filename}.coldstart')
+        if coldstart_filename.exists():
+            os.remove(coldstart_filename)
+        filename.rename(coldstart_filename)
+
+    if spinup is not None:
+        hotstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
+    else:
+        hotstart_filenames = []
+
+    for filename in hotstart_filenames + [atm_namelist_filename]:
+        hotstart_filename = Path(f'{filename}.hotstart')
+        if hotstart_filename.exists():
+            os.remove(hotstart_filename)
+        filename.rename(hotstart_filename)
+
+    ensemble_slurm_script = EnsembleSlurmScript(
+        account=None,
+        tasks=nems.processors,
+        duration=wall_clock_time,
+        partition=partition,
+        hpc=HPC.TACC if tacc else HPC.ORION,
+        launcher=launcher,
+        run='mannings_perturbation',
+        email_type=SlurmEmailType.ALL if email_address is not None else None,
+        email_address=email_address,
+        error_filename=f'{name}.err.log',
+        log_filename=f'{name}.out.log',
+        modules=[],
+        path_prefix='$HOME/adcirc/build',
+        commands=[f'source {module_file}'],
+    )
+    ensemble_slurm_script.write(output_directory, overwrite=True)
 
     slurm = SlurmConfig(
         account=None,

@@ -46,6 +46,7 @@ class EnsembleSlurmScript:
         run: str = None,
         email_type: SlurmEmailType = None,
         email_address: str = None,
+        error_filename: str = None,
         log_filename: str = None,
         nodes: int = None,
         modules: [str] = None,
@@ -66,6 +67,7 @@ class EnsembleSlurmScript:
         :param run: Slurm run name
         :param email_type: email type
         :param email_address: email address
+        :param error_filename: file path to error log file
         :param log_filename: file path to output log file
         :param nodes: number of physical nodes to run on
         :param modules: list of file paths to modules to load
@@ -73,8 +75,11 @@ class EnsembleSlurmScript:
         :param commands: list of extra shell commands to insert into script
         """
 
+        if isinstance(modules, Sequence) and len(modules) == 0:
+            modules = None
+
         self.account = account
-        self.tasks = int(tasks)
+        self.tasks = tasks
         self.duration = duration
         self.partition = partition
         self.hpc = hpc
@@ -87,6 +92,7 @@ class EnsembleSlurmScript:
         self.email_type = email_type
         self.email_address = email_address
 
+        self.error_filename = error_filename if error_filename is not None else 'slurm.log'
         self.log_filename = log_filename if log_filename is not None else 'slurm.log'
         self.nodes = nodes
         self.modules = modules
@@ -122,6 +128,8 @@ class EnsembleSlurmScript:
             if self.email_address is None or len(self.email_address) == 0:
                 raise ValueError('missing email address')
             lines.append(f'#SBATCH --mail-user={self.email_address}')
+        if self.error_filename is not None:
+            lines.append(f'#SBATCH --error={self.error_filename}')
         if self.log_filename is not None:
             lines.append(f'#SBATCH --output={self.log_filename}')
 
@@ -153,17 +161,17 @@ class EnsembleSlurmScript:
         if self.modules is not None:
             modules_string = ' '.join(module for module in self.modules)
             lines.extend(
-                [f'module load {modules_string}', '', ]
+                [f'module load {modules_string}', '']
             )
 
         if self.path_prefix is not None:
             lines.extend(
-                [f'PATH={self.path_prefix}:$PATH', '', ]
+                [f'PATH={self.path_prefix}:$PATH', '']
             )
 
         if self.commands is not None:
             lines.extend(
-                [*(str(command) for command in self.commands), '', ]
+                [*(str(command) for command in self.commands), '']
             )
 
         lines.extend(

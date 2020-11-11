@@ -12,7 +12,7 @@ LOGGER = get_logger('perturb.adcirc')
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
-OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration'
+OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration' / 'perturbation'
 
 if __name__ == '__main__':
     runs = {
@@ -31,7 +31,13 @@ if __name__ == '__main__':
 
     nems.connect('ATM', 'OCN')
     nems.connect('WAV', 'OCN')
-    nems.sequence = ['ATM -> OCN', 'WAV -> OCN', 'ATM', 'WAV', 'OCN']
+    nems.sequence = [
+        'ATM -> OCN',
+        'WAV -> OCN',
+        'ATM',
+        'WAV',
+        'OCN',
+    ]
 
     write_adcirc_configurations(
         nems,
