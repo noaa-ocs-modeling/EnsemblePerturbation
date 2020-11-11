@@ -8,6 +8,8 @@ import re
 import tarfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
+from adcircpy.forcing.waves import WaveForcing
+from adcircpy.forcing.winds import WindForcing
 from adcircpy.server import SlurmConfig
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry
@@ -166,6 +168,8 @@ def write_adcirc_configurations(
         end_date=nems.start_time + nems.duration,
         spinup_time=timedelta(days=5),
         server_config=slurm,
+        wind_forcing=WindForcing(17, 3600),
+        wave_forcing=WaveForcing(5, 3600),
     )
     driver.import_stations(Path(repository_root()) / 'examples/data/stations.txt')
     driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
@@ -186,6 +190,51 @@ def write_adcirc_configurations(
             directory = run_directory / phase
             if not directory.exists():
                 directory.mkdir()
+
+    atm_namelist_filename = output_directory / 'atm_namelist.rc'
+
+    if spinup is None:
+        coldstart_filenames = nems.write(
+            output_directory, overwrite=True, include_version=True
+        )
+    else:
+        coldstart_filenames = spinup.write(
+            output_directory, overwrite=True, include_version=True
+        )
+
+    for filename in coldstart_filenames + [atm_namelist_filename]:
+        coldstart_filename = Path(f'{filename}.coldstart')
+        if coldstart_filename.exists():
+            os.remove(coldstart_filename)
+        filename.rename(coldstart_filename)
+
+    if spinup is not None:
+        hotstart_filenames = nems.write(output_directory, overwrite=True, include_version=True)
+    else:
+        hotstart_filenames = []
+
+    for filename in hotstart_filenames + [atm_namelist_filename]:
+        hotstart_filename = Path(f'{filename}.hotstart')
+        if hotstart_filename.exists():
+            os.remove(hotstart_filename)
+        filename.rename(hotstart_filename)
+
+    ensemble_slurm_script = EnsembleSlurmScript(
+        account=None,
+        tasks=nems.processors,
+        duration=wall_clock_time,
+        partition=partition,
+        hpc=HPC.TACC if tacc else HPC.ORION,
+        launcher=launcher,
+        run='mannings_perturbation',
+        email_type=SlurmEmailType.ALL if email_address is not None else None,
+        email_address=email_address,
+        log_filename=f'{name}.log',
+        modules=[],
+        path_prefix='$HOME/adcirc/build',
+        commands=[f'source {module_file}'],
+    )
+    ensemble_slurm_script.write(output_directory, overwrite=True)
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
