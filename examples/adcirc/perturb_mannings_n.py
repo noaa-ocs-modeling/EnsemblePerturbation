@@ -15,9 +15,13 @@ INPUT_DIRECTORY = DATA_DIRECTORY / 'input'
 OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration' / 'perturbation'
 
 if __name__ == '__main__':
+    range = [0.016, 0.08]
+    mean = numpy.mean(range)
+    std = mean / 3
+
     runs = {
         f'mannings_n_{mannings_n:.3}': (mannings_n, 'mannings_n_at_sea_floor')
-        for mannings_n in numpy.linspace(0.016, 0.08, 5)
+        for mannings_n in numpy.random.normal(mean, std, 5)
     }
 
     nems = ModelingSystem(

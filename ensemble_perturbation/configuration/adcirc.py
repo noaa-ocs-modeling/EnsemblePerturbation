@@ -94,8 +94,12 @@ def write_adcirc_configurations(
     # init tidal forcing and setup requests
     tidal_forcing = Tides()
     tidal_forcing.use_all()
+    wind_forcing = WindForcing(17, 3600)
+    wave_forcing = WaveForcing(5, 3600)
 
     mesh.add_forcing(tidal_forcing)
+    mesh.add_forcing(wind_forcing)
+    mesh.add_forcing(wave_forcing)
 
     module_file = f'$HOME/build/ADC-WW3-NWM-NEMS-TACC/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
 
@@ -168,8 +172,6 @@ def write_adcirc_configurations(
         end_date=nems.start_time + nems.duration,
         spinup_time=timedelta(days=5),
         server_config=slurm,
-        wind_forcing=WindForcing(17, 3600),
-        wave_forcing=WaveForcing(5, 3600),
     )
     driver.import_stations(Path(repository_root()) / 'examples/data/stations.txt')
     driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
