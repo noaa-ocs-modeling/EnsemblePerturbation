@@ -25,8 +25,8 @@ if __name__ == '__main__':
     }
 
     nems = ModelingSystem(
-        start_time=datetime(2020, 6, 1),
-        duration=timedelta(days=7),
+        start_time=datetime(2008, 8, 23),
+        duration=timedelta(days=14.5),
         interval=timedelta(hours=1),
         atm=AtmosphericMeshEntry('../../data/wind_atm_fin_ch_time_vec.nc'),
         wav=WaveMeshEntry('../../data/ww3.Constant.20151214_sxy_ike_date.nc'),
@@ -51,6 +51,6 @@ if __name__ == '__main__':
         name='mannings_n_perturbation',
         email_address='zachary.burnett@noaa.gov',
         tacc=True,
-        spinup=timedelta(hours=6),
+        spinup=timedelta(days=12.5),
     )
     print('done')
