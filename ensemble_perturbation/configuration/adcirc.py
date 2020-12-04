@@ -101,6 +101,8 @@ def write_adcirc_configurations(
     mesh.add_forcing(wind_forcing)
     mesh.add_forcing(wave_forcing)
 
+    mesh.generate_tau0()
+
     module_file = f'$HOME/build/ADC-WW3-NWM-NEMS-TACC/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
 
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
