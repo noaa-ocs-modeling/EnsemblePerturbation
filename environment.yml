@@ -1,6 +1,7 @@
-name: adcircpy
+name: ensemble_perturbation
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - bs4
   - fiona
@@ -11,12 +12,13 @@ dependencies:
   - pandas
   - pip
   - pyproj>=2.6
+  - python==3.7
   - requests
   - shapely
   - pip:
       - adcircpy==1.0.12
-      - coverage
       - flake8
       - nemspy>=0.5.2
-      - nose
+      - pytest
+      - pytest-cov
       - requests_futures
