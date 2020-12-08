@@ -12,7 +12,7 @@ dependencies:
   - pandas
   - pip
   - pyproj>=2.6
-  - python==3.7
+  - python==3.7.9
   - requests
   - shapely
   - pip:
