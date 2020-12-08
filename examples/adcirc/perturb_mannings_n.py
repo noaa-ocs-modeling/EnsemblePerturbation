@@ -11,7 +11,7 @@ from ensemble_perturbation.utilities import get_logger, repository_root
 LOGGER = get_logger('perturb.adcirc')
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
-INPUT_DIRECTORY = DATA_DIRECTORY / 'input' / 'shinnecock_inlet'
+INPUT_DIRECTORY = DATA_DIRECTORY / 'input' / 'hsofs'
 OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration' / 'perturbation'
 
 if __name__ == '__main__':
