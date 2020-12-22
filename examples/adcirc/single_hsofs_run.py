@@ -42,6 +42,6 @@ if __name__ == '__main__':
         OUTPUT_DIRECTORY,
         name='nems_hsofs_test',
         email_address='zachary.burnett@noaa.gov',
-        tacc=True,
+        tacc=False,
         spinup=timedelta(days=12.5),
     )

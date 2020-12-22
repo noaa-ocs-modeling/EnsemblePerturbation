@@ -115,7 +115,9 @@ class EnsembleSlurmScript:
     def nodes(self, nodes: int):
         if nodes is None and self.hpc == HPC.TACC:
             nodes = numpy.ceil(self.tasks / 68)
-        self.__nodes = int(nodes)
+        if nodes is not None:
+            nodes = int(nodes)
+        self.__nodes = nodes
 
     @property
     def configuration(self) -> str:

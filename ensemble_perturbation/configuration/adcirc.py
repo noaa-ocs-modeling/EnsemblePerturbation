@@ -139,6 +139,7 @@ def write_adcirc_configurations(
         account=None,
         tasks=nems.processors,
         duration=wall_clock_time,
+        nodes=int(numpy.ceil(nems.processors / 68)) if tacc else None,
         partition=partition,
         hpc=HPC.TACC if tacc else HPC.ORION,
         launcher=launcher,
