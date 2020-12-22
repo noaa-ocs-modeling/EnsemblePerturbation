@@ -1,41 +1,28 @@
-#! /usr/bin/env python
 from datetime import datetime, timedelta
 
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
-import numpy
 
 from ensemble_perturbation.configuration.adcirc import download_test_configuration, write_adcirc_configurations
-from ensemble_perturbation.utilities import get_logger, repository_root
-
-LOGGER = get_logger('perturb.adcirc')
+from ensemble_perturbation.utilities import repository_root
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input' / 'hsofs'
-OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration' / 'perturbation'
+OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration' / 'hsofs'
 
 if __name__ == '__main__':
-    range = [0.016, 0.08]
-    mean = numpy.mean(range)
-    std = mean / 3
-
-    values = numpy.random.normal(mean, std, 5)
-
-    runs = {
-        f'mannings_n_{mannings_n:.3}': (mannings_n, 'mannings_n_at_sea_floor')
-        for mannings_n in values
-    }
+    runs = {f'nems_hsofs_test': ''}
 
     if not (INPUT_DIRECTORY / 'fort.14').exists():
         download_test_configuration(INPUT_DIRECTORY)
 
     nems = ModelingSystem(
-        start_time=datetime(2008, 8, 23),
+        start_time=datetime(2012, 10, 22, 6),
         duration=timedelta(days=14.5),
         interval=timedelta(hours=1),
-        atm=AtmosphericMeshEntry('../../data/wind_atm_fin_ch_time_vec.nc'),
-        wav=WaveMeshEntry('../../data/ww3.Constant.20151214_sxy_ike_date.nc'),
-        ocn=ADCIRCEntry(11),
+        atm=AtmosphericMeshEntry('../../forcings/hsofs/Wind_HWRF_SANDY_Nov2018_ExtendedSmoothT.nc'),
+        wav=WaveMeshEntry('../../forcings/hsofs/ww3.HWRF.NOV2018.2012_sxy.nc'),
+        ocn=ADCIRCEntry(382),
     )
 
     nems.connect('ATM', 'OCN')
@@ -53,9 +40,8 @@ if __name__ == '__main__':
         runs,
         INPUT_DIRECTORY,
         OUTPUT_DIRECTORY,
-        name='mannings_n_perturbation',
+        name='nems_hsofs_test',
         email_address='zachary.burnett@noaa.gov',
         tacc=True,
         spinup=timedelta(days=12.5),
     )
-    print('done')

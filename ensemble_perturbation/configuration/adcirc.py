@@ -77,7 +77,7 @@ def write_adcirc_configurations(
         wall_clock_time = timedelta(minutes=30)
 
     if not fort14_filename.is_file():
-        download_test_configuration(input_directory)
+        raise FileNotFoundError(f'no input file at {fort14_filename}')
 
     if spinup is not None and isinstance(spinup, timedelta):
         spinup = ModelingSystem(
