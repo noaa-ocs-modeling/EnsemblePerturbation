@@ -11,7 +11,7 @@ INPUT_DIRECTORY = DATA_DIRECTORY / 'input' / 'hsofs'
 OUTPUT_DIRECTORY = DATA_DIRECTORY / 'configuration' / 'hsofs'
 
 if __name__ == '__main__':
-    runs = {f'nems_hsofs_test': ''}
+    runs = {f'nems_hsofs_test': (None, None)}
 
     if not (INPUT_DIRECTORY / 'fort.14').exists():
         download_test_configuration(INPUT_DIRECTORY)

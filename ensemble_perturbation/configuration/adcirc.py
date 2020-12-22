@@ -33,6 +33,7 @@ def write_adcirc_configurations(
     tacc: bool = False,
     wall_clock_time: timedelta = None,
     spinup: timedelta = None,
+    source_filename: PathLike = None,
 ):
     """
     Generate ADCIRC run configuration for given variable values.
@@ -60,7 +61,7 @@ def write_adcirc_configurations(
         os.makedirs(output_directory, exist_ok=True)
 
     if name is None:
-        name = 'perturbation'
+        name = 'nems_run'
 
     if 'ocn' not in nems or not isinstance(nems['ocn'], ADCIRCEntry):
         nems['ocn'] = ADCIRCEntry(11)
@@ -103,7 +104,8 @@ def write_adcirc_configurations(
 
     mesh.generate_tau0()
 
-    module_file = f'$HOME/build/ADC-WW3-NWM-NEMS-TACC/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
+    if source_filename is None:
+        source_filename = f'/scratch2/COASTAL/coastal/save/Zachary.Burnett/nems/ADC-WW3-NWM-NEMS/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
 
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
 
@@ -140,14 +142,13 @@ def write_adcirc_configurations(
         partition=partition,
         hpc=HPC.TACC if tacc else HPC.ORION,
         launcher=launcher,
-        run='mannings_perturbation',
+        run=name,
         email_type=SlurmEmailType.ALL if email_address is not None else None,
         email_address=email_address,
         error_filename=f'{name}.err.log',
         log_filename=f'{name}.out.log',
         modules=[],
-        path_prefix='$HOME/adcirc/build',
-        commands=[f'source {module_file}'],
+        commands=[f'source {source_filename}'],
     )
     ensemble_slurm_script.write(output_directory, overwrite=True)
 
@@ -160,11 +161,10 @@ def write_adcirc_configurations(
         nodes=int(numpy.ceil(nems.processors / 68)) if tacc else None,
         mail_type='all' if email_address is not None else None,
         mail_user=email_address,
-        log_filename=f'{name}.log',
+        log_filename=f'{name}.out.log',
         modules=[],
-        path_prefix='$HOME/adcirc/build',
         launcher=launcher,
-        extra_commands=[f'source {module_file}'],
+        extra_commands=[f'source {source_filename}'],
     )
 
     # instantiate AdcircRun object.
@@ -222,23 +222,6 @@ def write_adcirc_configurations(
         if hotstart_filename.exists():
             os.remove(hotstart_filename)
         filename.rename(hotstart_filename)
-
-    ensemble_slurm_script = EnsembleSlurmScript(
-        account=None,
-        tasks=nems.processors,
-        duration=wall_clock_time,
-        partition=partition,
-        hpc=HPC.TACC if tacc else HPC.ORION,
-        launcher=launcher,
-        run='mannings_perturbation',
-        email_type=SlurmEmailType.ALL if email_address is not None else None,
-        email_address=email_address,
-        log_filename=f'{name}.log',
-        modules=[],
-        path_prefix='$HOME/adcirc/build',
-        commands=[f'source {module_file}'],
-    )
-    ensemble_slurm_script.write(output_directory, overwrite=True)
 
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
