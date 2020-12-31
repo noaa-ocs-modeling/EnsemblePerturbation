@@ -25,9 +25,9 @@ class SlurmEmailType(Enum):
 
 
 class HPC(Enum):
-    TACC = 'TACC'
-    ORION = 'ORION'
-    HERA = 'HERA'
+    STAMPEDE2 = 'stampede2'
+    ORION = 'orion'
+    HERA = 'hera'
 
 
 class EnsembleSlurmScript:
@@ -113,7 +113,7 @@ class EnsembleSlurmScript:
 
     @nodes.setter
     def nodes(self, nodes: int):
-        if nodes is None and self.hpc == HPC.TACC:
+        if nodes is None and self.hpc == HPC.STAMPEDE:
             nodes = numpy.ceil(self.tasks / 68)
         if nodes is not None:
             nodes = int(nodes)

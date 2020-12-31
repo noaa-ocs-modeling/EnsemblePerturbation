@@ -27,10 +27,10 @@ def write_adcirc_configurations(
     runs: {str: (float, str)},
     input_directory: PathLike,
     output_directory: PathLike,
+    platform: HPC,
     name: str = None,
     partition: str = None,
     email_address: str = None,
-    tacc: bool = False,
     wall_clock_time: timedelta = None,
     spinup: timedelta = None,
     source_filename: PathLike = None,
@@ -42,10 +42,10 @@ def write_adcirc_configurations(
     :param nems: NEMSpy ModelingSystem object, populated with models and connections
     :param input_directory: path to input data
     :param output_directory: path to store run configuration
+    :param platform: HPC platform for which to configure
     :param name: name of this perturbation
     :param partition: Slurm partition
     :param email_address: email address
-    :param tacc: whether to configure for TACC
     :param wall_clock_time: wall clock time of job
     :param spinup: spinup time for ADCIRC coldstart
     """
@@ -68,7 +68,7 @@ def write_adcirc_configurations(
 
     fort14_filename = input_directory / 'fort.14'
 
-    launcher = 'ibrun' if tacc else 'srun'
+    launcher = 'ibrun' if platform in [HPC.STAMPEDE2] else 'srun'
     run_name = 'ADCIRC_GAHM_GENERIC'
 
     if partition is None:
@@ -104,8 +104,13 @@ def write_adcirc_configurations(
 
     mesh.generate_tau0()
 
+    if platform == HPC.STAMPEDE2:
+        platform_directory = 'stampede'
+    else:
+        platform_directory = str(platform)
+
     if source_filename is None:
-        source_filename = f'/scratch2/COASTAL/coastal/save/Zachary.Burnett/nems/ADC-WW3-NWM-NEMS/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
+        source_filename = f'/scratch2/COASTAL/coastal/save/Zachary.Burnett/nems/ADC-WW3-NWM-NEMS/modulefiles/{platform_directory}/ESMF_NUOPC'
 
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
 
@@ -139,9 +144,9 @@ def write_adcirc_configurations(
         account=None,
         tasks=nems.processors,
         duration=wall_clock_time,
-        nodes=int(numpy.ceil(nems.processors / 68)) if tacc else None,
+        nodes=int(numpy.ceil(nems.processors / 68)) if platform == HPC.STAMPEDE2 else None,
         partition=partition,
-        hpc=HPC.TACC if tacc else HPC.ORION,
+        hpc=platform,
         launcher=launcher,
         run=name,
         email_type=SlurmEmailType.ALL if email_address is not None else None,
@@ -159,7 +164,7 @@ def write_adcirc_configurations(
         run_name=run_name,
         partition=partition,
         walltime=wall_clock_time,
-        nodes=int(numpy.ceil(nems.processors / 68)) if tacc else None,
+        nodes=int(numpy.ceil(nems.processors / 68)) if platform == HPC.STAMPEDE2 else None,
         mail_type='all' if email_address is not None else None,
         mail_user=email_address,
         log_filename=f'{name}.out.log',

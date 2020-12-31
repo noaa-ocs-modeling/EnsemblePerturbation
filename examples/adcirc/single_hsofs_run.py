@@ -4,6 +4,7 @@ from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 
 from ensemble_perturbation.configuration.adcirc import download_test_configuration, write_adcirc_configurations
+from ensemble_perturbation.configuration.job_script import HPC
 from ensemble_perturbation.utilities import repository_root
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
@@ -42,6 +43,6 @@ if __name__ == '__main__':
         OUTPUT_DIRECTORY,
         name='nems_hsofs_test',
         email_address='zachary.burnett@noaa.gov',
-        tacc=False,
+        platform=HPC.STAMPEDE2,
         spinup=timedelta(days=12.5),
     )
