@@ -27,12 +27,13 @@ def write_adcirc_configurations(
     runs: {str: (float, str)},
     input_directory: PathLike,
     output_directory: PathLike,
+    platform: HPC,
     name: str = None,
     partition: str = None,
     email_address: str = None,
-    tacc: bool = False,
     wall_clock_time: timedelta = None,
     spinup: timedelta = None,
+    source_filename: PathLike = None,
 ):
     """
     Generate ADCIRC run configuration for given variable values.
@@ -41,10 +42,10 @@ def write_adcirc_configurations(
     :param nems: NEMSpy ModelingSystem object, populated with models and connections
     :param input_directory: path to input data
     :param output_directory: path to store run configuration
+    :param platform: HPC platform for which to configure
     :param name: name of this perturbation
     :param partition: Slurm partition
     :param email_address: email address
-    :param tacc: whether to configure for TACC
     :param wall_clock_time: wall clock time of job
     :param spinup: spinup time for ADCIRC coldstart
     """
@@ -60,14 +61,14 @@ def write_adcirc_configurations(
         os.makedirs(output_directory, exist_ok=True)
 
     if name is None:
-        name = 'perturbation'
+        name = 'nems_run'
 
     if 'ocn' not in nems or not isinstance(nems['ocn'], ADCIRCEntry):
         nems['ocn'] = ADCIRCEntry(11)
 
     fort14_filename = input_directory / 'fort.14'
 
-    launcher = 'ibrun' if tacc else 'srun'
+    launcher = 'ibrun' if platform in [HPC.STAMPEDE2] else 'srun'
     run_name = 'ADCIRC_GAHM_GENERIC'
 
     if partition is None:
@@ -77,7 +78,7 @@ def write_adcirc_configurations(
         wall_clock_time = timedelta(minutes=30)
 
     if not fort14_filename.is_file():
-        download_test_configuration(input_directory)
+        raise FileNotFoundError(f'no input file at {fort14_filename}')
 
     if spinup is not None and isinstance(spinup, timedelta):
         spinup = ModelingSystem(
@@ -94,10 +95,22 @@ def write_adcirc_configurations(
     # init tidal forcing and setup requests
     tidal_forcing = Tides()
     tidal_forcing.use_all()
+    wind_forcing = WindForcing(17, 3600)
+    wave_forcing = WaveForcing(5, 3600)
 
     mesh.add_forcing(tidal_forcing)
+    mesh.add_forcing(wind_forcing)
+    mesh.add_forcing(wave_forcing)
 
-    module_file = f'$HOME/build/ADC-WW3-NWM-NEMS-TACC/modulefiles/{"stampede" if tacc else "hera"}/ESMF_NUOPC'
+    mesh.generate_tau0()
+
+    if platform == HPC.STAMPEDE2:
+        platform_directory = 'stampede'
+    else:
+        platform_directory = str(platform)
+
+    if source_filename is None:
+        source_filename = f'/scratch2/COASTAL/coastal/save/Zachary.Burnett/nems/ADC-WW3-NWM-NEMS/modulefiles/{platform_directory}/ESMF_NUOPC'
 
     atm_namelist_filename = output_directory / 'atm_namelist.rc'
 
@@ -131,17 +144,17 @@ def write_adcirc_configurations(
         account=None,
         tasks=nems.processors,
         duration=wall_clock_time,
+        nodes=int(numpy.ceil(nems.processors / 68)) if platform == HPC.STAMPEDE2 else None,
         partition=partition,
-        hpc=HPC.TACC if tacc else HPC.ORION,
+        hpc=platform,
         launcher=launcher,
-        run='mannings_perturbation',
+        run=name,
         email_type=SlurmEmailType.ALL if email_address is not None else None,
         email_address=email_address,
         error_filename=f'{name}.err.log',
         log_filename=f'{name}.out.log',
         modules=[],
-        path_prefix='$HOME/adcirc/build',
-        commands=[f'source {module_file}'],
+        commands=[f'source {source_filename}'],
     )
     ensemble_slurm_script.write(output_directory, overwrite=True)
 
@@ -151,14 +164,13 @@ def write_adcirc_configurations(
         run_name=run_name,
         partition=partition,
         walltime=wall_clock_time,
-        nodes=int(numpy.ceil(nems.processors / 68)) if tacc else None,
+        nodes=int(numpy.ceil(nems.processors / 68)) if platform == HPC.STAMPEDE2 else None,
         mail_type='all' if email_address is not None else None,
         mail_user=email_address,
-        log_filename=f'{name}.log',
+        log_filename=f'{name}.out.log',
         modules=[],
-        path_prefix='$HOME/adcirc/build',
         launcher=launcher,
-        extra_commands=[f'source {module_file}'],
+        extra_commands=[f'source {source_filename}'],
     )
 
     # instantiate AdcircRun object.
@@ -219,23 +231,6 @@ def write_adcirc_configurations(
             os.remove(hotstart_filename)
         filename.rename(hotstart_filename)
 
-    ensemble_slurm_script = EnsembleSlurmScript(
-        account=None,
-        tasks=nems.processors,
-        duration=wall_clock_time,
-        partition=partition,
-        hpc=HPC.TACC if tacc else HPC.ORION,
-        launcher=launcher,
-        run='mannings_perturbation',
-        email_type=SlurmEmailType.ALL if email_address is not None else None,
-        email_address=email_address,
-        log_filename=f'{name}.log',
-        modules=[],
-        path_prefix='$HOME/adcirc/build',
-        commands=[f'source {module_file}'],
-    )
-    ensemble_slurm_script.write(output_directory, overwrite=True)
-
     pattern = re.compile(' p*adcirc')
     replacement = ' NEMS.x'
     for job_filename in glob(str(output_directory / '**' / 'slurm.job'), recursive=True):
@@ -251,7 +246,7 @@ def write_adcirc_configurations(
                 job_file.write(text)
 
 
-def download_test_configuration(directory: str):
+def download_shinnecock_mesh(directory: str):
     """
     fetch shinnecock inlet test data
     :param directory: local directory

@@ -1,7 +1,8 @@
-name: adcircpy
-channels:
+name : ensemble_perturbation
+channels :
   - conda-forge
-dependencies:
+  - defaults
+dependencies :
   - bs4
   - fiona
   - geopandas
@@ -11,12 +12,14 @@ dependencies:
   - pandas
   - pip
   - pyproj>=2.6
+  - python==3.7.9
   - requests
   - shapely
-  - pip:
+  - pip :
       - adcircpy==1.0.12
-      - coverage
+      - dunamai
       - flake8
       - nemspy>=0.5.2
-      - nose
+      - pytest
+      - pytest-cov
       - requests_futures

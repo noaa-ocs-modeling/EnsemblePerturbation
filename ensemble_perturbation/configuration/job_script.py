@@ -25,9 +25,9 @@ class SlurmEmailType(Enum):
 
 
 class HPC(Enum):
-    TACC = 'TACC'
-    ORION = 'ORION'
-    HERA = 'HERA'
+    STAMPEDE2 = 'stampede2'
+    ORION = 'orion'
+    HERA = 'hera'
 
 
 class EnsembleSlurmScript:
@@ -113,9 +113,11 @@ class EnsembleSlurmScript:
 
     @nodes.setter
     def nodes(self, nodes: int):
-        if nodes is None and self.hpc == HPC.TACC:
+        if nodes is None and self.hpc == HPC.STAMPEDE2:
             nodes = numpy.ceil(self.tasks / 68)
-        self.__nodes = int(nodes)
+        if nodes is not None:
+            nodes = int(nodes)
+        self.__nodes = nodes
 
     @property
     def configuration(self) -> str:
@@ -160,19 +162,13 @@ class EnsembleSlurmScript:
 
         if self.modules is not None:
             modules_string = ' '.join(module for module in self.modules)
-            lines.extend(
-                [f'module load {modules_string}', '']
-            )
+            lines.extend([f'module load {modules_string}', ''])
 
         if self.path_prefix is not None:
-            lines.extend(
-                [f'PATH={self.path_prefix}:$PATH', '']
-            )
+            lines.extend([f'PATH={self.path_prefix}:$PATH', ''])
 
         if self.commands is not None:
-            lines.extend(
-                [*(str(command) for command in self.commands), '']
-            )
+            lines.extend([*(str(command) for command in self.commands), ''])
 
         lines.extend(
             [
