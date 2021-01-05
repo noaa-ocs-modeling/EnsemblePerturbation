@@ -193,7 +193,7 @@ class ReferenceComparison(ABC):
 
             station_observed_values = observed_values[
                 observed_values['station'] == station_name
-            ]
+                ]
             station_observed_values = station_observed_values[['time', *self.variables]]
             station_observed_values.columns = [
                 'time',
