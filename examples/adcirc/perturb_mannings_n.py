@@ -5,7 +5,8 @@ from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 import numpy
 
-from ensemble_perturbation.configuration.adcirc import download_test_configuration, write_adcirc_configurations
+from ensemble_perturbation.configuration.adcirc import download_shinnecock_mesh, write_adcirc_configurations
+from ensemble_perturbation.configuration.job_script import HPC
 from ensemble_perturbation.utilities import get_logger, repository_root
 
 LOGGER = get_logger('perturb.adcirc')
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     }
 
     if not (INPUT_DIRECTORY / 'fort.14').exists():
-        download_test_configuration(INPUT_DIRECTORY)
+        download_shinnecock_mesh(INPUT_DIRECTORY)
 
     nems = ModelingSystem(
         start_time=datetime(2008, 8, 23),
@@ -53,9 +54,9 @@ if __name__ == '__main__':
         runs,
         INPUT_DIRECTORY,
         OUTPUT_DIRECTORY,
-        name='mannings_n_perturbation',
+        name='nems_mannings_n_perturbation',
         email_address='zachary.burnett@noaa.gov',
-        platform=True,
+        platform=HPC.HERA,
         spinup=timedelta(days=12.5),
     )
     print('done')

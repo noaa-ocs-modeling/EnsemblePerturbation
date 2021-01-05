@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 
-from ensemble_perturbation.configuration.adcirc import download_test_configuration, write_adcirc_configurations
+from ensemble_perturbation.configuration.adcirc import download_shinnecock_mesh, write_adcirc_configurations
 from ensemble_perturbation.configuration.job_script import HPC
 from ensemble_perturbation.utilities import repository_root
 
@@ -15,7 +15,7 @@ if __name__ == '__main__':
     runs = {f'nems_hsofs_test': (None, None)}
 
     if not (INPUT_DIRECTORY / 'fort.14').exists():
-        download_test_configuration(INPUT_DIRECTORY)
+        download_shinnecock_mesh(INPUT_DIRECTORY)
 
     nems = ModelingSystem(
         start_time=datetime(2012, 10, 22, 6),
@@ -43,6 +43,6 @@ if __name__ == '__main__':
         OUTPUT_DIRECTORY,
         name='nems_hsofs_test',
         email_address='zachary.burnett@noaa.gov',
-        platform=HPC.STAMPEDE2,
+        platform=HPC.HERA,
         spinup=timedelta(days=12.5),
     )

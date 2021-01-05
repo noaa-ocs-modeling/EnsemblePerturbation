@@ -17,7 +17,7 @@ from .adcirc import (
     fort62_stations_uv,
     parse_adcirc_outputs,
 )
-from ..configuration.adcirc import download_test_configuration
+from ..configuration.adcirc import download_shinnecock_mesh
 from ..utilities import get_logger
 
 LOGGER = get_logger('parsing.comparison')
@@ -60,7 +60,7 @@ class ReferenceComparison(ABC):
         self.fort14_filename = input_directory / 'fort.14'
         self.fort15_filename = input_directory / 'fort.15'
 
-        download_test_configuration(input_directory)
+        download_shinnecock_mesh(input_directory)
 
         self.runs = parse_adcirc_outputs(output_directory)
 

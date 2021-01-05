@@ -244,7 +244,7 @@ def write_adcirc_configurations(
                 job_file.write(text)
 
 
-def download_test_configuration(directory: str):
+def download_shinnecock_mesh(directory: str):
     """
     fetch shinnecock inlet test data
     :param directory: local directory
