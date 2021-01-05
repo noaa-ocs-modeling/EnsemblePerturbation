@@ -113,7 +113,7 @@ class EnsembleSlurmScript:
 
     @nodes.setter
     def nodes(self, nodes: int):
-        if nodes is None and self.hpc == HPC.STAMPEDE:
+        if nodes is None and self.hpc == HPC.STAMPEDE2:
             nodes = numpy.ceil(self.tasks / 68)
         if nodes is not None:
             nodes = int(nodes)
