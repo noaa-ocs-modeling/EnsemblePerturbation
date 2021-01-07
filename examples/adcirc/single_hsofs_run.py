@@ -7,11 +7,11 @@ import sys
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 
-sys.path.append(Path(__file__).parent.parent)
+sys.path.append(Path(__file__).parent.parent.parent)
 
 from ensemble_perturbation.configuration.adcirc import download_shinnecock_mesh, write_adcirc_configurations
 from ensemble_perturbation.configuration.job_script import HPC
-from ...ensemble_perturbation.utilities import repository_root
+from ensemble_perturbation.utilities import repository_root
 
 DATA_DIRECTORY = repository_root() / 'examples/data'
 INPUT_DIRECTORY = DATA_DIRECTORY / 'input' / 'hsofs'
