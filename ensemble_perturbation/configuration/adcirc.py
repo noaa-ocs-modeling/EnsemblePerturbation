@@ -180,8 +180,8 @@ def write_adcirc_configurations(
         end_date=nems.start_time + nems.duration,
         spinup_time=timedelta(days=5),
         server_config=slurm,
-        wind_forcing=WindForcing(17, 3600),
-        wave_forcing=WaveForcing(5, 3600),
+        # wind_forcing=WindForcing(17, 3600),
+        # wave_forcing=WaveForcing(5, 3600),
     )
     driver.import_stations(Path(repository_root()) / 'examples/data/stations.txt')
     driver.set_elevation_stations_output(timedelta(minutes=6), spinup=timedelta(minutes=6))
