@@ -5,7 +5,7 @@ import sys
 
 from matplotlib import pyplot
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
+sys.path.append(str(Path(__file__).absolute().parent.parent.parent))
 
 from ensemble_perturbation.parsing.comparison import VelocityComparison
 from ensemble_perturbation.utilities import get_logger
