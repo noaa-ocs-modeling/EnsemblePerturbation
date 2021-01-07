@@ -5,7 +5,7 @@ import sys
 
 from matplotlib import pyplot
 
-sys.path.append('../..')
+sys.path.append(Path(__file__).parent.parent)
 
 from ensemble_perturbation.parsing.comparison import ZetaComparison
 from ensemble_perturbation.utilities import get_logger
