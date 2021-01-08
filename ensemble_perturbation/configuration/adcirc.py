@@ -8,7 +8,7 @@ import re
 import tarfile
 
 from adcircpy import AdcircMesh, AdcircRun, Tides
-from adcircpy.forcing.waves import WaveForcing
+# from adcircpy.forcing.waves import WaveForcing
 from adcircpy.forcing.winds import WindForcing
 from adcircpy.server import SlurmConfig
 from nemspy import ModelingSystem
