@@ -1,6 +1,11 @@
+#! /usr/bin/env python
+
 from pathlib import Path
+import sys
 
 from matplotlib import pyplot
+
+sys.path.append(str(Path(__file__).absolute().parent.parent.parent))
 
 from ensemble_perturbation.parsing.comparison import ZetaComparison
 from ensemble_perturbation.utilities import get_logger

@@ -1,7 +1,13 @@
+#! /usr/bin/env python
+
 from datetime import datetime, timedelta
+from pathlib import Path
+import sys
 
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
+
+sys.path.append(str(Path(__file__).absolute().parent.parent.parent))
 
 from ensemble_perturbation.configuration.adcirc import download_shinnecock_mesh, write_adcirc_configurations
 from ensemble_perturbation.configuration.job_script import HPC
