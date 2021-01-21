@@ -4,7 +4,6 @@ from pyproj import CRS, Transformer
 from ensemble_perturbation.configuration.seabed.ngdc import NGDCSeabedDescriptions
 
 CRS = CRS.from_epsg(32618)
-SURVEYS = NGDCSeabedDescriptions.all_surveys()[:5]
 
 BOUNDS = numpy.array([[-77, 39], [-75, 40]])
 BOUNDS = numpy.ravel(
@@ -16,7 +15,8 @@ BOUNDS = numpy.ravel(
 
 
 def test_seabed_descriptions():
-    seabed = NGDCSeabedDescriptions(bounds=BOUNDS, surveys=SURVEYS, crs=CRS)
+    surveys = NGDCSeabedDescriptions.all_surveys()[:5]
+    seabed = NGDCSeabedDescriptions(bounds=BOUNDS, surveys=surveys, crs=CRS)
 
     assert seabed.data.shape[0] > 0
     assert seabed.data.shape[1] == 14

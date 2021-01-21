@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 
+from adcircpy import Tides
+from adcircpy.forcing.waves.ww3 import WaveWatch3DataForcing
+from adcircpy.forcing.winds.atmesh import AtmosphericMeshForcing
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 
@@ -22,6 +25,12 @@ if __name__ == '__main__':
 
     if not (INPUT_DIRECTORY / 'fort.14').exists():
         raise RuntimeError(f'file not found at {INPUT_DIRECTORY / "fort.14"}')
+
+    # init tidal forcing and setup requests
+    tidal_forcing = Tides()
+    tidal_forcing.use_all()
+    wind_forcing = AtmosphericMeshForcing(17, 3600)
+    wave_forcing = WaveWatch3DataForcing(5, 3600)
 
     nems = ModelingSystem(
         start_time=datetime(2012, 10, 22, 6),
@@ -51,4 +60,5 @@ if __name__ == '__main__':
         email_address='zachary.burnett@noaa.gov',
         platform=HPC.STAMPEDE2,
         spinup=timedelta(days=12.5),
+        forcings=[tidal_forcing, wind_forcing, wave_forcing],
     )

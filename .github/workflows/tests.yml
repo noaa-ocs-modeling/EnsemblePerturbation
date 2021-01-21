@@ -35,8 +35,5 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         shell: bash -l {0}
       - name: Test with coverage
-        run: coverage run --source ensemble_perturbation -m nose --nologcapture --verbose --ignore-files="test_parser\.py"
-        shell: bash -l {0}
-      - name: Generate coverage report
-        run: coverage report -m
+        run: pytest --cov=ensemble_perturbation --ignore=tests/test_seabed.py --ignore=tests/test_parser.py
         shell: bash -l {0}
