@@ -7,9 +7,8 @@ from pathlib import Path
 import re
 import tarfile
 
-from adcircpy import AdcircMesh, AdcircRun, Tides
-from adcircpy.forcing.waves import WaveForcing
-from adcircpy.forcing.winds import WindForcing
+from adcircpy import AdcircMesh, AdcircRun
+from adcircpy.forcing.base import Forcing
 from adcircpy.server import SlurmConfig
 from nemspy import ModelingSystem
 from nemspy.model import ADCIRCEntry
@@ -34,6 +33,7 @@ def write_adcirc_configurations(
     wall_clock_time: timedelta = None,
     spinup: timedelta = None,
     source_filename: PathLike = None,
+    forcings: [Forcing] = None,
 ):
     """
     Generate ADCIRC run configuration for given variable values.
@@ -66,6 +66,9 @@ def write_adcirc_configurations(
     if 'ocn' not in nems or not isinstance(nems['ocn'], ADCIRCEntry):
         nems['ocn'] = ADCIRCEntry(11)
 
+    if forcings is None:
+        forcings = []
+
     fort14_filename = input_directory / 'fort.14'
 
     launcher = 'ibrun' if platform in [HPC.STAMPEDE2] else 'srun'
@@ -92,15 +95,8 @@ def write_adcirc_configurations(
     # open mesh file
     mesh = AdcircMesh.open(fort14_filename, crs=4326)
 
-    # init tidal forcing and setup requests
-    tidal_forcing = Tides()
-    tidal_forcing.use_all()
-    wind_forcing = WindForcing(17, 3600)
-    wave_forcing = WaveForcing(5, 3600)
-
-    mesh.add_forcing(tidal_forcing)
-    mesh.add_forcing(wind_forcing)
-    mesh.add_forcing(wave_forcing)
+    for forcing in forcings:
+        mesh.add_forcing(forcing)
 
     mesh.generate_tau0()
 
