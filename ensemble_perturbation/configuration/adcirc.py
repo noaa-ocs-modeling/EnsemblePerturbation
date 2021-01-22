@@ -250,7 +250,7 @@ def download_shinnecock_mesh(directory: str):
         directory = Path(directory)
 
     if not directory.exists():
-        os.makedirs(directory, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
 
     url = 'https://www.dropbox.com/s/1wk91r67cacf132/NetCDF_shinnecock_inlet.tar.bz2?dl=1'
     remote_file = requests.get(url, stream=True)
