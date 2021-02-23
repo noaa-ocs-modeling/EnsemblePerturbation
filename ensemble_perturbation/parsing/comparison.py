@@ -17,7 +17,6 @@ from .adcirc import (
     fort62_stations_uv,
     parse_adcirc_outputs,
 )
-from ..configuration.adcirc import download_shinnecock_mesh
 from ..utilities import get_logger
 
 LOGGER = get_logger('parsing.comparison')
@@ -60,8 +59,6 @@ class ReferenceComparison(ABC):
         self.fort14_filename = input_directory / 'fort.14'
         self.fort15_filename = input_directory / 'fort.15'
 
-        download_shinnecock_mesh(input_directory)
-
         self.runs = parse_adcirc_outputs(output_directory)
 
         self.stages = stages if stages is not None else ['coldstart', 'hotstart']
@@ -74,7 +71,11 @@ class ReferenceComparison(ABC):
 
         first_run_stage = self.runs[list(self.runs)[0]][self.stages[0]]
 
-        self.stations = first_run_stage[ADCIRC_VARIABLES.loc[self.variables[0]]['stations']]
+        stations_basename = ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
+        if stations_basename in first_run_stage:
+            self.stations = first_run_stage[stations_basename]
+        else:
+            self.stations = GeoDataFrame({'name': []}, geometry=[])
 
         self.mesh = first_run_stage[ADCIRC_VARIABLES.loc[self.variables[0]]['max']]
 
@@ -111,6 +112,17 @@ class ReferenceComparison(ABC):
                     index=[mesh_index],
                 )
             )
+        if len(nearest_mesh_vertices) == 0:
+            nearest_mesh_vertices.append(GeoDataFrame(
+                {
+                    'station': [],
+                    'station_x': [],
+                    'station_y': [],
+                    'distance': [],
+                },
+                geometry=[],
+                index=[],
+            ))
         nearest_mesh_vertices = pandas.concat(nearest_mesh_vertices)
         nearest_mesh_vertices.reset_index(drop=True, inplace=True)
         return nearest_mesh_vertices
@@ -126,9 +138,17 @@ class ReferenceComparison(ABC):
                 / stage
                 / ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
             )
-            observed_values.append(
-                self.parse_stations(stations_filename, self.stations['name'])
-            )
+            if stations_filename.exists():
+
+                observed_values.append(
+                    self.parse_stations(stations_filename, self.stations['name'])
+                )
+            else:
+                LOGGER.warning(f'stations file not found at "{stations_filename}"')
+
+        if len(observed_values) == 0:
+            raise NoDataError('no station reference data provided')
+
         observed_values = pandas.concat(observed_values)
 
         values = []
@@ -558,6 +578,10 @@ class VelocityComparison(ReferenceComparison):
 
     def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
         return fort62_stations_uv(filename, station_names)
+
+
+class NoDataError(Exception):
+    pass
 
 
 def insert_magnitude_components(

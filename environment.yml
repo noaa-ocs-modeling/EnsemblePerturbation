@@ -17,6 +17,7 @@ dependencies:
   - shapely
   - pip:
       - adcircpy>=1.0.12
+      - coupledmodeldriver
       - dunamai
       - flake8
       - nemspy>=0.5.2
