@@ -16,11 +16,9 @@ dependencies:
   - requests
   - shapely
   - pip:
-      - adcircpy>=1.0.12
-      - coupledmodeldriver
+      - adcircpy>=1.0.16
       - dunamai
       - flake8
-      - nemspy>=0.5.2
       - pytest
       - pytest-cov
       - requests_futures
