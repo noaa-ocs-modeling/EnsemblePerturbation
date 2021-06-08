@@ -15,8 +15,7 @@ def repository_root(path: PathLike = None) -> Path:
         path = Path(path)
     if path.is_file():
         path = path.parent
-    if '.git' in (child.name for child in
-                  path.iterdir()) or path == path.parent:
+    if '.git' in (child.name for child in path.iterdir()) or path == path.parent:
         return path
     else:
         return repository_root(path.parent)

@@ -30,13 +30,16 @@ ADCIRC_OUTPUTS = {
     'maxvel.63.nc': ['vel_max', 'time_of_vel_max'],
 }
 
-ADCIRC_VARIABLES = DataFrame({
-    'stations': ['fort.61.nc', 'fort.62.nc', 'fort.62.nc'],
-    'model': ['fort.63.nc', 'fort.64.nc', 'fort.64.nc'],
-    'max': ['maxele.63.nc', 'maxvel.63.nc', 'maxvel.63.nc'],
-    'unit': ['m', 'm/s', 'm/s'],
-    'name': ['zeta', 'u-vel', 'v-vel']
-}, index=['zeta', 'u', 'v'])
+ADCIRC_VARIABLES = DataFrame(
+    {
+        'stations': ['fort.61.nc', 'fort.62.nc', 'fort.62.nc'],
+        'model': ['fort.63.nc', 'fort.64.nc', 'fort.64.nc'],
+        'max': ['maxele.63.nc', 'maxvel.63.nc', 'maxvel.63.nc'],
+        'unit': ['m', 'm/s', 'm/s'],
+        'name': ['zeta', 'u-vel', 'v-vel'],
+    },
+    index=['zeta', 'u', 'v'],
+)
 
 NODATA = -99999.0
 
@@ -63,8 +66,7 @@ def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> Geo
             GeoDataFrame(
                 {
                     'time': times,
-                    'zeta': dataset[ADCIRC_VARIABLES.loc['zeta']['name']][:,
-                    station_index],
+                    'zeta': dataset[ADCIRC_VARIABLES.loc['zeta']['name']][:, station_index],
                     'station': station_name,
                 },
                 geometry=[station_point for _ in times],
@@ -140,11 +142,15 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
     if basename in ['fort.63.nc', 'fort.64.nc']:
         data = {'coordinates': coordinates, 'time': times, 'data': data}
     elif basename in ['fort.61.nc', 'fort.62.nc']:
-        data = GeoDataFrame({
-            'name': [station_name.tobytes().decode().strip().strip('\'')
-                     for station_name in dataset['station_name']]
-        }, geometry=geopandas.points_from_xy(coordinates[:, 0],
-                                             coordinates[:, 1]))
+        data = GeoDataFrame(
+            {
+                'name': [
+                    station_name.tobytes().decode().strip().strip("'")
+                    for station_name in dataset['station_name']
+                ]
+            },
+            geometry=geopandas.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
+        )
     else:
         variables = {}
         for name, variable in data.items():
@@ -191,8 +197,7 @@ def parse_adcirc_output(
         file_data_variables = ADCIRC_OUTPUTS
     else:
         file_data_variables = {
-            filename: ADCIRC_OUTPUTS[filename]
-            for filename in file_data_variables
+            filename: ADCIRC_OUTPUTS[filename] for filename in file_data_variables
         }
 
     output_data = {}
