@@ -12,12 +12,8 @@ from pandas import DataFrame
 from pyproj import CRS, Geod
 import shapely
 
-from .adcirc import (
-    fort61_stations_zeta,
-    fort62_stations_uv,
-    parse_adcirc_outputs,
-)
 from ..utilities import get_logger
+from .adcirc import fort61_stations_zeta, fort62_stations_uv, parse_adcirc_outputs
 
 LOGGER = get_logger('parsing.comparison')
 
@@ -115,7 +111,7 @@ class ReferenceComparison(ABC):
         if len(nearest_mesh_vertices) == 0:
             nearest_mesh_vertices.append(
                 GeoDataFrame(
-                    {'station': [], 'station_x': [], 'station_y': [], 'distance': [], },
+                    {'station': [], 'station_x': [], 'station_y': [], 'distance': [],},
                     geometry=[],
                     index=[],
                 )
@@ -228,13 +224,13 @@ class ReferenceComparison(ABC):
         values.sort_values('time', inplace=True)
 
         values = values.iloc[
-                 :,
-                 [
-                     *range(5),
-                     *range(-len(self.variables), 0),
-                     *range(5, len(values.columns) - len(self.variables)),
-                 ],
-                 ]
+            :,
+            [
+                *range(5),
+                *range(-len(self.variables), 0),
+                *range(5, len(values.columns) - len(self.variables)),
+            ],
+        ]
         values.reset_index(drop=True, inplace=True)
         return values
 
@@ -250,8 +246,8 @@ class ReferenceComparison(ABC):
             station_distance = pandas.unique(station_modeled_values['distance'])[0]
 
             station_observed_values = observed_values[
-                                          observed_values['station'] == station['name']
-                                          ].iloc[:, 1:]
+                observed_values['station'] == station['name']
+            ].iloc[:, 1:]
             station_observed_values.columns = ['time', *self.variables]
 
             station_errors = None

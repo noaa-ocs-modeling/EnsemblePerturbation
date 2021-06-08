@@ -3,7 +3,7 @@ from pathlib import Path
 
 import fiona
 from pyproj import CRS
-from shapely.geometry import Point, mapping
+from shapely.geometry import mapping, Point
 
 from ensembleperturbation.utilities import repository_root
 
