@@ -10,6 +10,9 @@ import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
 
+from ensembleperturbation.parsing.utilities import decode_time
+from ensembleperturbation.plotting import LOGGER
+
 ADCIRC_OUTPUTS = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
     'fort.61.nc': ['station_name', 'zeta'],
@@ -123,7 +126,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
     basename = filename.parts[-1]
 
     if variables is None:
-        if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
+        if basename in ADCIRC_OUTPUTS:
             variables = ADCIRC_OUTPUTS[basename]
         else:
             raise NotImplementedError(f'ADCIRC output file "{basename}" not implemented')
