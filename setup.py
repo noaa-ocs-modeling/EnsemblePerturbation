@@ -81,9 +81,11 @@ setup(
     install_requires=[
         'adcircpy>=1.0.32',
         'bs4',
+        'coupledmodeldriver',
         'fiona',
         'geopandas',
         'matplotlib',
+        'nemspy>=0.6.16',
         'netcdf4',
         'numpy',
         'pandas',
