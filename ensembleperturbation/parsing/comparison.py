@@ -113,16 +113,13 @@ class ReferenceComparison(ABC):
                 )
             )
         if len(nearest_mesh_vertices) == 0:
-            nearest_mesh_vertices.append(GeoDataFrame(
-                {
-                    'station': [],
-                    'station_x': [],
-                    'station_y': [],
-                    'distance': [],
-                },
-                geometry=[],
-                index=[],
-            ))
+            nearest_mesh_vertices.append(
+                GeoDataFrame(
+                    {'station': [], 'station_x': [], 'station_y': [], 'distance': [], },
+                    geometry=[],
+                    index=[],
+                )
+            )
         nearest_mesh_vertices = pandas.concat(nearest_mesh_vertices)
         nearest_mesh_vertices.reset_index(drop=True, inplace=True)
         return nearest_mesh_vertices
@@ -213,7 +210,7 @@ class ReferenceComparison(ABC):
 
             station_observed_values = observed_values[
                 observed_values['station'] == station_name
-                ]
+            ]
             station_observed_values = station_observed_values[['time', *self.variables]]
             station_observed_values.columns = [
                 'time',

@@ -5,7 +5,7 @@ import fiona
 from pyproj import CRS
 from shapely.geometry import Point, mapping
 
-from ensemble_perturbation.utilities import repository_root
+from ensembleperturbation.utilities import repository_root
 
 
 def parse_stations(filename: PathLike) -> {str: Point}:

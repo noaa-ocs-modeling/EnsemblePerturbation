@@ -1,7 +1,4 @@
 name: ensemble_perturbation
-channels:
-  - conda-forge
-  - defaults
 dependencies:
   - bs4
   - fiona

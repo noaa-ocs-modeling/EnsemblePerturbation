@@ -155,9 +155,15 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
             if variable.size > 0:
                 variables[name] = numpy.squeeze(variable)
             else:
-                LOGGER.warning(f'array "{variable.name}" has invalid data shape "{variable.shape}"')
-                variables[name] = numpy.squeeze(numpy.full([dimension if dimension > 0 else 1 for dimension in variable.shape],
-                                                           fill_value=NODATA))
+                LOGGER.warning(
+                    f'array "{variable.name}" has invalid data shape "{variable.shape}"'
+                )
+                variables[name] = numpy.squeeze(
+                    numpy.full(
+                        [dimension if dimension > 0 else 1 for dimension in variable.shape],
+                        fill_value=NODATA,
+                    )
+                )
         columns = dict(zip(coordinate_variables, coordinates.T))
         columns.update(variables)
         data = GeoDataFrame(

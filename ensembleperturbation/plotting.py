@@ -5,7 +5,8 @@ from matplotlib import pyplot
 from matplotlib.cm import get_cmap
 import numpy
 from osgeo import gdal
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon, \
+    shape as shapely_shape
 
 from .utilities import get_logger
 

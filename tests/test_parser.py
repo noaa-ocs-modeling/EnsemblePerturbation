@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ensemble_perturbation.parsing.adcirc import (
+from ensembleperturbation.parsing.adcirc import (
     ADCIRC_OUTPUT_DATA_VARIABLES,
     parse_adcirc_output,
 )
