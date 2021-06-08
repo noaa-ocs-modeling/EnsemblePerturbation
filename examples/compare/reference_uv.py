@@ -7,8 +7,8 @@ from matplotlib import pyplot
 
 sys.path.append(str(Path(__file__).absolute().parent.parent.parent))
 
-from ensemble_perturbation.parsing.comparison import VelocityComparison
-from ensemble_perturbation.utilities import get_logger
+from ensembleperturbation.parsing.comparison import VelocityComparison
+from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('compare.uv')
 
