@@ -4,39 +4,47 @@ on: [ push ]
 
 jobs:
   tests:
-    name: Python ${{ matrix.python-version }} - ${{ matrix.os }}
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
-        python-version: [ 3.8 ]
-
+        os: [ ubuntu-latest ]
+        python-version: [ 3.8, 3.9 ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Retrieve packages from cache
-        uses: actions/cache@v1
+      - name: Install Python
+        uses: actions/setup-python@v2
         with:
-          path: ~/conda_pkgs_dir
-          key: ${{ runner.os }}-conda-${{ hashFiles('environment.yml') }}
-      - name: Create and activate conda environment
-        uses: conda-incubator/setup-miniconda@v1.7.0
-        with:
-          activate-environment: adcircpy
           python-version: ${{ matrix.python-version }}
-          environment-file: environment.yml
-          use-only-tar-bz2: true
+      - name: Restore cached dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('setup.py') }}
+          restore-keys: ${{ runner.os }}-pip-${{ matrix.python-version }}-
+      - name: Install wheel
+        run: pip install wheel
+      - name: Run setup.py on Windows
+        if: contains(matrix.os, 'windows')
+        run: python setup.py install
+      - name: Install dependencies
+        run: |
+          pip install wheel
+          pip install flake8
+          pip install -e .[testing]
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        shell: bash -l {0}
-      - name: Test with coverage
-        run: coverage run --source ensemble_perturbation -m nose --nologcapture --verbose --ignore-files="test_parser\.py"
-        shell: bash -l {0}
-      - name: Generate coverage report
-        run: coverage report -m
-        shell: bash -l {0}
+      - name: Run tests with coverage
+        run: pytest --cov=ensembleperturbation --numprocesses auto --ignore=tests/test_parser.py
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == 3.9
+        uses: codecov/codecov-action@v1
+        with:
+          flags: python${{ matrix.python-version }}-${{ runner.os }}
+          fail_ci_if_error: true

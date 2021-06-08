@@ -10,8 +10,8 @@ import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
 
-from ensemble_perturbation.parsing.utilities import decode_time
-from ensemble_perturbation.utilities import get_logger
+from ..utilities import get_logger
+from .utilities import decode_time
 
 LOGGER = get_logger('parsing.adcirc')
 
@@ -117,7 +117,10 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
     basename = filename.parts[-1]
 
     if variables is None:
-        variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
+        if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
+            variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
+        else:
+            raise NotImplementedError(f'ADCIRC output file "{basename}" not implemented')
 
     dataset = Dataset(filename)
 
@@ -145,13 +148,22 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
             geometry=geopandas.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
         )
     else:
-        for array in data.values():
-            assert numpy.prod(array.shape) > 0, f'invalid data shape "{array.shape}"'
         variables = {}
         for name, variable in data.items():
             if 'time_of' in name:
                 variable = decode_time(variable, unit=dataset['time'].units)
-            variables[name] = numpy.squeeze(variable)
+            if variable.size > 0:
+                variables[name] = numpy.squeeze(variable)
+            else:
+                LOGGER.warning(
+                    f'array "{variable.name}" has invalid data shape "{variable.shape}"'
+                )
+                variables[name] = numpy.squeeze(
+                    numpy.full(
+                        [dimension if dimension > 0 else 1 for dimension in variable.shape],
+                        fill_value=NODATA,
+                    )
+                )
         columns = dict(zip(coordinate_variables, coordinates.T))
         columns.update(variables)
         data = GeoDataFrame(
@@ -163,7 +175,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
 
 
 def parse_adcirc_output(
-        directory: str, file_data_variables: [str] = None
+    directory: PathLike, file_data_variables: [str] = None
 ) -> {str: Union[dict, DataFrame]}:
     """
     Parse ADCIRC output files
@@ -217,6 +229,9 @@ def parse_adcirc_outputs(directory: str) -> {str: dict}:
                     tree[part] = {}
                 tree = tree[part]
             else:
-                tree[part] = parse_adcirc_netcdf(filename)
+                try:
+                    tree[part] = parse_adcirc_netcdf(filename)
+                except Exception as error:
+                    LOGGER.warning(f'{error.__class__.__name__} - {error}')
 
     return output_datasets

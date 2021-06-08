@@ -3,9 +3,9 @@ from pathlib import Path
 
 import fiona
 from pyproj import CRS
-from shapely.geometry import Point, mapping
+from shapely.geometry import mapping, Point
 
-from ensemble_perturbation.utilities import repository_root
+from ensembleperturbation.utilities import repository_root
 
 
 def parse_stations(filename: PathLike) -> {str: Point}:
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     schema = {'geometry': 'Point', 'properties': {'id': 'str'}}
     crs = CRS.from_epsg(4326)
     with fiona.open(
-            stations_vector_filename, 'w', 'GPKG', schema, crs.to_dict()
+        stations_vector_filename, 'w', 'GPKG', schema, crs.to_dict()
     ) as stations_vector_file:
         stations_vector_file.writerecords(
             [

@@ -5,15 +5,16 @@ from matplotlib import pyplot
 from matplotlib.cm import get_cmap
 import numpy
 from osgeo import gdal
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import shape as shapely_shape
 
-from ensemble_perturbation.utilities import get_logger
+from .utilities import get_logger
 
 LOGGER = get_logger('plotting')
 
 
 def geoarray_to_xyz(
-        data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
+    data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
 ) -> numpy.array:
     """
     Extract XYZ points from an array of data using the given raster-like
@@ -119,7 +120,7 @@ def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
 
 
 def bounds_from_opposite_corners(
-        corner_1: (float, float), corner_2: (float, float)
+    corner_1: (float, float), corner_2: (float, float)
 ) -> (float, float, float, float):
     """
     Get bounds from two XY points.
@@ -201,10 +202,10 @@ def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
 
 
 def plot_polygon(
-        geometry: Union[Polygon, MultiPolygon],
-        axis: pyplot.Axes = None,
-        show: bool = False,
-        **kwargs
+    geometry: Union[Polygon, MultiPolygon],
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
 ):
     """
     Plot the given polygon.
@@ -247,11 +248,11 @@ def plot_polygon(
 
 
 def plot_polygons(
-        geometries: [Polygon],
-        colors: [str] = None,
-        axis: pyplot.Axes = None,
-        show: bool = False,
-        **kwargs
+    geometries: [Polygon],
+    colors: [str] = None,
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
 ):
     """
     Plot the given polygons using the given colors.
@@ -288,11 +289,11 @@ def plot_polygons(
 
 
 def plot_bounding_box(
-        sw: (float, float),
-        ne: (float, float),
-        axis: pyplot.Axes = None,
-        show: bool = False,
-        **kwargs
+    sw: (float, float),
+    ne: (float, float),
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
 ):
     """
     Plot the bounding box of the given extent.
@@ -321,11 +322,11 @@ def plot_bounding_box(
 
 
 def plot_points(
-        points: Union[numpy.array, MultiPoint],
-        index: int = 0,
-        axis: pyplot.Axes = None,
-        show: bool = False,
-        **kwargs
+    points: Union[numpy.array, MultiPoint],
+    index: int = 0,
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
 ):
     """
     Create a scatter plot of the given points.
@@ -358,6 +359,7 @@ def plot_points(
 
     if show:
         pyplot.show()
+
 
 # def plot_geoarray(array: numpy.array, transform: Affine = None,
 #                   nodata: float = None, axis: pyplot.Axes = None,

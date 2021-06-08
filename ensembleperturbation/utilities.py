@@ -22,11 +22,11 @@ def repository_root(path: PathLike = None) -> Path:
 
 
 def get_logger(
-        name: str,
-        log_filename: PathLike = None,
-        file_level: int = None,
-        console_level: int = None,
-        log_format: str = None,
+    name: str,
+    log_filename: PathLike = None,
+    file_level: int = None,
+    console_level: int = None,
+    log_format: str = None,
 ) -> logging.Logger:
     if file_level is None:
         file_level = logging.DEBUG
@@ -77,7 +77,7 @@ def get_logger(
 
 
 def ellipsoidal_distance(
-        point_a: (float, float), point_b: (float, float), crs_a: CRS, crs_b: CRS = None
+    point_a: (float, float), point_b: (float, float), crs_a: CRS, crs_b: CRS = None
 ) -> float:
     if isinstance(point_a, Point):
         point_a = [*point_a.coords]

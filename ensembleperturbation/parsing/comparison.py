@@ -12,13 +12,8 @@ from pandas import DataFrame
 from pyproj import CRS, Geod
 import shapely
 
-from ensemble_perturbation.configuration.adcirc import download_test_configuration
-from ensemble_perturbation.parsing.adcirc import (
-    fort61_stations_zeta,
-    fort62_stations_uv,
-    parse_adcirc_outputs,
-)
-from ensemble_perturbation.utilities import get_logger
+from ..utilities import get_logger
+from .adcirc import fort61_stations_zeta, fort62_stations_uv, parse_adcirc_outputs
 
 LOGGER = get_logger('parsing.comparison')
 
@@ -42,11 +37,11 @@ ADCIRC_VARIABLES = DataFrame(
 
 class ReferenceComparison(ABC):
     def __init__(
-            self,
-            input_directory: str,
-            output_directory: str,
-            variables: [str],
-            stages: [str] = None,
+        self,
+        input_directory: str,
+        output_directory: str,
+        variables: [str],
+        stages: [str] = None,
     ):
         if not isinstance(input_directory, Path):
             input_directory = Path(input_directory)
@@ -60,8 +55,6 @@ class ReferenceComparison(ABC):
         self.fort14_filename = input_directory / 'fort.14'
         self.fort15_filename = input_directory / 'fort.15'
 
-        download_test_configuration(input_directory)
-
         self.runs = parse_adcirc_outputs(output_directory)
 
         self.stages = stages if stages is not None else ['coldstart', 'hotstart']
@@ -74,7 +67,11 @@ class ReferenceComparison(ABC):
 
         first_run_stage = self.runs[list(self.runs)[0]][self.stages[0]]
 
-        self.stations = first_run_stage[ADCIRC_VARIABLES.loc[self.variables[0]]['stations']]
+        stations_basename = ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
+        if stations_basename in first_run_stage:
+            self.stations = first_run_stage[stations_basename]
+        else:
+            self.stations = GeoDataFrame({'name': []}, geometry=[])
 
         self.mesh = first_run_stage[ADCIRC_VARIABLES.loc[self.variables[0]]['max']]
 
@@ -111,6 +108,14 @@ class ReferenceComparison(ABC):
                     index=[mesh_index],
                 )
             )
+        if len(nearest_mesh_vertices) == 0:
+            nearest_mesh_vertices.append(
+                GeoDataFrame(
+                    {'station': [], 'station_x': [], 'station_y': [], 'distance': [],},
+                    geometry=[],
+                    index=[],
+                )
+            )
         nearest_mesh_vertices = pandas.concat(nearest_mesh_vertices)
         nearest_mesh_vertices.reset_index(drop=True, inplace=True)
         return nearest_mesh_vertices
@@ -121,14 +126,22 @@ class ReferenceComparison(ABC):
         observed_values = []
         for stage in self.stages:
             stations_filename = (
-                    self.output_directory
-                    / list(self.runs)[0]
-                    / stage
-                    / ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
+                self.output_directory
+                / list(self.runs)[0]
+                / stage
+                / ADCIRC_VARIABLES.loc[self.variables[0]]['stations']
             )
-            observed_values.append(
-                self.parse_stations(stations_filename, self.stations['name'])
-            )
+            if stations_filename.exists():
+
+                observed_values.append(
+                    self.parse_stations(stations_filename, self.stations['name'])
+                )
+            else:
+                LOGGER.warning(f'stations file not found at "{stations_filename}"')
+
+        if len(observed_values) == 0:
+            raise NoDataError('no station reference data provided')
+
         observed_values = pandas.concat(observed_values)
 
         values = []
@@ -193,7 +206,7 @@ class ReferenceComparison(ABC):
 
             station_observed_values = observed_values[
                 observed_values['station'] == station_name
-                ]
+            ]
             station_observed_values = station_observed_values[['time', *self.variables]]
             station_observed_values.columns = [
                 'time',
@@ -211,13 +224,13 @@ class ReferenceComparison(ABC):
         values.sort_values('time', inplace=True)
 
         values = values.iloc[
-                 :,
-                 [
-                     *range(5),
-                     *range(-len(self.variables), 0),
-                     *range(5, len(values.columns) - len(self.variables)),
-                 ],
-                 ]
+            :,
+            [
+                *range(5),
+                *range(-len(self.variables), 0),
+                *range(5, len(values.columns) - len(self.variables)),
+            ],
+        ]
         values.reset_index(drop=True, inplace=True)
         return values
 
@@ -233,8 +246,8 @@ class ReferenceComparison(ABC):
             station_distance = pandas.unique(station_modeled_values['distance'])[0]
 
             station_observed_values = observed_values[
-                                          observed_values['station'] == station['name']
-                                          ].iloc[:, 1:]
+                observed_values['station'] == station['name']
+            ].iloc[:, 1:]
             station_observed_values.columns = ['time', *self.variables]
 
             station_errors = None
@@ -560,14 +573,18 @@ class VelocityComparison(ReferenceComparison):
         return fort62_stations_uv(filename, station_names)
 
 
+class NoDataError(Exception):
+    pass
+
+
 def insert_magnitude_components(
-        dataframe: DataFrame,
-        u: str = 'u',
-        v: str = 'v',
-        magnitude: str = 'magnitude',
-        direction: str = 'direction',
-        velocity_index: int = None,
-        direction_index: int = None,
+    dataframe: DataFrame,
+    u: str = 'u',
+    v: str = 'v',
+    magnitude: str = 'magnitude',
+    direction: str = 'direction',
+    velocity_index: int = None,
+    direction_index: int = None,
 ):
     if velocity_index is None:
         velocity_index = len(dataframe.columns)
