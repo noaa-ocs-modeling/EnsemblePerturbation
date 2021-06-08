@@ -1,9 +1,7 @@
 #! /usr/bin/env python
 
-from coupledmodeldriver.generate.adcirc import \
-    generate_adcirc_configuration
-from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, \
-    WaveMeshEntry
+from coupledmodeldriver.generate.adcirc import generate_adcirc_configuration
+from nemspy.model import ADCIRCEntry, AtmosphericMeshEntry, WaveMeshEntry
 import numpy
 
 from ensembleperturbation.utilities import get_logger, repository_root
