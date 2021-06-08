@@ -5,19 +5,20 @@ from matplotlib import pyplot
 from matplotlib.cm import get_cmap
 import numpy
 from osgeo import gdal
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, \
-    shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import shape as shapely_shape
 
-from ensemble_perturbation import get_logger
+from .utilities import get_logger
 
 LOGGER = get_logger('plotting')
 
 
-def geoarray_to_xyz(data: numpy.array, origin: (float, float),
-                    resolution: (float, float),
-                    nodata: float = None) -> numpy.array:
+def geoarray_to_xyz(
+    data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
+) -> numpy.array:
     """
-    Extract XYZ points from an array of data using the given raster-like georeference (origin  and resolution).
+    Extract XYZ points from an array of data using the given raster-like
+    georeference (origin  and resolution).
 
     Parameters
     ----------
@@ -46,14 +47,13 @@ def geoarray_to_xyz(data: numpy.array, origin: (float, float),
 
     data_coverage = where_not_nodata(data, nodata)
     x_values, y_values = numpy.meshgrid(
-        numpy.linspace(origin[0], origin[0] + resolution[0] * data.shape[1],
-                       data.shape[1]),
-        numpy.linspace(origin[1], origin[1] + resolution[1] * data.shape[0],
-                       data.shape[0]))
+        numpy.linspace(origin[0], origin[0] + resolution[0] * data.shape[1], data.shape[1]),
+        numpy.linspace(origin[1], origin[1] + resolution[1] * data.shape[0], data.shape[0]),
+    )
 
-    return numpy.stack((x_values[data_coverage], y_values[data_coverage],
-                        data[data_coverage]),
-                       axis=1)
+    return numpy.stack(
+        (x_values[data_coverage], y_values[data_coverage], data[data_coverage]), axis=1
+    )
 
 
 def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
@@ -83,11 +83,12 @@ def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
             if nodata is None:
                 nodata = raster_band.GetNoDataValue()
 
-            points = geoarray_to_xyz(raster_band.ReadAsArray(),
-                                     origin=(geotransform[0], geotransform[3]),
-                                     resolution=(
-                                         geotransform[1], geotransform[5]),
-                                     nodata=nodata)
+            points = geoarray_to_xyz(
+                raster_band.ReadAsArray(),
+                origin=(geotransform[0], geotransform[3]),
+                resolution=(geotransform[1], geotransform[5]),
+                nodata=nodata,
+            )
             if coordinates is None:
                 coordinates = points[:, :2]
             layers_data.append(points[:, 2])
@@ -102,23 +103,25 @@ def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
                 num_points = feature_geometry.GetGeometryCount()
                 # TODO this assumes points in all layers are in the same order
                 points = numpy.array(
-                    [feature_geometry.GetGeometryRef(point_index).GetPoint()
-                     for point_index in range(num_points) if
-                     feature_geometry.GetGeometryRef(point_index).GetPoint()[
-                         2] != nodata])
+                    [
+                        feature_geometry.GetGeometryRef(point_index).GetPoint()
+                        for point_index in range(num_points)
+                        if feature_geometry.GetGeometryRef(point_index).GetPoint()[2] != nodata
+                    ]
+                )
 
                 if coordinates is None:
                     coordinates = points[:, :2]
                 layers_data.append(points[:, 2])
 
     return numpy.concatenate(
-        [coordinates] + [numpy.expand_dims(data, axis=1) for data in
-                         layers_data], axis=1)
+        [coordinates] + [numpy.expand_dims(data, axis=1) for data in layers_data], axis=1
+    )
 
 
-def bounds_from_opposite_corners(corner_1: (float, float),
-                                 corner_2: (float, float)) -> (
-        float, float, float, float):
+def bounds_from_opposite_corners(
+    corner_1: (float, float), corner_2: (float, float)
+) -> (float, float, float, float):
     """
     Get bounds from two XY points.
 
@@ -135,8 +138,7 @@ def bounds_from_opposite_corners(corner_1: (float, float),
         min X, min Y, max X, max Y
     """
 
-    return numpy.ravel(
-        numpy.sort(numpy.stack((corner_1, corner_2), axis=0), axis=0))
+    return numpy.ravel(numpy.sort(numpy.stack((corner_1, corner_2), axis=0), axis=0))
 
 
 def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
@@ -163,8 +165,7 @@ def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
     if numpy.any(rotation != 0):
         raise NotImplementedError('rotated rasters not supported')
 
-    return bounds_from_opposite_corners(origin, origin + numpy.flip(
-        shape) * resolution)
+    return bounds_from_opposite_corners(origin, origin + numpy.flip(shape) * resolution)
 
 
 def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
@@ -192,8 +193,7 @@ def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
         else:
             nodata = numpy.nan
 
-    coverage = array != nodata if not numpy.isnan(nodata) else ~numpy.isnan(
-        array)
+    coverage = array != nodata if not numpy.isnan(nodata) else ~numpy.isnan(array)
 
     if len(array.shape) > 2:
         coverage = numpy.any(coverage, axis=0)
@@ -201,9 +201,12 @@ def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
     return coverage
 
 
-def plot_polygon(geometry: Union[Polygon, MultiPolygon],
-                 axis: pyplot.Axes = None,
-                 show: bool = False, **kwargs):
+def plot_polygon(
+    geometry: Union[Polygon, MultiPolygon],
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
+):
     """
     Plot the given polygon.
 
@@ -244,9 +247,13 @@ def plot_polygon(geometry: Union[Polygon, MultiPolygon],
         pyplot.show()
 
 
-def plot_polygons(geometries: [Polygon], colors: [str] = None,
-                  axis: pyplot.Axes = None,
-                  show: bool = False, **kwargs):
+def plot_polygons(
+    geometries: [Polygon],
+    colors: [str] = None,
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
+):
     """
     Plot the given polygons using the given colors.
 
@@ -268,9 +275,10 @@ def plot_polygons(geometries: [Polygon], colors: [str] = None,
     if 'c' in kwargs:
         colors = [kwargs['c'] for _ in range(len(geometries))]
     elif colors is None:
-        colors = [get_cmap('gist_rainbow')(color_index / len(geometries)) for
-                  color_index in
-                  range(len(geometries))]
+        colors = [
+            get_cmap('gist_rainbow')(color_index / len(geometries))
+            for color_index in range(len(geometries))
+        ]
 
     for geometry_index, geometry in enumerate(geometries):
         kwargs['c'] = colors[geometry_index]
@@ -280,9 +288,13 @@ def plot_polygons(geometries: [Polygon], colors: [str] = None,
         pyplot.show()
 
 
-def plot_bounding_box(sw: (float, float), ne: (float, float),
-                      axis: pyplot.Axes = None,
-                      show: bool = False, **kwargs):
+def plot_bounding_box(
+    sw: (float, float),
+    ne: (float, float),
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
+):
     """
     Plot the bounding box of the given extent.
 
@@ -309,9 +321,13 @@ def plot_bounding_box(sw: (float, float), ne: (float, float),
         pyplot.show()
 
 
-def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
-                axis: pyplot.Axes = None,
-                show: bool = False, **kwargs):
+def plot_points(
+    points: Union[numpy.array, MultiPoint],
+    index: int = 0,
+    axis: pyplot.Axes = None,
+    show: bool = False,
+    **kwargs
+):
     """
     Create a scatter plot of the given points.
 
@@ -328,8 +344,7 @@ def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
     """
 
     if type(points) is MultiPoint:
-        points = numpy.squeeze(
-            numpy.stack((point._get_coords() for point in points), axis=0))
+        points = numpy.squeeze(numpy.stack((point._get_coords() for point in points), axis=0))
 
     if axis is None:
         axis = pyplot.gca()
@@ -344,6 +359,7 @@ def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
 
     if show:
         pyplot.show()
+
 
 # def plot_geoarray(array: numpy.array, transform: Affine = None,
 #                   nodata: float = None, axis: pyplot.Axes = None,
@@ -429,7 +445,8 @@ def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
 #                        output_index: int = 0,
 #                        show: bool = False):
 #     """
-#     Plot original data side-by-side with an interpolated raster for comparison.
+#     Plot original data side-by-side with an interpolated raster for
+#     comparison.
 #
 #     Parameters
 #     ----------
@@ -448,7 +465,8 @@ def plot_points(points: Union[numpy.array, MultiPoint], index: int = 0,
 #     """
 #
 #     if original_dataset.RasterCount > 0:
-#         original_raster_band = original_dataset.GetRasterBand(input_index + 1)
+#         original_raster_band = original_dataset.GetRasterBand(input_index
+#         + 1)
 #         original_data = original_raster_band.ReadAsArray()
 #         original_nodata = original_raster_band.GetNoDataValue()
 #         original_data[original_data == original_nodata] = numpy.nan

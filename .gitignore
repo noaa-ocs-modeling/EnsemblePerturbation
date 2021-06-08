@@ -139,12 +139,5 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-.idea/.gitignore
-.idea/ensemble_perturbation.iml
-.idea/inspectionProfiles/
-.idea/misc.xml
-.idea/modules.xml
-.idea/vcs.xml
-/examples/data/output/
-/examples/data/input/
-/examples/data/stations.gpkg
+.idea/
+/examples/data/*

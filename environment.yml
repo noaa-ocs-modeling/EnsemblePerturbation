@@ -1,6 +1,4 @@
-name: adcircpy
-channels:
-  - conda-forge
+name: ensemble_perturbation
 dependencies:
   - bs4
   - fiona
@@ -10,23 +8,14 @@ dependencies:
   - numpy
   - pandas
   - pip
-  - psutil
   - pyproj>=2.6
+  - python==3.7.9
   - requests
-  - scipy
-  - seaborn
   - shapely
   - pip:
-      - adcircpy==1.0.12
-      - coverage
-      - coverage-badge
-      - eventlet
+      - adcircpy>=1.0.16
+      - dunamai
       - flake8
-      - haversine
-      - nose
-      - ordered-set
-      - paramiko
-      - rednose
+      - pytest
+      - pytest-cov
       - requests_futures
-      - utm
-      - wget
