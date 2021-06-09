@@ -36,30 +36,28 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 
 from abc import ABC
 from argparse import ArgumentParser
-from copy import deepcopy
 from datetime import datetime, timedelta
 from enum import Enum
 from math import exp, inf, sqrt
 from os import PathLike
 from pathlib import Path
 from random import gauss, random
+from typing import Union
 
 from adcircpy.forcing.winds.best_track import BestTrackForcing
 from dateutil.parser import parse as parse_date
-from numpy import append, floor, insert, interp, sign, transpose
-from pandas import DataFrame
+import numpy
+from numpy import append, floor, insert, interp, sign
+from pandas import DataFrame, Series
+import pint
+from pint_pandas import PintType
 from pyproj import Proj
 from shapely.geometry import LineString
 
-AIR_DENSITY = 1.15  # [kg/m3]
+units = pint.UnitRegistry()
+PintType.ureg = units
 
-UNIT_CONVERSIONS = {
-    'knot': {'meter_per_second': 0.514444444},
-    'millibar': {'pascal': 100},
-    'pascal': {'millibar': 0.01},
-    'nautical_mile': {'statute_mile': 1.150781, 'meter': 1852},
-    'statute_mile': {'nautical_mile': 0.868976},
-}
+AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
 E1 = exp(1.0)  # e
 
@@ -68,18 +66,125 @@ ERROR_INDICES_NO_60H = [0, 12, 24, 36, 48, 72, 96, 120]  # no 60-hr data
 ERROR_INDICES_60HR = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
 
 
-class RandomType(Enum):
+class PerturbationType(Enum):
     GAUSSIAN = 'gaussian'
     LINEAR = 'linear'
 
 
 class BestTrackPerturbedVariable(ABC):
     name: str
-    random_type: RandomType = None
-    lower_bound: float = None
-    upper_bound: float = None
-    historical_forecast_errors: {str: float} = None
-    default: float = None  # [mbar]
+    perturbation_type: PerturbationType
+
+    def __init__(
+        self,
+        unit: pint.Unit = None,
+        lower_bound: float = None,
+        upper_bound: float = None,
+        historical_forecast_errors: {str: DataFrame} = None,
+        default: float = None,
+    ):
+        self.__unit = None
+        self.__lower_bound = None
+        self.__upper_bound = None
+        self.__historical_forecast_errors = None
+        self.__default = None
+
+        self.unit = unit
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.historical_forecast_errors = historical_forecast_errors
+        self.default = default
+
+    @property
+    def unit(self) -> pint.Unit:
+        return self.__unit
+
+    @unit.setter
+    def unit(self, unit: Union[str, pint.Unit]):
+        if not isinstance(unit, pint.Unit):
+            if unit is None:
+                unit = ''
+            unit = units.Unit(unit)
+        self.__unit = unit
+
+    @property
+    def lower_bound(self) -> pint.Quantity:
+        if self.__lower_bound.units != self.unit:
+            self.__lower_bound.ito(self.unit)
+        return self.__lower_bound
+
+    @lower_bound.setter
+    def lower_bound(self, lower_bound: float):
+        if isinstance(lower_bound, pint.Quantity):
+            if lower_bound.units != self.unit:
+                lower_bound = lower_bound.to(self.unit)
+        elif lower_bound is not None:
+            lower_bound *= self.unit
+        self.__lower_bound = lower_bound
+
+    @property
+    def upper_bound(self) -> pint.Quantity:
+        if self.__upper_bound.units != self.unit:
+            self.__upper_bound.ito(self.unit)
+        return self.__upper_bound
+
+    @upper_bound.setter
+    def upper_bound(self, upper_bound: float):
+        if isinstance(upper_bound, pint.Quantity):
+            if upper_bound.units != self.unit:
+                upper_bound = upper_bound.to(self.unit)
+        elif upper_bound is not None:
+            upper_bound *= self.unit
+        self.__upper_bound = upper_bound
+
+    @property
+    def historical_forecast_errors(self) -> {str: DataFrame}:
+        for classification, dataframe in self.__historical_forecast_errors.items():
+            for column in dataframe:
+                pint_type = PintType(self.unit)
+                if (
+                    not isinstance(dataframe[column].dtype, PintType)
+                    or dataframe[column].dtype != pint_type
+                ):
+                    if (
+                        isinstance(dataframe[column].dtype, PintType)
+                        and dataframe[column].dtype != pint_type
+                    ):
+                        dataframe[column].pint.ito(self.unit)
+                    dataframe[column] = dataframe[column].astype(pint_type, copy=False)
+        return self.__historical_forecast_errors
+
+    @historical_forecast_errors.setter
+    def historical_forecast_errors(self, historical_forecast_errors: {str: DataFrame}):
+        for classification, dataframe in historical_forecast_errors.items():
+            for column in dataframe:
+                pint_type = PintType(self.unit)
+                if (
+                    not isinstance(dataframe[column].dtype, PintType)
+                    or dataframe[column].dtype != pint_type
+                ):
+                    if (
+                        isinstance(dataframe[column].dtype, PintType)
+                        and dataframe[column].dtype != pint_type
+                    ):
+                        dataframe[column].pint.ito(self.unit)
+                    dataframe[column] = dataframe[column].astype(pint_type, copy=False)
+        self.__historical_forecast_errors = historical_forecast_errors
+
+    @property
+    def default(self) -> pint.Quantity:
+        if self.__default.units != self.unit:
+            self.__default.ito(self.unit)
+        return self.__default
+
+    @default.setter
+    def default(self, default: float):
+        if isinstance(default, pint.Quantity):
+            if default.units != self.unit:
+                default = default.to(self.unit)
+        elif default is not None:
+            default *= self.unit
+        self.__default = default
 
 
 class CentralPressure(BestTrackPerturbedVariable):
@@ -88,143 +193,222 @@ class CentralPressure(BestTrackPerturbedVariable):
 
 class BackgroundPressure(BestTrackPerturbedVariable):
     name = 'background_pressure'
-    default = 1013.0
+
+    def __init__(self):
+        super().__init__(
+            default=1013.0, unit=units.millibar,
+        )
 
 
 class MaximumSustainedWindSpeed(BestTrackPerturbedVariable):
     name = 'max_sustained_wind_speed'
-    random_type = RandomType.GAUSSIAN
-    lower_bound = 25  # [kt]
-    upper_bound = 165  # [kt]
-    historical_forecast_errors = {
-        '<50kt': DataFrame(
-            data=[1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [kt]'],
-        ),
-        '50-95kt': DataFrame(
-            data=[2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [kt]'],
-        ),
-        '>95kt': DataFrame(
-            data=[2.80, 7.94, 11.53, 13.27, 12.66, 13.41, 13.46, 13.55],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [kt]'],
-        ),
-    }
+    perturbation_type = PerturbationType.GAUSSIAN
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=25,
+            upper_bound=165,
+            historical_forecast_errors={
+                '<50kt': DataFrame(
+                    {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    index=ERROR_INDICES_NO_60H,
+                ),
+                '50-95kt': DataFrame(
+                    {'mean error [kt]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    index=ERROR_INDICES_NO_60H,
+                ),
+                '>95kt': DataFrame(
+                    {
+                        'mean error [kt]': [
+                            2.80,
+                            7.94,
+                            11.53,
+                            13.27,
+                            12.66,
+                            13.41,
+                            13.46,
+                            13.55,
+                        ]
+                    },
+                    index=ERROR_INDICES_NO_60H,
+                ),
+            },
+            unit=units.knot,
+        )
 
 
 class RadiusOfMaximumWinds(BestTrackPerturbedVariable):
     name = 'radius_of_maximum_winds'
-    random_type = RandomType.LINEAR
-    lower_bound = 5  # [nm]
-    upper_bound = 200  # [nm]
-    historical_forecast_errors = {
-        '<15sm': DataFrame(
-            data=transpose(
-                [
-                    [0.0, -13.82, -19.67, -21.37, -26.31, -32.71, -39.12, -46.80, -52.68],
-                    [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
-                ]
-            )
-            * UNIT_CONVERSIONS['statute_mile']['nautical_mile'],
-            index=ERROR_INDICES_60HR,
-            columns=['minimum error [nm]', 'maximum error [nm]'],
-        ),
-        '15-25sm': DataFrame(
-            data=transpose(
-                [
-                    [0.0, -10.47, -14.54, -20.35, -23.88, -21.78, -19.68, -24.24, -28.30],
-                    [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
-                ]
-            )
-            * UNIT_CONVERSIONS['statute_mile']['nautical_mile'],
-            index=ERROR_INDICES_60HR,
-            columns=['minimum error [nm]', 'maximum error [nm]'],
-        ),
-        '25-35sm': DataFrame(
-            data=transpose(
-                [
-                    [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
-                    [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
-                ]
-            )
-            * UNIT_CONVERSIONS['statute_mile']['nautical_mile'],
-            index=ERROR_INDICES_60HR,
-            columns=['minimum error [nm]', 'maximum error [nm]'],
-        ),
-        '35-45sm': DataFrame(
-            data=transpose(
-                [
-                    [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
-                    [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
-                ]
-            )
-            * UNIT_CONVERSIONS['statute_mile']['nautical_mile'],
-            index=ERROR_INDICES_60HR,
-            columns=['minimum error [nm]', 'maximum error [nm]'],
-        ),
-        '>45sm': DataFrame(
-            data=transpose(
-                [
-                    [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
-                    [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
-                ]
-            )
-            * UNIT_CONVERSIONS['statute_mile']['nautical_mile'],
-            index=ERROR_INDICES_60HR,
-            columns=['minimum error [nm]', 'maximum error [nm]'],
-        ),
-    }
+    perturbation_type = PerturbationType.LINEAR
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=200,
+            historical_forecast_errors={
+                '<15sm': DataFrame(
+                    {
+                        'minimum error [nm]': Series(
+                            [
+                                0.0,
+                                -13.82,
+                                -19.67,
+                                -21.37,
+                                -26.31,
+                                -32.71,
+                                -39.12,
+                                -46.80,
+                                -52.68,
+                            ],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                        'maximum error [nm]': Series(
+                            [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                    },
+                    index=ERROR_INDICES_60HR,
+                ),
+                '15-25sm': DataFrame(
+                    {
+                        'minimum error [nm]': Series(
+                            [
+                                0.0,
+                                -10.47,
+                                -14.54,
+                                -20.35,
+                                -23.88,
+                                -21.78,
+                                -19.68,
+                                -24.24,
+                                -28.30,
+                            ],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                        'maximum error [nm]': Series(
+                            [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                    },
+                    index=ERROR_INDICES_60HR,
+                ),
+                '25-35sm': DataFrame(
+                    {
+                        'minimum error [nm]': Series(
+                            [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                        'maximum error [nm]': Series(
+                            [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                    },
+                    index=ERROR_INDICES_60HR,
+                ),
+                '35-45sm': DataFrame(
+                    {
+                        'minimum error [nm]': Series(
+                            [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
+                            index=ERROR_INDICES_60HR,
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                        'maximum error [nm]': Series(
+                            [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
+                            index=ERROR_INDICES_60HR,
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                    },
+                ),
+                '>45sm': DataFrame(
+                    {
+                        'minimum error [nm]': Series(
+                            [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                        'maximum error [nm]': Series(
+                            [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
+                            dtype=PintType(units.us_statute_mile),
+                        ),
+                    },
+                    index=ERROR_INDICES_60HR,
+                ),
+            },
+            unit=units.nautical_mile,
+        )
 
 
 class CrossTrack(BestTrackPerturbedVariable):
     name = 'cross_track'
-    random_type = RandomType.GAUSSIAN
-    lower_bound = -inf
-    upper_bound = +inf
-    historical_forecast_errors = {
-        '<50kt': DataFrame(
-            data=[1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [nm]'],
-        ),
-        '50-95kt': DataFrame(
-            data=[2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [nm]'],
-        ),
-        '>95kt': DataFrame(
-            data=[2.80, 7.94, 11.53, 13.27, 12.66, 13.41, 13.46, 13.55],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [nm]'],
-        ),
-    }
+    perturbation_type = PerturbationType.GAUSSIAN
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=-inf,
+            upper_bound=+inf,
+            historical_forecast_errors={
+                '<50kt': DataFrame(
+                    {'mean error [nm]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    index=ERROR_INDICES_NO_60H,
+                ),
+                '50-95kt': DataFrame(
+                    {'mean error [nm]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    index=ERROR_INDICES_NO_60H,
+                ),
+                '>95kt': DataFrame(
+                    {
+                        'mean error [nm]': [
+                            2.80,
+                            7.94,
+                            11.53,
+                            13.27,
+                            12.66,
+                            13.41,
+                            13.46,
+                            13.55,
+                        ]
+                    },
+                    index=ERROR_INDICES_NO_60H,
+                ),
+            },
+            unit=units.nautical_mile,
+        )
 
 
 class AlongTrack(BestTrackPerturbedVariable):
     name = 'along_track'
-    random_type = RandomType.GAUSSIAN
-    lower_bound = -inf
-    upper_bound = +inf
-    historical_forecast_errors = {
-        '<50kt': DataFrame(
-            data=[1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [nm]'],
-        ),
-        '50-95kt': DataFrame(
-            data=[2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [nm]'],
-        ),
-        '>95kt': DataFrame(
-            data=[2.80, 7.94, 11.53, 13.27, 12.66, 13.41, 13.46, 13.55],
-            index=ERROR_INDICES_NO_60H,
-            columns=['mean error [nm]'],
-        ),
-    }
+    perturbation_type = PerturbationType.GAUSSIAN
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=-inf,
+            upper_bound=+inf,
+            historical_forecast_errors={
+                '<50kt': DataFrame(
+                    {'mean error [nm]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    index=ERROR_INDICES_NO_60H,
+                ),
+                '50-95kt': DataFrame(
+                    {'mean error [nm]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    index=ERROR_INDICES_NO_60H,
+                ),
+                '>95kt': DataFrame(
+                    {
+                        'mean error [nm]': [
+                            2.80,
+                            7.94,
+                            11.53,
+                            13.27,
+                            12.66,
+                            13.41,
+                            13.46,
+                            13.55,
+                        ]
+                    },
+                    index=ERROR_INDICES_NO_60H,
+                ),
+            },
+            unit=units.nautical_mile,
+        )
 
 
 class BestTrackPerturber:
@@ -357,6 +541,13 @@ class BestTrackPerturber:
         # extracting original dataframe
         df_original = self.forcing.df
 
+        # add units to data frame
+        for variable in variables:
+            if variable.name in df_original:
+                df_original[variable.name] = df_original[variable.name].astype(
+                    PintType(variable.unit), copy=False
+                )
+
         # modifying the central pressure while subsequently changing
         # Vmax using the same Holland B parameter,
         # writing each to a new fort.22
@@ -368,13 +559,22 @@ class BestTrackPerturber:
             # Make the random pertubations based on the historical forecast errors
             # Interpolate from the given VT to the storm_VT
             # print(forecast_errors[var][Initial_Vmax])
-            if issubclass(variable, RadiusOfMaximumWinds):
+            if isinstance(variable, RadiusOfMaximumWinds):
                 storm_classification = storm_size
             else:
                 storm_classification = storm_strength
 
-            xp = variable.historical_forecast_errors[storm_classification].index
-            yp = variable.historical_forecast_errors[storm_classification].values
+            historical_forecast_errors = variable.historical_forecast_errors[
+                storm_classification
+            ]
+            for column in historical_forecast_errors:
+                if isinstance(historical_forecast_errors[column].dtype, PintType):
+                    historical_forecast_errors[column] = historical_forecast_errors[
+                        column
+                    ].pint.magnitude
+
+            xp = historical_forecast_errors.index
+            yp = historical_forecast_errors.values
             base_errors = [
                 interp(self.validation_time / timedelta(hours=1), xp, yp[:, ncol])
                 for ncol in range(len(yp[0]))
@@ -384,20 +584,29 @@ class BestTrackPerturber:
 
             for perturbation_index in range(1, number_of_perturbations + 1):
                 # make a deepcopy to preserve the original dataframe
-                df_modified = deepcopy(df_original)
+                df_modified = df_original.copy(deep=True)
+                for variable in variables:
+                    if variable.name in df_modified:
+                        df_modified[variable.name] = df_modified[variable.name].astype(
+                            PintType(variable.unit), copy=False
+                        )
 
                 # get the random perturbation sample
-                if variable.random_type == RandomType.GAUSSIAN:
+                if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     alpha = gauss(0, 1) / 0.7979
                     # mean_abs_error = 0.7979 * sigma
 
                     print(f'Random gaussian variable = {alpha}')
 
+                    perturbation = base_errors[0] * alpha
+                    if variable.unit is not None and variable.unit != units.dimensionless:
+                        perturbation *= variable.unit
+
                     # add the error to the variable with bounds to some physical constraints
                     df_modified = self.perturb_bound(
-                        df_modified, perturbation=base_errors[0] * alpha, variable=variable,
+                        df_modified, perturbation=perturbation, variable=variable,
                     )
-                elif variable.random_type == RandomType.LINEAR:
+                elif variable.perturbation_type == PerturbationType.LINEAR:
                     alpha = random()
 
                     print(f'Random number in [0,1) = {alpha}')
@@ -411,10 +620,15 @@ class BestTrackPerturber:
                         variable=variable,
                     )
 
-                if issubclass(variable, MaximumSustainedWindSpeed):
+                if isinstance(variable, MaximumSustainedWindSpeed):
                     # In case of Vmax need to change the central pressure
                     # incongruence with it (obeying Holland B relationship)
                     df_modified[CentralPressure.name] = self.compute_pc_from_Vmax(df_modified)
+
+                # remove units from data frame
+                for column in df_modified:
+                    if isinstance(df_modified[column].dtype, PintType):
+                        df_modified[column] = df_modified[column].pint.magnitude
 
                 # reset the dataframe
                 self.forcing._df = df_modified
@@ -437,24 +651,16 @@ class BestTrackPerturber:
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
         df_test = self.forcing.df
-        Vmax = (
-            df_test[MaximumSustainedWindSpeed.name]
-            * UNIT_CONVERSIONS['knot']['meter_per_second']
-        )
-        DelP = (
-            df_test[BackgroundPressure.name] - df_test[CentralPressure.name]
-        ) * UNIT_CONVERSIONS['millibar']['pascal']
+        Vmax = df_test[MaximumSustainedWindSpeed.name]
+        DelP = df_test[BackgroundPressure.name] - df_test[CentralPressure.name]
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
         return B
 
     def compute_pc_from_Vmax(self, dataframe: DataFrame) -> float:
         """ Compute central pressure from Vmax based on Holland B """
-        Vmax = (
-            dataframe[MaximumSustainedWindSpeed.name]
-            * UNIT_CONVERSIONS['knot']['meter_per_second']
-        )
-        DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
-        pc = dataframe[BackgroundPressure.name] - DelP * UNIT_CONVERSIONS['pascal']['millibar']
+        Vmax = dataframe[MaximumSustainedWindSpeed.name]
+        DelP = Vmax ** 2 * AIR_DENSITY * E1 / self.holland_B
+        pc = dataframe[BackgroundPressure.name] - DelP
         return pc
 
     def perturb_bound(
@@ -464,11 +670,11 @@ class BestTrackPerturber:
         variable: BestTrackPerturbedVariable,
     ):
         """ perturbing the variable with physical bounds """
-        if issubclass(variable, AlongTrack):
+        if isinstance(variable, AlongTrack):
             dataframe = self.interpolate_along_track(
                 dataframe, along_track_errors=perturbation
             )
-        elif issubclass(variable, CrossTrack):
+        elif isinstance(variable, CrossTrack):
             dataframe = self.offset_track(dataframe, cross_track_errors=perturbation)
         else:
             test_list = dataframe[variable.name] + perturbation
@@ -531,10 +737,7 @@ class BestTrackPerturber:
         for track_coord_index in range(1, len(track_coords) - 1):
             # get the utm projection for middle longitude
             myProj = utm_proj_from_lon(track_coords[track_coord_index][0])
-            along_error = (
-                along_track_errors[track_coord_index - 1]
-                * UNIT_CONVERSIONS['nautical_mile']['meter']
-            )
+            along_error = along_track_errors[track_coord_index - 1].to(units.meter)
             along_sign = int(sign(along_error))
 
             pts = list()
@@ -586,26 +789,26 @@ class BestTrackPerturber:
         # Get the coordinates of the track
         track_coords = dataframe[['longitude', 'latitude']].values.tolist()
 
-        VT = (self.validation_time / timedelta(hours=1)).values
+        VT = (self.validation_time / timedelta(hours=1)).values * units.hours
 
         # loop over all coordinates
         lon_new = list()
         lat_new = list()
         for track_coord_index in range(0, len(track_coords)):
             # get the current cross_track_error
-            cross_error = (
-                cross_track_errors[track_coord_index]
-                * UNIT_CONVERSIONS['nautical_mile']['meter']
-            )
+            cross_error = cross_track_errors[track_coord_index].to(units.meter)
 
             # get the utm projection for the reference coordinate
             myProj = utm_proj_from_lon(track_coords[track_coord_index][0])
 
             # get the location of the original reference coordinate
-            x_ref, y_ref = myProj(
-                track_coords[track_coord_index][0],
-                track_coords[track_coord_index][1],
-                inverse=False,
+            x_ref, y_ref = (
+                myProj(
+                    track_coords[track_coord_index][0],
+                    track_coords[track_coord_index][1],
+                    inverse=False,
+                )
+                * units.meter
             )
 
             # get the index of the previous forecasted coordinate
@@ -618,7 +821,10 @@ class BestTrackPerturber:
                 idx_p = track_coord_index
 
             # get previous projected coordinate
-            x_p, y_p = myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False,)
+            x_p, y_p = (
+                myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False)
+                * units.meter
+            )
 
             # get the perpendicular offset based on the line connecting from the previous coordinate to the current coordinate
             dx_p, dy_p = get_offset(x_p, y_p, x_ref, y_ref, cross_error)
@@ -633,7 +839,10 @@ class BestTrackPerturber:
                 idx_n = track_coord_index
 
             # get previous projected coordinate
-            x_n, y_n = myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False,)
+            x_n, y_n = (
+                myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False)
+                * units.meter
+            )
 
             # get the perpendicular offset based on the line connecting from the current coordinate to the next coordinate
             dx_n, dy_n = get_offset(x_ref, y_ref, x_n, y_n, cross_error)
@@ -641,10 +850,12 @@ class BestTrackPerturber:
             # get the perpendicular offset based on the average of the forward and backward piecewise track lines adjusted so that the distance matches the actual cross_error
             dx = 0.5 * (dx_p + dx_n)
             dy = 0.5 * (dy_p + dy_n)
-            alpha = abs(cross_error) / sqrt(dx ** 2 + dy ** 2)
+            alpha = (abs(cross_error) / numpy.sqrt(dx ** 2 + dy ** 2)).magnitude
 
             # compute the next point and retrieve back the lat-lon geographic coordinate
-            lon, lat = myProj(x_ref + alpha * dx, y_ref + alpha * dy, inverse=True,)
+            lon, lat = myProj(
+                (x_ref + alpha * dx).magnitude, (y_ref + alpha * dy).magnitude, inverse=True
+            )
             lon_new.append(lon)
             lat_new.append(lat)
 
@@ -666,15 +877,18 @@ class BestTrackPerturber:
     @staticmethod
     def rmax_size_class(rmax: float) -> str:
         """ Category for Rmax based size """
+        if not isinstance(rmax, pint.Quantity):
+            rmax *= units.nautical_mile
+
         # convert from nautical miles to statute miles
-        rmw_sm = rmax * UNIT_CONVERSIONS['nautical_mile']['statute_mile']
-        if rmw_sm < 15:
+        rmax = rmax.to(units.us_statute_mile).magnitude
+        if rmax < 15:
             return '<15sm'  # very small
-        elif rmw_sm < 25:
+        elif rmax < 25:
             return '15-25sm'  # small
-        elif rmw_sm < 35:
+        elif rmax < 35:
             return '25-35sm'  # medium
-        elif rmw_sm < 45:
+        elif rmax < 45:
             return '35-45sm'  # large
         else:
             return '>45sm'  # very large
@@ -701,6 +915,7 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float,
     get_offset(x1,y1,x2,y2,d)
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
     """
+
     if x1 == x2:
         dx = d
         dy = 0
@@ -748,10 +963,10 @@ if __name__ == '__main__':
 
     # hardcoding variable list for now
     variables = [
-        MaximumSustainedWindSpeed,
-        RadiusOfMaximumWinds,
-        AlongTrack,
-        CrossTrack,
+        MaximumSustainedWindSpeed(),
+        RadiusOfMaximumWinds(),
+        AlongTrack(),
+        CrossTrack(),
     ]
 
     perturber = BestTrackPerturber(
