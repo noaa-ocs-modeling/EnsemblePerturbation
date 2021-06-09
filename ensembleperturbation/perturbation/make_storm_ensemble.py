@@ -33,6 +33,7 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
    Zach Burnett, NOS/NOAA
    Saeed Moghimi, NOS/NOAA
 """
+
 from argparse import ArgumentParser
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -49,116 +50,195 @@ from pyproj import Proj
 from shapely.geometry import LineString
 
 
-def main(
-    number_of_perturbations: int,
-    variable_list: [str],
-    storm_code: str,
-    start_date: datetime,
-    end_date: datetime,
-    output_directory: PathLike = None,
-):
-    """
-    Write perturbed tracks to `fort.22`
+class BestTrackPerturber:
+    def __init__(
+        self,
+        storm: str,
+        nws: int = None,
+        interval: timedelta = None,
+        start_date: datetime = None,
+        end_date: datetime = None,
+    ):
+        """
+        build storm perturber
 
-    :param number_of_perturbations: number of perturbations to create
-    :param variable_list: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
-    :param storm_code: NHC storm code, for instance `al062018`
-    :param start_date: start time of ensemble
-    :param end_date: end time of ensemble
-    :param output_directory: directory to which to write
-    """
+        :param storm: NHC storm code, for instance `al062018`
+        :param nws: wind stress parameter
+        :param interval: time interval
+        :param start_date: start time of ensemble
+        :param end_date: end time of ensemble
+        """
 
-    if output_directory is None:
-        output_directory = Path.cwd()
-    elif not isinstance(output_directory, Path):
-        output_directory = Path(output_directory)
+        self.storm = storm
+        self.nws = nws
+        self.interval = interval
+        self.start_date = start_date
+        self.end_date = end_date
 
-    # getting best track
-    best_track = BestTrackForcing(storm_code, start_date=start_date, end_date=end_date,)
+        self.__forcing = None
+        self.__previous_configuration = None
 
-    # write out original fort.22
-    best_track.write(
-        output_directory / 'original.22', overwrite=True,
-    )
+    @property
+    def storm(self) -> str:
+        return self.forcing.storm_id
 
-    # Computing Holland B and validation times from BT
-    holland_B = compute_Holland_B(best_track)
-    storm_VT = compute_VT_hours(best_track)
+    @storm.setter
+    def storm(self, storm: str):
+        self.__storm = storm
 
-    # Get the initial intensity and size
-    storm_strength = intensity_class(compute_initial(best_track, vmax_variable),)
-    storm_size = size_class(compute_initial(best_track, rmw_var))
+    @property
+    def nws(self) -> int:
+        return self.__nws
 
-    print(f'Initial storm strength: {storm_strength}')
-    print(f'Initial storm size: {storm_size}')
+    @nws.setter
+    def nws(self, nws: int):
+        self.__nws = nws
 
-    # extracting original dataframe
-    df_original = best_track.df
+    @property
+    def interval(self) -> timedelta:
+        return self.__interval
 
-    # modifying the central pressure while subsequently changing
-    # Vmax using the same Holland B parameter,
-    # writing each to a new fort.22
-    for variable in variable_list:
-        print(f'writing perturbations for "{variable}"')
-        # print(min(df_original[var]))
-        # print(max(df_original[var]))
+    @interval.setter
+    def interval(self, interval: timedelta):
+        if not isinstance(interval, timedelta):
+            self.__interval = timedelta(seconds=interval)
+        self.__interval = interval
 
-        # Make the random pertubations based on the historical forecast errors
-        # Interpolate from the given VT to the storm_VT
-        # print(forecast_errors[var][Initial_Vmax])
-        if variable == 'radius_of_maximum_winds':
-            storm_classification = storm_size
-        else:
-            storm_classification = storm_strength
+    @property
+    def start_date(self) -> datetime:
+        return self.__start_date
 
-        xp = forecast_errors[variable][storm_classification].index
-        yp = forecast_errors[variable][storm_classification].values
-        base_errors = [interp(storm_VT, xp, yp[:, ncol]) for ncol in range(len(yp[0]))]
+    @start_date.setter
+    def start_date(self, start_date: datetime):
+        if not isinstance(start_date, datetime):
+            start_date = parse_date(start_date)
+        self.__start_date = start_date
 
-        # print(base_errors)
+    @property
+    def end_date(self) -> datetime:
+        return self.__end_date
 
-        for perturbation_index in range(1, number_of_perturbations + 1):
-            # make a deepcopy to preserve the original dataframe
-            df_modified = deepcopy(df_original)
+    @end_date.setter
+    def end_date(self, end_date: datetime):
+        if not isinstance(end_date, datetime):
+            end_date = parse_date(end_date)
+        self.__end_date = end_date
 
-            # get the random perturbation sample
-            if random_variable_type[variable] == 'gauss':
-                alpha = gauss(0, 1) / 0.7979
-                # mean_abs_error = 0.7979 * sigma
+    @property
+    def forcing(self) -> BestTrackForcing:
+        configuration = {
+            'storm': self.storm,
+            'nws': self.nws,
+            'interval_seconds': self.interval / timedelta(seconds=1),
+            'start_date': self.start_date,
+            'end_date': self.end_date,
+        }
 
-                print(f'Random gaussian variable = {alpha}')
+        if configuration != self.__previous_configuration:
+            self.__forcing = BestTrackForcing(**configuration)
+            self.__previous_configuration = configuration
 
-                # add the error to the variable with bounds to some physical constraints
-                df_modified = perturb_bound(
-                    df_modified,
-                    perturbation=base_errors[0] * alpha,
-                    variable=variable,
-                    validation_time=storm_VT,
+        return self.__forcing
+
+    def write(
+        self, number_of_perturbations: int, variable_list: [str], directory: PathLike = None
+    ):
+        """
+        :param number_of_perturbations: number of perturbations to create
+        :param variable_list: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
+        :param directory: directory to which to write
+        """
+
+        if number_of_perturbations is not None:
+            number_of_perturbations = int(number_of_perturbations)
+        if directory is None:
+            directory = Path.cwd()
+        elif not isinstance(directory, Path):
+            directory = Path(directory)
+
+        # write out original fort.22
+        self.forcing.write(directory / 'original.22', overwrite=True)
+
+        # Computing Holland B and validation times from BT
+        holland_B = compute_Holland_B(self.forcing)
+        storm_VT = compute_VT_hours(self.forcing)
+
+        # Get the initial intensity and size
+        storm_strength = intensity_class(compute_initial(self.forcing, vmax_variable), )
+        storm_size = size_class(compute_initial(self.forcing, rmw_var))
+
+        print(f'Initial storm strength: {storm_strength}')
+        print(f'Initial storm size: {storm_size}')
+
+        # extracting original dataframe
+        df_original = self.forcing.df
+
+        # modifying the central pressure while subsequently changing
+        # Vmax using the same Holland B parameter,
+        # writing each to a new fort.22
+        for variable in variable_list:
+            print(f'writing perturbations for "{variable}"')
+            # print(min(df_original[var]))
+            # print(max(df_original[var]))
+
+            # Make the random pertubations based on the historical forecast errors
+            # Interpolate from the given VT to the storm_VT
+            # print(forecast_errors[var][Initial_Vmax])
+            if variable == 'radius_of_maximum_winds':
+                storm_classification = storm_size
+            else:
+                storm_classification = storm_strength
+
+            xp = forecast_errors[variable][storm_classification].index
+            yp = forecast_errors[variable][storm_classification].values
+            base_errors = [interp(storm_VT, xp, yp[:, ncol]) for ncol in range(len(yp[0]))]
+
+            # print(base_errors)
+
+            for perturbation_index in range(1, number_of_perturbations + 1):
+                # make a deepcopy to preserve the original dataframe
+                df_modified = deepcopy(df_original)
+
+                # get the random perturbation sample
+                if random_variable_type[variable] == 'gauss':
+                    alpha = gauss(0, 1) / 0.7979
+                    # mean_abs_error = 0.7979 * sigma
+
+                    print(f'Random gaussian variable = {alpha}')
+
+                    # add the error to the variable with bounds to some physical constraints
+                    df_modified = perturb_bound(
+                        df_modified,
+                        perturbation=base_errors[0] * alpha,
+                        variable=variable,
+                        validation_time=storm_VT,
+                    )
+                elif random_variable_type[variable] == 'range':
+                    alpha = random()
+
+                    print(f'Random number in [0,1) = {alpha}')
+
+                    # subtract the error from the variable with physical constraint bounds
+                    df_modified = perturb_bound(
+                        df_modified,
+                        perturbation=-(
+                            base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha
+                        ),
+                        variable=variable,
+                    )
+
+                if variable == vmax_variable:
+                    # In case of Vmax need to change the central pressure
+                    # incongruence with it (obeying Holland B relationship)
+                    df_modified[pc_var] = compute_pc_from_Vmax(df_modified, B=holland_B, )
+
+                # reset the dataframe
+                self.forcing._df = df_modified
+
+                # write out the modified fort.22
+                self.forcing.write(
+                    directory / f'{variable}_{perturbation_index}.22', overwrite=True,
                 )
-            elif random_variable_type[variable] == 'range':
-                alpha = random()
-
-                print(f'Random number in [0,1) = {alpha}')
-
-                # subtract the error from the variable with physical constraint bounds
-                df_modified = perturb_bound(
-                    df_modified,
-                    perturbation=-(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha),
-                    variable=variable,
-                )
-
-            if variable == vmax_variable:
-                # In case of Vmax need to change the central pressure
-                # incongruence with it (obeying Holland B relationship)
-                df_modified[pc_var] = compute_pc_from_Vmax(df_modified, B=holland_B,)
-
-            # reset the dataframe
-            best_track._df = df_modified
-
-            # write out the modified fort.22
-            best_track.write(
-                output_directory / f'{variable}_{perturbation_index}.22', overwrite=True,
-            )
 
 
 ################################################################
@@ -298,7 +378,7 @@ Vmax_strong_errors = DataFrame(
 # RMW errors bound based on initial size
 RMW_vsmall_errors = DataFrame(
     data=sm2nm
-    * transpose(
+         * transpose(
         [
             [0.0, -13.82, -19.67, -21.37, -26.31, -32.71, -39.12, -46.80, -52.68],
             [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
@@ -309,7 +389,7 @@ RMW_vsmall_errors = DataFrame(
 )
 RMW_small_errors = DataFrame(
     data=sm2nm
-    * transpose(
+         * transpose(
         [
             [0.0, -10.47, -14.54, -20.35, -23.88, -21.78, -19.68, -24.24, -28.30],
             [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
@@ -320,7 +400,7 @@ RMW_small_errors = DataFrame(
 )
 RMW_medium_errors = DataFrame(
     data=sm2nm
-    * transpose(
+         * transpose(
         [
             [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
             [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
@@ -331,7 +411,7 @@ RMW_medium_errors = DataFrame(
 )
 RMW_large_errors = DataFrame(
     data=sm2nm
-    * transpose(
+         * transpose(
         [
             [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
             [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
@@ -342,7 +422,7 @@ RMW_large_errors = DataFrame(
 )
 RMW_vlarge_errors = DataFrame(
     data=sm2nm
-    * transpose(
+         * transpose(
         [
             [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
             [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
@@ -426,7 +506,7 @@ def utm_proj_from_lon(lon_mean: float) -> Proj:
     return Proj(f'+proj=utm +zone={zone}K, +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 
 
-def interpolate_along_track(df_, VT: [float], along_track_errors: [float],) -> DataFrame:
+def interpolate_along_track(df_, VT: [float], along_track_errors: [float], ) -> DataFrame:
     """
     interpolate_along_track(df_,VT,along_track_errros)
     Offsets points by a given error/distance by interpolating along the track
@@ -503,7 +583,7 @@ def interpolate_along_track(df_, VT: [float], along_track_errors: [float],) -> D
         pnew = line_segment.interpolate(abs(along_error))
 
         # get back lat-lon
-        lon, lat = myProj(pnew.coords[0][0], pnew.coords[0][1], inverse=True,)
+        lon, lat = myProj(pnew.coords[0][0], pnew.coords[0][1], inverse=True, )
 
         # print(track_coords[idx-1:idx+2])
         # print(along_error/111e3)
@@ -520,7 +600,7 @@ def interpolate_along_track(df_, VT: [float], along_track_errors: [float],) -> D
     return df_
 
 
-def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float, float):
+def get_offset(x1: float, y1: float, x2: float, y2: float, d: float, ) -> (float, float):
     """
     get_offset(x1,y1,x2,y2,d)
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
@@ -555,7 +635,7 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float,
     return dx, dy
 
 
-def offset_track(df_, VT: [float], cross_track_errors: [float],) -> DataFrame:
+def offset_track(df_, VT: [float], cross_track_errors: [float], ) -> DataFrame:
     """
     offset_track(df_,VT,cross_track_errors)
       - Offsets points by a given perpendicular error/distance from the original track
@@ -599,7 +679,7 @@ def offset_track(df_, VT: [float], cross_track_errors: [float],) -> DataFrame:
             idx_p = track_coord_index
 
         # get previous projected coordinate
-        x_p, y_p = myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False,)
+        x_p, y_p = myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False, )
 
         # get the perpendicular offset based on the line connecting from the previous coordinate to the current coordinate
         dx_p, dy_p = get_offset(x_p, y_p, x_ref, y_ref, cross_error)
@@ -614,7 +694,7 @@ def offset_track(df_, VT: [float], cross_track_errors: [float],) -> DataFrame:
             idx_n = track_coord_index
 
         # get previous projected coordinate
-        x_n, y_n = myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False,)
+        x_n, y_n = myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False, )
 
         # get the perpendicular offset based on the line connecting from the current coordinate to the next coordinate
         dx_n, dy_n = get_offset(x_ref, y_ref, x_n, y_n, cross_error)
@@ -625,7 +705,7 @@ def offset_track(df_, VT: [float], cross_track_errors: [float],) -> DataFrame:
         alpha = abs(cross_error) / sqrt(dx ** 2 + dy ** 2)
 
         # compute the next point and retrieve back the lat-lon geographic coordinate
-        lon, lat = myProj(x_ref + alpha * dx, y_ref + alpha * dy, inverse=True,)
+        lon, lat = myProj(x_ref + alpha * dx, y_ref + alpha * dy, inverse=True, )
         lon_new.append(lon)
         lat_new.append(lat)
 
@@ -650,22 +730,6 @@ if __name__ == '__main__':
     argument_parser.add_argument('end_date', nargs='?', help='end date')
     arguments = argument_parser.parse_args()
 
-    # Parse number of perturbations
-    num = arguments.number_of_perturbations
-    if num is not None:
-        num = int(num)
-
-    # Parse storm code
-    stormcode = arguments.storm_code
-
-    # Parse the start and end dates, e.g., YYYY-MM-DD-HH
-    start_date = arguments.start_date
-    if start_date is not None:
-        start_date = parse_date(start_date)
-    end_date = arguments.end_date
-    if end_date is not None:
-        end_date = parse_date(end_date)
-
     # hardcoding variable list for now
     variables = [
         'max_sustained_wind_speed',
@@ -675,4 +739,7 @@ if __name__ == '__main__':
     ]
 
     # Enter function
-    main(num, variables, stormcode, start_date, end_date)
+    perturber = BestTrackPerturber(
+        arguments.storm_code, start_date=arguments.start_date, end_date=arguments.end_date
+    )
+    perturber.write(arguments.number_of_perturbations, variables)
