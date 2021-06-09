@@ -1,7 +1,11 @@
-from ensembleperturbation.perturbation.make_storm_ensemble import AlongTrack, BestTrackPerturber, CrossTrack, \
-    MaximumSustainedWindSpeed, \
-    RadiusOfMaximumWinds
-from tests import DATA_DIRECTORY, check_reference_directory
+from ensembleperturbation.perturbation.make_storm_ensemble import (
+    AlongTrack,
+    BestTrackPerturber,
+    CrossTrack,
+    MaximumSustainedWindSpeed,
+    RadiusOfMaximumWinds,
+)
+from tests import check_reference_directory, DATA_DIRECTORY
 
 
 def test_besttrack_ensemble():
@@ -19,15 +23,10 @@ def test_besttrack_ensemble():
         CrossTrack,
     ]
 
-    perturber = BestTrackPerturber(
-        storm='al062018',
-        start_date='20180911',
-        end_date=None,
-    )
+    perturber = BestTrackPerturber(storm='al062018', start_date='20180911', end_date=None,)
 
     perturber.write(
-        number_of_perturbations=3, variables=variables,
-        directory=output_directory,
+        number_of_perturbations=3, variables=variables, directory=output_directory,
     )
 
     check_reference_directory(output_directory, reference_directory)

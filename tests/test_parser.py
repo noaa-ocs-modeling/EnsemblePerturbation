@@ -7,7 +7,8 @@ from tests import DATA_DIRECTORY
 def test_parse_adcirc_output():
     reference_directory = DATA_DIRECTORY / 'reference' / 'test_parse_adcirc_output'
     output_filenames = [
-        filename.name for filename in reference_directory.iterdir()
+        filename.name
+        for filename in reference_directory.iterdir()
         if re.match('\.6(0-9)?\.nc', str(filename))
     ]
 
