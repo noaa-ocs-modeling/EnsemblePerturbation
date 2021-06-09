@@ -164,7 +164,7 @@ class BestTrackPerturber:
         storm_VT = compute_VT_hours(self.forcing)
 
         # Get the initial intensity and size
-        storm_strength = intensity_class(compute_initial(self.forcing, vmax_variable), )
+        storm_strength = intensity_class(compute_initial(self.forcing, vmax_variable),)
         storm_size = size_class(compute_initial(self.forcing, rmw_var))
 
         print(f'Initial storm strength: {storm_strength}')
@@ -230,7 +230,7 @@ class BestTrackPerturber:
                 if variable == vmax_variable:
                     # In case of Vmax need to change the central pressure
                     # incongruence with it (obeying Holland B relationship)
-                    df_modified[pc_var] = compute_pc_from_Vmax(df_modified, B=holland_B, )
+                    df_modified[pc_var] = compute_pc_from_Vmax(df_modified, B=holland_B,)
 
                 # reset the dataframe
                 self.forcing._df = df_modified
@@ -378,7 +378,7 @@ Vmax_strong_errors = DataFrame(
 # RMW errors bound based on initial size
 RMW_vsmall_errors = DataFrame(
     data=sm2nm
-         * transpose(
+    * transpose(
         [
             [0.0, -13.82, -19.67, -21.37, -26.31, -32.71, -39.12, -46.80, -52.68],
             [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
@@ -389,7 +389,7 @@ RMW_vsmall_errors = DataFrame(
 )
 RMW_small_errors = DataFrame(
     data=sm2nm
-         * transpose(
+    * transpose(
         [
             [0.0, -10.47, -14.54, -20.35, -23.88, -21.78, -19.68, -24.24, -28.30],
             [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
@@ -400,7 +400,7 @@ RMW_small_errors = DataFrame(
 )
 RMW_medium_errors = DataFrame(
     data=sm2nm
-         * transpose(
+    * transpose(
         [
             [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
             [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
@@ -411,7 +411,7 @@ RMW_medium_errors = DataFrame(
 )
 RMW_large_errors = DataFrame(
     data=sm2nm
-         * transpose(
+    * transpose(
         [
             [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
             [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
@@ -422,7 +422,7 @@ RMW_large_errors = DataFrame(
 )
 RMW_vlarge_errors = DataFrame(
     data=sm2nm
-         * transpose(
+    * transpose(
         [
             [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
             [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
@@ -506,7 +506,7 @@ def utm_proj_from_lon(lon_mean: float) -> Proj:
     return Proj(f'+proj=utm +zone={zone}K, +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 
 
-def interpolate_along_track(df_, VT: [float], along_track_errors: [float], ) -> DataFrame:
+def interpolate_along_track(df_, VT: [float], along_track_errors: [float],) -> DataFrame:
     """
     interpolate_along_track(df_,VT,along_track_errros)
     Offsets points by a given error/distance by interpolating along the track
@@ -583,7 +583,7 @@ def interpolate_along_track(df_, VT: [float], along_track_errors: [float], ) -> 
         pnew = line_segment.interpolate(abs(along_error))
 
         # get back lat-lon
-        lon, lat = myProj(pnew.coords[0][0], pnew.coords[0][1], inverse=True, )
+        lon, lat = myProj(pnew.coords[0][0], pnew.coords[0][1], inverse=True,)
 
         # print(track_coords[idx-1:idx+2])
         # print(along_error/111e3)
@@ -600,7 +600,7 @@ def interpolate_along_track(df_, VT: [float], along_track_errors: [float], ) -> 
     return df_
 
 
-def get_offset(x1: float, y1: float, x2: float, y2: float, d: float, ) -> (float, float):
+def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float, float):
     """
     get_offset(x1,y1,x2,y2,d)
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
@@ -635,7 +635,7 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float, ) -> (float
     return dx, dy
 
 
-def offset_track(df_, VT: [float], cross_track_errors: [float], ) -> DataFrame:
+def offset_track(df_, VT: [float], cross_track_errors: [float],) -> DataFrame:
     """
     offset_track(df_,VT,cross_track_errors)
       - Offsets points by a given perpendicular error/distance from the original track
@@ -679,7 +679,7 @@ def offset_track(df_, VT: [float], cross_track_errors: [float], ) -> DataFrame:
             idx_p = track_coord_index
 
         # get previous projected coordinate
-        x_p, y_p = myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False, )
+        x_p, y_p = myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False,)
 
         # get the perpendicular offset based on the line connecting from the previous coordinate to the current coordinate
         dx_p, dy_p = get_offset(x_p, y_p, x_ref, y_ref, cross_error)
@@ -694,7 +694,7 @@ def offset_track(df_, VT: [float], cross_track_errors: [float], ) -> DataFrame:
             idx_n = track_coord_index
 
         # get previous projected coordinate
-        x_n, y_n = myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False, )
+        x_n, y_n = myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False,)
 
         # get the perpendicular offset based on the line connecting from the current coordinate to the next coordinate
         dx_n, dy_n = get_offset(x_ref, y_ref, x_n, y_n, cross_error)
@@ -705,7 +705,7 @@ def offset_track(df_, VT: [float], cross_track_errors: [float], ) -> DataFrame:
         alpha = abs(cross_error) / sqrt(dx ** 2 + dy ** 2)
 
         # compute the next point and retrieve back the lat-lon geographic coordinate
-        lon, lat = myProj(x_ref + alpha * dx, y_ref + alpha * dy, inverse=True, )
+        lon, lat = myProj(x_ref + alpha * dx, y_ref + alpha * dy, inverse=True,)
         lon_new.append(lon)
         lat_new.append(lat)
 
