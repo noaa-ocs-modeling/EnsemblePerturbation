@@ -26,7 +26,7 @@ def test_besttrack_ensemble():
     perturber = BestTrackPerturber(storm='al062018', start_date='20180911', end_date=None,)
 
     perturber.write(
-        number_of_perturbations=3, variables=variables, directory=output_directory,
+        number_of_perturbations=3, variables=variables, directory=output_directory, alpha=0.5,
     )
 
     check_reference_directory(output_directory, reference_directory)

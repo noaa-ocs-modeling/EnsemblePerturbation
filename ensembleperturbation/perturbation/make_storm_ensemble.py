@@ -200,11 +200,10 @@ class BestTrackPerturbedVariable(ABC):
         """
 
         all_values = besttrack_dataframe[self.name].values + values
-        bounded_result = [
+        besttrack_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             for value in all_values
         ] * self.unit
-        besttrack_dataframe[self.name] = bounded_result
 
         return besttrack_dataframe
 
@@ -717,15 +716,22 @@ class BestTrackPerturber:
         number_of_perturbations: int,
         variables: [BestTrackPerturbedVariable],
         directory: PathLike = None,
+        alpha: float = None,
     ):
         """
         :param number_of_perturbations: number of perturbations to create
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
+        :param alpha: value between [0, 1) with which to multiply error for perturbation; leave None for random
         """
 
         if number_of_perturbations is not None:
             number_of_perturbations = int(number_of_perturbations)
+
+        for index, variable in enumerate(variables):
+            if isinstance(variable, type):
+                variables[index] = variable()
+
         if directory is None:
             directory = Path.cwd()
         elif not isinstance(directory, Path):
@@ -796,7 +802,8 @@ class BestTrackPerturber:
 
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
-                    alpha = gauss(0, 1) / 0.7979
+                    if alpha is None:
+                        alpha = gauss(0, 1) / 0.7979
 
                     print(f'Random gaussian variable = {alpha}')
                     perturbation = base_errors[0] * alpha
@@ -808,7 +815,8 @@ class BestTrackPerturber:
                         df_modified, values=perturbation, times=self.validation_times,
                     )
                 elif variable.perturbation_type == PerturbationType.LINEAR:
-                    alpha = random()
+                    if alpha is None:
+                        alpha = random()
 
                     print(f'Random number in [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
@@ -973,10 +981,10 @@ if __name__ == '__main__':
 
     # hardcoding variable list for now
     variables = [
-        MaximumSustainedWindSpeed(),
-        RadiusOfMaximumWinds(),
-        AlongTrack(),
-        CrossTrack(),
+        MaximumSustainedWindSpeed,
+        RadiusOfMaximumWinds,
+        AlongTrack,
+        CrossTrack,
     ]
 
     perturber = BestTrackPerturber(
