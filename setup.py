@@ -89,6 +89,8 @@ setup(
         'netcdf4',
         'numpy',
         'pandas',
+        'pint',
+        'pint-pandas',
         'pyproj>=2.6',
         'requests',
         'requests_futures',
