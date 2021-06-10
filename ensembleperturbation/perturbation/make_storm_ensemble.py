@@ -778,7 +778,7 @@ class BestTrackPerturber:
             xp = historical_forecast_errors.index
             yp = historical_forecast_errors.values
             base_errors = [
-                interp(self.validation_time / timedelta(hours=1), xp, yp[:, ncol])
+                interp(self.validation_times / timedelta(hours=1), xp, yp[:, ncol])
                 for ncol in range(len(yp[0]))
             ]
 
@@ -805,7 +805,7 @@ class BestTrackPerturber:
 
                     # add the error to the variable with bounds to some physical constraints
                     df_modified = variable.perturb(
-                        df_modified, values=perturbation, times=self.validation_time,
+                        df_modified, values=perturbation, times=self.validation_times,
                     )
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     alpha = random()
@@ -817,7 +817,7 @@ class BestTrackPerturber:
 
                     # subtract the error from the variable with physical constraint bounds
                     df_modified = variable.perturb(
-                        df_modified, values=perturbation, times=self.validation_time,
+                        df_modified, values=perturbation, times=self.validation_times,
                     )
 
                 if isinstance(variable, MaximumSustainedWindSpeed):
@@ -838,7 +838,7 @@ class BestTrackPerturber:
                 )
 
     @property
-    def validation_time(self) -> timedelta:
+    def validation_times(self) -> [timedelta]:
         """ get the validation time of storm """
         return self.forcing.datetime - self.forcing.start_date
 
