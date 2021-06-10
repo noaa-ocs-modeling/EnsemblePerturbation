@@ -188,10 +188,7 @@ class BestTrackPerturbedVariable(ABC):
         self.__default = default
 
     def perturb(
-        self,
-        besttrack_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        self, besttrack_dataframe: DataFrame, values: [float], times: [datetime],
     ) -> DataFrame:
         """
         perturb the variable within physical bounds
@@ -203,7 +200,10 @@ class BestTrackPerturbedVariable(ABC):
         """
 
         all_values = besttrack_dataframe[self.name].values + values
-        bounded_result = [min(self.upper_bound, max(value, self.lower_bound)).magnitude for value in all_values] * self.unit
+        bounded_result = [
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            for value in all_values
+        ] * self.unit
         besttrack_dataframe[self.name] = bounded_result
 
         return besttrack_dataframe
@@ -399,10 +399,7 @@ class CrossTrack(BestTrackPerturbedVariable):
         )
 
     def perturb(
-        self,
-        besttrack_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        self, besttrack_dataframe: DataFrame, values: [float], times: [datetime],
     ) -> DataFrame:
         """
         offset_track(df_,VT,cross_track_errors)
@@ -530,10 +527,7 @@ class AlongTrack(BestTrackPerturbedVariable):
         )
 
     def perturb(
-        self,
-        besttrack_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        self, besttrack_dataframe: DataFrame, values: [float], times: [datetime],
     ) -> DataFrame:
         """
         interpolate_along_track(df_,VT,along_track_errros)
@@ -548,7 +542,9 @@ class AlongTrack(BestTrackPerturbedVariable):
         max_interpolated_points = 5  # maximum number of pts along line for each interpolation
 
         # Get the coordinates of the track
-        along_track_coordinates = besttrack_dataframe[['longitude', 'latitude']].values.tolist()
+        along_track_coordinates = besttrack_dataframe[
+            ['longitude', 'latitude']
+        ].values.tolist()
 
         times = (times / timedelta(hours=1)).values
 
@@ -595,7 +591,9 @@ class AlongTrack(BestTrackPerturbedVariable):
                 if ind == track_coord_index or times[ind] != times[ind - along_sign]:
                     # get the x,y utm coordinate for this line string
                     x_utm, y_utm = utm_projection(
-                        along_track_coordinates[ind][0], along_track_coordinates[ind][1], inverse=False
+                        along_track_coordinates[ind][0],
+                        along_track_coordinates[ind][1],
+                        inverse=False,
                     )
                     pts.append((x_utm, y_utm))
                 ind = ind + along_sign
@@ -607,7 +605,7 @@ class AlongTrack(BestTrackPerturbedVariable):
             pnew = line_segment.interpolate(abs(along_error.magnitude))
 
             # get back lat-lon
-            lon, lat = utm_projection(pnew.coords[0][0], pnew.coords[0][1], inverse=True, )
+            lon, lat = utm_projection(pnew.coords[0][0], pnew.coords[0][1], inverse=True,)
 
             lon_new.append(lon)
             lat_new.append(lat)
@@ -749,10 +747,14 @@ class BestTrackPerturber:
         df_original = self.forcing.df
 
         # add units to data frame
-        df_original = df_original.astype({
-            variable.name: PintType(variable.unit)
-            for variable in variables if variable.name in df_original
-        }, copy=False)
+        df_original = df_original.astype(
+            {
+                variable.name: PintType(variable.unit)
+                for variable in variables
+                if variable.name in df_original
+            },
+            copy=False,
+        )
 
         # for each variable, perturb the values and write each to a new `fort.22`
         for variable in variables:
@@ -783,10 +785,14 @@ class BestTrackPerturber:
             for perturbation_index in range(1, number_of_perturbations + 1):
                 # make a deepcopy to preserve the original dataframe
                 df_modified = df_original.copy(deep=True)
-                df_modified = df_modified.astype({
-                    variable.name: PintType(variable.unit)
-                    for variable in variables if variable.name in df_original
-                }, copy=False)
+                df_modified = df_modified.astype(
+                    {
+                        variable.name: PintType(variable.unit)
+                        for variable in variables
+                        if variable.name in df_original
+                    },
+                    copy=False,
+                )
 
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
@@ -811,9 +817,7 @@ class BestTrackPerturber:
 
                     # subtract the error from the variable with physical constraint bounds
                     df_modified = variable.perturb(
-                        df_modified,
-                        values=perturbation,
-                        times=self.validation_time,
+                        df_modified, values=perturbation, times=self.validation_time,
                     )
 
                 if isinstance(variable, MaximumSustainedWindSpeed):
@@ -916,7 +920,7 @@ def utm_proj_from_lon(lon_mean: float) -> Proj:
     return Proj(f'+proj=utm +zone={zone}K, +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 
 
-def get_offset(x1: float, y1: float, x2: float, y2: float, d: float, ) -> (float, float):
+def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float, float):
     """
     get_offset(x1,y1,x2,y2,d)
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
