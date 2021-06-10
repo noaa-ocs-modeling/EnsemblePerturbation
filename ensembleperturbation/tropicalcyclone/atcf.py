@@ -153,6 +153,18 @@ class BestTrackForcing():
 
     @_storm_id.setter
     def _storm_id(self, storm_id: str):
+        # Different archive source information:
+        #
+        # files:  aBBCCYYYY.dat  - guidance information
+        #         bBBCCYYYY.dat  - best track information
+        #         fBBCCYYYY.dat  - fix information
+        #         eBBCCYYYY.dat  - probability information
+        # 
+        #  BB   - basin: al (Atlantic), ep (East Pacific), cp (Central Pacific),
+        #            and sl (South Atlantic)
+        #  CC   - storm number
+        #  YYYY - 4-digit Year
+        # ref: ftp://ftp.nhc.noaa.gov/atcf/archive/README
         if storm_id is not None:
             chars = 0
             for char in storm_id:
