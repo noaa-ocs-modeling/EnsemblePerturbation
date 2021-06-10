@@ -77,11 +77,11 @@ class BestTrackPerturbedVariable(ABC):
 
     def __init__(
         self,
-        unit: pint.Unit = None,
         lower_bound: float = None,
         upper_bound: float = None,
         historical_forecast_errors: {str: DataFrame} = None,
         default: float = None,
+        unit: pint.Unit = None,
     ):
         self.__unit = None
         self.__lower_bound = None
@@ -90,6 +90,7 @@ class BestTrackPerturbedVariable(ABC):
         self.__default = None
 
         self.unit = unit
+
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
         self.historical_forecast_errors = historical_forecast_errors
@@ -151,7 +152,7 @@ class BestTrackPerturbedVariable(ABC):
                         and dataframe[column].dtype != pint_type
                     ):
                         dataframe[column].pint.ito(self.unit)
-                    dataframe[column] = dataframe[column].astype(pint_type, copy=False)
+                    dataframe[column].astype(pint_type, copy=False)
         return self.__historical_forecast_errors
 
     @historical_forecast_errors.setter
@@ -168,12 +169,12 @@ class BestTrackPerturbedVariable(ABC):
                         and dataframe[column].dtype != pint_type
                     ):
                         dataframe[column].pint.ito(self.unit)
-                    dataframe[column] = dataframe[column].astype(pint_type, copy=False)
+                    dataframe[column].astype(pint_type, copy=False)
         self.__historical_forecast_errors = historical_forecast_errors
 
     @property
     def default(self) -> pint.Quantity:
-        if self.__default.units != self.unit:
+        if self.__default is not None and self.__default.units != self.unit:
             self.__default.ito(self.unit)
         return self.__default
 
@@ -185,6 +186,30 @@ class BestTrackPerturbedVariable(ABC):
         elif default is not None:
             default *= self.unit
         self.__default = default
+
+    def perturb(
+        self,
+        besttrack_dataframe: DataFrame,
+        values: [float],
+        times: [datetime],
+    ) -> DataFrame:
+        """
+        perturb the variable within physical bounds
+
+        :param besttrack_dataframe: ATCF dataframe containing track info
+        :param values: values for each forecast time (VT)
+        :param times: forecast times (VT)
+        :return: updated ATCF dataframe with perturbed values
+        """
+
+        all_values = besttrack_dataframe[self.name].values + values
+        bounded_result = [min(self.upper_bound, max(value, self.lower_bound)).magnitude for value in all_values] * self.unit
+        besttrack_dataframe[self.name] = bounded_result
+
+        return besttrack_dataframe
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(lower_bound={repr(self.lower_bound)}, upper_bound={repr(self.upper_bound)}, historical_forecast_errors={repr(self.historical_forecast_errors)}, default={repr(self.default)}, unit={repr(self.unit)})'
 
 
 class CentralPressure(BestTrackPerturbedVariable):
@@ -373,6 +398,100 @@ class CrossTrack(BestTrackPerturbedVariable):
             unit=units.nautical_mile,
         )
 
+    def perturb(
+        self,
+        besttrack_dataframe: DataFrame,
+        values: [float],
+        times: [datetime],
+    ) -> DataFrame:
+        """
+        offset_track(df_,VT,cross_track_errors)
+          - Offsets points by a given perpendicular error/distance from the original track
+
+        :param besttrack_dataframe: ATCF dataframe containing track info
+        :param values: cross-track errors [nm] for each forecast time (VT)
+        :param times: forecast times (VT)
+        :return: updated ATCF dataframe with different longitude latitude locations based on perpendicular offsets set by the cross_track_errors
+        """
+
+        # Get the coordinates of the track
+        track_coords = besttrack_dataframe[['longitude', 'latitude']].values.tolist()
+
+        times = (times / timedelta(hours=1)).values * units.hours
+
+        # loop over all coordinates
+        lon_new = list()
+        lat_new = list()
+        for track_coord_index in range(0, len(track_coords)):
+            # get the current cross_track_error
+            cross_track_error = values[track_coord_index].to(units.meter)
+
+            # get the utm projection for the reference coordinate
+            utm_projection = utm_proj_from_lon(track_coords[track_coord_index][0])
+
+            # get the location of the original reference coordinate
+            x_ref, y_ref = (
+                utm_projection(
+                    track_coords[track_coord_index][0],
+                    track_coords[track_coord_index][1],
+                    inverse=False,
+                )
+                * units.meter
+            )
+
+            # get the index of the previous forecasted coordinate
+            idx_p = track_coord_index - 1
+            while idx_p >= 0:
+                if times[idx_p] < times[track_coord_index]:
+                    break
+                idx_p = idx_p - 1
+            if idx_p < 0:  # beginning of track
+                idx_p = track_coord_index
+
+            # get previous projected coordinate
+            x_p, y_p = (
+                utm_projection(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False)
+                * units.meter
+            )
+
+            # get the perpendicular offset based on the line connecting from the previous coordinate to the current coordinate
+            dx_p, dy_p = get_offset(x_p, y_p, x_ref, y_ref, cross_track_error)
+
+            # get the index of the next forecasted coordinate
+            idx_n = track_coord_index + 1
+            while idx_n < len(track_coords):
+                if times[idx_n] > times[track_coord_index]:
+                    break
+                idx_n = idx_n + 1
+            if idx_n == len(track_coords):  # end of track
+                idx_n = track_coord_index
+
+            # get previous projected coordinate
+            x_n, y_n = (
+                utm_projection(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False)
+                * units.meter
+            )
+
+            # get the perpendicular offset based on the line connecting from the current coordinate to the next coordinate
+            dx_n, dy_n = get_offset(x_ref, y_ref, x_n, y_n, cross_track_error)
+
+            # get the perpendicular offset based on the average of the forward and backward piecewise track lines adjusted so that the distance matches the actual cross_error
+            dx = 0.5 * (dx_p + dx_n)
+            dy = 0.5 * (dy_p + dy_n)
+            alpha = (abs(cross_track_error) / numpy.sqrt(dx ** 2 + dy ** 2)).magnitude
+
+            # compute the next point and retrieve back the lat-lon geographic coordinate
+            lon, lat = utm_projection(
+                (x_ref + alpha * dx).magnitude, (y_ref + alpha * dy).magnitude, inverse=True
+            )
+            lon_new.append(lon)
+            lat_new.append(lat)
+
+        besttrack_dataframe['longitude'] = lon_new
+        besttrack_dataframe['latitude'] = lat_new
+
+        return besttrack_dataframe
+
 
 class AlongTrack(BestTrackPerturbedVariable):
     name = 'along_track'
@@ -409,6 +528,94 @@ class AlongTrack(BestTrackPerturbedVariable):
             },
             unit=units.nautical_mile,
         )
+
+    def perturb(
+        self,
+        besttrack_dataframe: DataFrame,
+        values: [float],
+        times: [datetime],
+    ) -> DataFrame:
+        """
+        interpolate_along_track(df_,VT,along_track_errros)
+        Offsets points by a given error/distance by interpolating along the track
+
+        :param besttrack_dataframe: ATCF dataframe containing track info
+        :param values: along-track errors for each forecast time (VT)
+        :param times: forecast timed (VT)
+        :return: updated ATCF dataframe with different longitude latitude locations based on interpolated errors along track
+        """
+
+        max_interpolated_points = 5  # maximum number of pts along line for each interpolation
+
+        # Get the coordinates of the track
+        along_track_coordinates = besttrack_dataframe[['longitude', 'latitude']].values.tolist()
+
+        times = (times / timedelta(hours=1)).values
+
+        # Extrapolating the track for negative errors at beginning and positive errors at end of track
+        for vt_index in range(0, len(times)):
+            if times[vt_index] == 0 and times[vt_index + 1] > 0:
+                # append point to the beginning for going in negative direction
+                p1 = along_track_coordinates[vt_index]
+                p2 = along_track_coordinates[vt_index + 1]
+                ps = [
+                    p1[0] - max_interpolated_points * (p2[0] - p1[0]),
+                    p1[1] - max_interpolated_points * (p2[1] - p1[1]),
+                ]
+            if times[vt_index] == times[-1] and times[vt_index - 1] < times[-1]:
+                # append point to the end going in positive direction
+                p1 = along_track_coordinates[vt_index - 1]
+                p2 = along_track_coordinates[vt_index]
+                pe = [
+                    p1[0] + max_interpolated_points * (p2[0] - p1[0]),
+                    p1[1] + max_interpolated_points * (p2[1] - p1[1]),
+                ]
+
+        along_track_coordinates.insert(0, ps)
+        along_track_coordinates.append(pe)
+
+        # adding pseudo-VT times to the ends
+        times = insert(times, 0, times[0] - 6)
+        times = append(times, times[-1] + 6)
+
+        # loop over all coordinates
+        lon_new = list()
+        lat_new = list()
+        for track_coord_index in range(1, len(along_track_coordinates) - 1):
+            # get the utm projection for middle longitude
+            utm_projection = utm_proj_from_lon(along_track_coordinates[track_coord_index][0])
+            along_error = values[track_coord_index - 1].to(units.meter)
+            along_sign = int(sign(along_error))
+
+            pts = list()
+            ind = track_coord_index
+            while len(pts) < max_interpolated_points:
+                if ind < 0 or ind > len(along_track_coordinates) - 1:
+                    break  # reached end of line
+                if ind == track_coord_index or times[ind] != times[ind - along_sign]:
+                    # get the x,y utm coordinate for this line string
+                    x_utm, y_utm = utm_projection(
+                        along_track_coordinates[ind][0], along_track_coordinates[ind][1], inverse=False
+                    )
+                    pts.append((x_utm, y_utm))
+                ind = ind + along_sign
+
+            # make the temporary line segment
+            line_segment = LineString([pts[pp] for pp in range(0, len(pts))])
+
+            # interpolate a distance "along_error" along the line
+            pnew = line_segment.interpolate(abs(along_error.magnitude))
+
+            # get back lat-lon
+            lon, lat = utm_projection(pnew.coords[0][0], pnew.coords[0][1], inverse=True, )
+
+            lon_new.append(lon)
+            lat_new.append(lat)
+
+        besttrack_dataframe['longitude'] = lon_new
+        besttrack_dataframe['latitude'] = lat_new
+
+        return besttrack_dataframe
 
 
 class BestTrackPerturber:
@@ -530,10 +737,10 @@ class BestTrackPerturber:
         self.forcing.write(directory / 'original.22', overwrite=True)
 
         # Get the initial intensity and size
-        storm_strength = self.vmax_intensity_class(
+        storm_strength = storm_intensity_class(
             self.compute_initial(MaximumSustainedWindSpeed.name),
         )
-        storm_size = self.rmax_size_class(self.compute_initial(RadiusOfMaximumWinds.name))
+        storm_size = storm_size_class(self.compute_initial(RadiusOfMaximumWinds.name))
 
         print(f'Initial storm strength: {storm_strength}')
         print(f'Initial storm size: {storm_size}')
@@ -542,23 +749,16 @@ class BestTrackPerturber:
         df_original = self.forcing.df
 
         # add units to data frame
-        for variable in variables:
-            if variable.name in df_original:
-                df_original[variable.name] = df_original[variable.name].astype(
-                    PintType(variable.unit), copy=False
-                )
+        df_original = df_original.astype({
+            variable.name: PintType(variable.unit)
+            for variable in variables if variable.name in df_original
+        }, copy=False)
 
-        # modifying the central pressure while subsequently changing
-        # Vmax using the same Holland B parameter,
-        # writing each to a new fort.22
+        # for each variable, perturb the values and write each to a new `fort.22`
         for variable in variables:
             print(f'writing perturbations for "{variable.name}"')
-            # print(min(df_original[var]))
-            # print(max(df_original[var]))
-
             # Make the random pertubations based on the historical forecast errors
             # Interpolate from the given VT to the storm_VT
-            # print(forecast_errors[var][Initial_Vmax])
             if isinstance(variable, RadiusOfMaximumWinds):
                 storm_classification = storm_size
             else:
@@ -580,49 +780,44 @@ class BestTrackPerturber:
                 for ncol in range(len(yp[0]))
             ]
 
-            # print(base_errors)
-
             for perturbation_index in range(1, number_of_perturbations + 1):
                 # make a deepcopy to preserve the original dataframe
                 df_modified = df_original.copy(deep=True)
-                for variable in variables:
-                    if variable.name in df_modified:
-                        df_modified[variable.name] = df_modified[variable.name].astype(
-                            PintType(variable.unit), copy=False
-                        )
+                df_modified = df_modified.astype({
+                    variable.name: PintType(variable.unit)
+                    for variable in variables if variable.name in df_original
+                }, copy=False)
 
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     alpha = gauss(0, 1) / 0.7979
-                    # mean_abs_error = 0.7979 * sigma
 
                     print(f'Random gaussian variable = {alpha}')
-
                     perturbation = base_errors[0] * alpha
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
 
                     # add the error to the variable with bounds to some physical constraints
-                    df_modified = self.perturb_bound(
-                        df_modified, perturbation=perturbation, variable=variable,
+                    df_modified = variable.perturb(
+                        df_modified, values=perturbation, times=self.validation_time,
                     )
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     alpha = random()
 
                     print(f'Random number in [0,1) = {alpha}')
+                    perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
+                    if variable.unit is not None and variable.unit != units.dimensionless:
+                        perturbation *= variable.unit
 
                     # subtract the error from the variable with physical constraint bounds
-                    df_modified = self.perturb_bound(
+                    df_modified = variable.perturb(
                         df_modified,
-                        perturbation=-(
-                            base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha
-                        ),
-                        variable=variable,
+                        values=perturbation,
+                        times=self.validation_time,
                     )
 
                 if isinstance(variable, MaximumSustainedWindSpeed):
-                    # In case of Vmax need to change the central pressure
-                    # incongruence with it (obeying Holland B relationship)
+                    # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
                     df_modified[CentralPressure.name] = self.compute_pc_from_Vmax(df_modified)
 
                 # remove units from data frame
@@ -650,9 +845,9 @@ class BestTrackPerturber:
     @property
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
-        df_test = self.forcing.df
-        Vmax = df_test[MaximumSustainedWindSpeed.name]
-        DelP = df_test[BackgroundPressure.name] - df_test[CentralPressure.name]
+        dataframe = self.forcing.df
+        Vmax = dataframe[MaximumSustainedWindSpeed.name]
+        DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
         return B
 
@@ -663,235 +858,47 @@ class BestTrackPerturber:
         pc = dataframe[BackgroundPressure.name] - DelP
         return pc
 
-    def perturb_bound(
-        self,
-        dataframe: DataFrame,
-        perturbation: [float],
-        variable: BestTrackPerturbedVariable,
-    ):
-        """ perturbing the variable with physical bounds """
-        if isinstance(variable, AlongTrack):
-            dataframe = self.interpolate_along_track(
-                dataframe, along_track_errors=perturbation
-            )
-        elif isinstance(variable, CrossTrack):
-            dataframe = self.offset_track(dataframe, cross_track_errors=perturbation)
-        else:
-            test_list = dataframe[variable.name] + perturbation
-            bounded_result = [
-                min(variable.upper_bound, max(ele, variable.lower_bound)) for ele in test_list
-            ]
-            dataframe[variable.name] = bounded_result
-        return dataframe
 
-    def interpolate_along_track(self, dataframe, along_track_errors: [float]) -> DataFrame:
-        """
-        interpolate_along_track(df_,VT,along_track_errros)
-        Offsets points by a given error/distance by interpolating along the track
+def storm_intensity_class(max_sustained_wind_speed: float) -> str:
+    """
+    Category for Vmax based intensity
 
-        :param dataframe: ATCF dataframe containing track info
-        :param along_track_errors: along-track errors for each forecast time (VT)
-        :return: updated ATCF dataframe with different longitude latitude locations based on interpolated errors along track
-        """
+    :param max_sustained_wind_speed: maximum sustained wind speed, in knots
+    :return: intensity classification
+    """
 
-        interp_pts = 5  # maximum number of pts along line for each interpolation
+    if not isinstance(max_sustained_wind_speed, pint.Quantity):
+        max_sustained_wind_speed *= units.knot
 
-        # Get the coordinates of the track
-        track_coords = dataframe[['longitude', 'latitude']].values.tolist()
+    if max_sustained_wind_speed < 50 * units.knot:
+        return '<50kt'  # weak
+    elif max_sustained_wind_speed <= 95 * units.knot:
+        return '50-95kt'  # medium
+    else:
+        return '>95kt'  # strong
 
-        VT = (self.validation_time / timedelta(hours=1)).values
 
-        # Extrapolating the track for negative errors at beginning and positive errors at end of track
-        for vt_index in range(0, len(VT)):
-            if VT[vt_index] == 0 and VT[vt_index + 1] > 0:
-                # append point to the beginning for going in negative direction
-                p1 = track_coords[vt_index]
-                p2 = track_coords[vt_index + 1]
-                ps = [
-                    p1[0] - interp_pts * (p2[0] - p1[0]),
-                    p1[1] - interp_pts * (p2[1] - p1[1]),
-                ]
-            if VT[vt_index] == VT[-1] and VT[vt_index - 1] < VT[-1]:
-                # append point to the end going in positive direction
-                p1 = track_coords[vt_index - 1]
-                p2 = track_coords[vt_index]
-                pe = [
-                    p1[0] + interp_pts * (p2[0] - p1[0]),
-                    p1[1] + interp_pts * (p2[1] - p1[1]),
-                ]
+def storm_size_class(radius_of_maximum_winds: float) -> str:
+    """
+    Category for Rmax based size
 
-        track_coords.insert(0, ps)
-        track_coords.append(pe)
+    :param radius_of_maximum_winds: radius of maximum winds, in nautical miles
+    :return: size classification
+    """
 
-        # adding pseudo-VT times to the ends
-        VT = insert(VT, 0, VT[0] - 6)
-        VT = append(VT, VT[-1] + 6)
+    if not isinstance(radius_of_maximum_winds, pint.Quantity):
+        radius_of_maximum_winds *= units.nautical_mile
 
-        # print(track_coords)
-        # print(VT)
-        # print(along_track_errors)
-
-        # loop over all coordinates
-        lon_new = list()
-        lat_new = list()
-        for track_coord_index in range(1, len(track_coords) - 1):
-            # get the utm projection for middle longitude
-            myProj = utm_proj_from_lon(track_coords[track_coord_index][0])
-            along_error = along_track_errors[track_coord_index - 1].to(units.meter)
-            along_sign = int(sign(along_error))
-
-            pts = list()
-            ind = track_coord_index
-            while len(pts) < interp_pts:
-                if ind < 0 or ind > len(track_coords) - 1:
-                    break  # reached end of line
-                if ind == track_coord_index or VT[ind] != VT[ind - along_sign]:
-                    # get the x,y utm coordinate for this line string
-                    x_utm, y_utm = myProj(
-                        track_coords[ind][0], track_coords[ind][1], inverse=False
-                    )
-                    pts.append((x_utm, y_utm))
-                ind = ind + along_sign
-
-            # make the temporary line segment
-            line_segment = LineString([pts[pp] for pp in range(0, len(pts))])
-
-            # interpolate a distance "along_error" along the line
-            pnew = line_segment.interpolate(abs(along_error))
-
-            # get back lat-lon
-            lon, lat = myProj(pnew.coords[0][0], pnew.coords[0][1], inverse=True,)
-
-            # print(track_coords[idx-1:idx+2])
-            # print(along_error/111e3)
-            # print(new_coords])
-
-            lon_new.append(lon)
-            lat_new.append(lat)
-
-        # print([lon_new, lat_new])
-
-        dataframe['longitude'] = lon_new
-        dataframe['latitude'] = lat_new
-
-        return dataframe
-
-    def offset_track(self, dataframe, cross_track_errors: [float]) -> DataFrame:
-        """
-        offset_track(df_,VT,cross_track_errors)
-          - Offsets points by a given perpendicular error/distance from the original track
-
-        :param dataframe: ATCF dataframe containing track info
-        :param cross_track_errors: cross-track errors [nm] for each forecast time (VT)
-        :return: updated ATCF dataframe with different longitude latitude locations based on perpendicular offsets set by the cross_track_errors
-        """
-
-        # Get the coordinates of the track
-        track_coords = dataframe[['longitude', 'latitude']].values.tolist()
-
-        VT = (self.validation_time / timedelta(hours=1)).values * units.hours
-
-        # loop over all coordinates
-        lon_new = list()
-        lat_new = list()
-        for track_coord_index in range(0, len(track_coords)):
-            # get the current cross_track_error
-            cross_error = cross_track_errors[track_coord_index].to(units.meter)
-
-            # get the utm projection for the reference coordinate
-            myProj = utm_proj_from_lon(track_coords[track_coord_index][0])
-
-            # get the location of the original reference coordinate
-            x_ref, y_ref = (
-                myProj(
-                    track_coords[track_coord_index][0],
-                    track_coords[track_coord_index][1],
-                    inverse=False,
-                )
-                * units.meter
-            )
-
-            # get the index of the previous forecasted coordinate
-            idx_p = track_coord_index - 1
-            while idx_p >= 0:
-                if VT[idx_p] < VT[track_coord_index]:
-                    break
-                idx_p = idx_p - 1
-            if idx_p < 0:  # beginning of track
-                idx_p = track_coord_index
-
-            # get previous projected coordinate
-            x_p, y_p = (
-                myProj(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False)
-                * units.meter
-            )
-
-            # get the perpendicular offset based on the line connecting from the previous coordinate to the current coordinate
-            dx_p, dy_p = get_offset(x_p, y_p, x_ref, y_ref, cross_error)
-
-            # get the index of the next forecasted coordinate
-            idx_n = track_coord_index + 1
-            while idx_n < len(track_coords):
-                if VT[idx_n] > VT[track_coord_index]:
-                    break
-                idx_n = idx_n + 1
-            if idx_n == len(track_coords):  # end of track
-                idx_n = track_coord_index
-
-            # get previous projected coordinate
-            x_n, y_n = (
-                myProj(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False)
-                * units.meter
-            )
-
-            # get the perpendicular offset based on the line connecting from the current coordinate to the next coordinate
-            dx_n, dy_n = get_offset(x_ref, y_ref, x_n, y_n, cross_error)
-
-            # get the perpendicular offset based on the average of the forward and backward piecewise track lines adjusted so that the distance matches the actual cross_error
-            dx = 0.5 * (dx_p + dx_n)
-            dy = 0.5 * (dy_p + dy_n)
-            alpha = (abs(cross_error) / numpy.sqrt(dx ** 2 + dy ** 2)).magnitude
-
-            # compute the next point and retrieve back the lat-lon geographic coordinate
-            lon, lat = myProj(
-                (x_ref + alpha * dx).magnitude, (y_ref + alpha * dy).magnitude, inverse=True
-            )
-            lon_new.append(lon)
-            lat_new.append(lat)
-
-        dataframe['longitude'] = lon_new
-        dataframe['latitude'] = lat_new
-
-        return dataframe
-
-    @staticmethod
-    def vmax_intensity_class(vmax: float) -> str:
-        """ Category for Vmax based intensity """
-        if vmax < 50:
-            return '<50kt'  # weak
-        elif vmax > 95:
-            return '>95kt'  # strong
-        else:
-            return '50-95kt'  # medium
-
-    @staticmethod
-    def rmax_size_class(rmax: float) -> str:
-        """ Category for Rmax based size """
-        if not isinstance(rmax, pint.Quantity):
-            rmax *= units.nautical_mile
-
-        # convert from nautical miles to statute miles
-        rmax = rmax.to(units.us_statute_mile).magnitude
-        if rmax < 15:
-            return '<15sm'  # very small
-        elif rmax < 25:
-            return '15-25sm'  # small
-        elif rmax < 35:
-            return '25-35sm'  # medium
-        elif rmax < 45:
-            return '35-45sm'  # large
-        else:
-            return '>45sm'  # very large
+    if radius_of_maximum_winds < 15 * units.us_statute_mile:
+        return '<15sm'  # very small
+    elif radius_of_maximum_winds < 25 * units.us_statute_mile:
+        return '15-25sm'  # small
+    elif radius_of_maximum_winds < 35 * units.us_statute_mile:
+        return '25-35sm'  # medium
+    elif radius_of_maximum_winds <= 45 * units.us_statute_mile:
+        return '35-45sm'  # large
+    else:
+        return '>45sm'  # very large
 
 
 def utm_proj_from_lon(lon_mean: float) -> Proj:
@@ -905,12 +912,11 @@ def utm_proj_from_lon(lon_mean: float) -> Proj:
     """
 
     zone = floor((lon_mean + 180) / 6) + 1
-    # print("Zone is " + str(zone))
 
     return Proj(f'+proj=utm +zone={zone}K, +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 
 
-def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float, float):
+def get_offset(x1: float, y1: float, x2: float, y2: float, d: float, ) -> (float, float):
     """
     get_offset(x1,y1,x2,y2,d)
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d

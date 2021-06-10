@@ -1,6 +1,7 @@
 from difflib import Differ
 from os import PathLike
 from pathlib import Path
+import re
 
 DATA_DIRECTORY = Path(__file__).parent / 'data'
 
