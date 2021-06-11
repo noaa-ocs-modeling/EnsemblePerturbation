@@ -47,11 +47,12 @@ from typing import Union
 from adcircpy.forcing.winds.best_track import BestTrackForcing
 from dateutil.parser import parse as parse_date
 import numpy
-from numpy import append, floor, insert, interp, sign
+from numpy import floor, interp, sign
 from pandas import DataFrame, Series
 import pint
 from pint_pandas import PintType
-from pyproj import Proj
+from pyproj import CRS, Transformer
+from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
 units = pint.UnitRegistry()
@@ -413,24 +414,23 @@ class CrossTrack(BestTrackPerturbedVariable):
         # Get the coordinates of the track
         track_coords = besttrack_dataframe[['longitude', 'latitude']].values.tolist()
 
+        # get the utm projection for the reference coordinate
+        utm_crs = utm_crs_from_longitude(numpy.mean(track_coords[0]))
+        wgs84 = CRS.from_epsg(4326)
+        transformer = Transformer.from_crs(wgs84, utm_crs)
+
         times = (times / timedelta(hours=1)).values * units.hours
 
         # loop over all coordinates
-        lon_new = list()
-        lat_new = list()
+        new_coordinates = []
         for track_coord_index in range(0, len(track_coords)):
             # get the current cross_track_error
             cross_track_error = values[track_coord_index].to(units.meter)
 
-            # get the utm projection for the reference coordinate
-            utm_projection = utm_proj_from_lon(track_coords[track_coord_index][0])
-
             # get the location of the original reference coordinate
             x_ref, y_ref = (
-                utm_projection(
-                    track_coords[track_coord_index][0],
-                    track_coords[track_coord_index][1],
-                    inverse=False,
+                transformer.transform(
+                    track_coords[track_coord_index][0], track_coords[track_coord_index][1],
                 )
                 * units.meter
             )
@@ -446,7 +446,7 @@ class CrossTrack(BestTrackPerturbedVariable):
 
             # get previous projected coordinate
             x_p, y_p = (
-                utm_projection(track_coords[idx_p][0], track_coords[idx_p][1], inverse=False)
+                transformer.transform(track_coords[idx_p][0], track_coords[idx_p][1],)
                 * units.meter
             )
 
@@ -464,7 +464,7 @@ class CrossTrack(BestTrackPerturbedVariable):
 
             # get previous projected coordinate
             x_n, y_n = (
-                utm_projection(track_coords[idx_n][0], track_coords[idx_n][1], inverse=False)
+                transformer.transform(track_coords[idx_n][0], track_coords[idx_n][1],)
                 * units.meter
             )
 
@@ -477,14 +477,24 @@ class CrossTrack(BestTrackPerturbedVariable):
             alpha = (abs(cross_track_error) / numpy.sqrt(dx ** 2 + dy ** 2)).magnitude
 
             # compute the next point and retrieve back the lat-lon geographic coordinate
-            lon, lat = utm_projection(
-                (x_ref + alpha * dx).magnitude, (y_ref + alpha * dy).magnitude, inverse=True
+            new_coordinates.append(
+                transformer.transform(
+                    (x_ref + alpha * dx).magnitude,
+                    (y_ref + alpha * dy).magnitude,
+                    direction=TransformDirection.INVERSE,
+                )
             )
-            lon_new.append(lon)
-            lat_new.append(lat)
 
-        besttrack_dataframe['longitude'] = lon_new
-        besttrack_dataframe['latitude'] = lat_new
+        degree = PintType(units.degree)
+        besttrack_dataframe['longitude'], besttrack_dataframe['latitude'] = zip(
+            *new_coordinates
+        )
+        besttrack_dataframe['longitude'] = besttrack_dataframe['longitude'].astype(
+            degree, copy=False
+        )
+        besttrack_dataframe['latitude'] = besttrack_dataframe['latitude'].astype(
+            degree, copy=False
+        )
 
         return besttrack_dataframe
 
@@ -541,76 +551,92 @@ class AlongTrack(BestTrackPerturbedVariable):
         max_interpolated_points = 5  # maximum number of pts along line for each interpolation
 
         # Get the coordinates of the track
-        along_track_coordinates = besttrack_dataframe[
-            ['longitude', 'latitude']
-        ].values.tolist()
+        coordinates = besttrack_dataframe[['longitude', 'latitude']].values
 
-        times = (times / timedelta(hours=1)).values
+        # get the utm projection for the reference coordinate
+        utm_crs = utm_crs_from_longitude(numpy.mean(coordinates[:, 0]))
+        wgs84 = CRS.from_epsg(4326)
+        transformer = Transformer.from_crs(wgs84, utm_crs)
+
+        hours = (times / timedelta(hours=1)).values
+
+        unique_points, unique_indices = numpy.unique(coordinates, axis=0, return_index=True)
+        unique_points = unique_points[numpy.argsort(unique_indices)]
+        unique_times, unique_indices = numpy.unique(hours, axis=0, return_index=True)
+        unique_times = unique_times[numpy.argsort(unique_indices)]
 
         # Extrapolating the track for negative errors at beginning and positive errors at end of track
-        for vt_index in range(0, len(times)):
-            if times[vt_index] == 0 and times[vt_index + 1] > 0:
-                # append point to the beginning for going in negative direction
-                p1 = along_track_coordinates[vt_index]
-                p2 = along_track_coordinates[vt_index + 1]
-                ps = [
-                    p1[0] - max_interpolated_points * (p2[0] - p1[0]),
-                    p1[1] - max_interpolated_points * (p2[1] - p1[1]),
-                ]
-            if times[vt_index] == times[-1] and times[vt_index - 1] < times[-1]:
-                # append point to the end going in positive direction
-                p1 = along_track_coordinates[vt_index - 1]
-                p2 = along_track_coordinates[vt_index]
-                pe = [
-                    p1[0] + max_interpolated_points * (p2[0] - p1[0]),
-                    p1[1] + max_interpolated_points * (p2[1] - p1[1]),
-                ]
-
-        along_track_coordinates.insert(0, ps)
-        along_track_coordinates.append(pe)
+        previous_diffs = numpy.flip(
+            numpy.repeat(
+                [unique_points[1] - unique_points[0]], max_interpolated_points, axis=0
+            )
+            * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1)
+        )
+        after_diffs = numpy.repeat(
+            [unique_points[-1] - unique_points[-2]], max_interpolated_points, axis=0
+        ) * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1)
+        coordinates = numpy.concatenate(
+            [coordinates[0] - previous_diffs, coordinates, coordinates[-1] + after_diffs,]
+        )
 
         # adding pseudo-VT times to the ends
-        times = insert(times, 0, times[0] - 6)
-        times = append(times, times[-1] + 6)
+        previous_diffs = numpy.flip(
+            numpy.repeat([unique_times[1] - unique_times[0]], max_interpolated_points)
+            * numpy.arange(1, max_interpolated_points + 1)
+        )
+        after_diffs = numpy.repeat(
+            [unique_times[-1] - unique_times[-2]], max_interpolated_points
+        ) * numpy.arange(1, max_interpolated_points + 1)
+        hours = numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs,))
 
         # loop over all coordinates
-        lon_new = list()
-        lat_new = list()
-        for track_coord_index in range(1, len(along_track_coordinates) - 1):
-            # get the utm projection for middle longitude
-            utm_projection = utm_proj_from_lon(along_track_coordinates[track_coord_index][0])
-            along_error = values[track_coord_index - 1].to(units.meter)
+        new_coordinates = []
+        for index in range(len(values)):
+            along_error = values[index - 1].to(units.meter)
             along_sign = int(sign(along_error))
 
-            pts = list()
-            ind = track_coord_index
-            while len(pts) < max_interpolated_points:
-                if ind < 0 or ind > len(along_track_coordinates) - 1:
+            projected_points = []
+            track_index = index
+            while len(projected_points) < max_interpolated_points:
+                if track_index < 0 or track_index > len(coordinates) - 1:
                     break  # reached end of line
-                if ind == track_coord_index or times[ind] != times[ind - along_sign]:
+                if (
+                    track_index == index
+                    or hours[track_index] != hours[track_index - along_sign]
+                ):
                     # get the x,y utm coordinate for this line string
-                    x_utm, y_utm = utm_projection(
-                        along_track_coordinates[ind][0],
-                        along_track_coordinates[ind][1],
-                        inverse=False,
+                    projected_points.append(
+                        transformer.transform(
+                            coordinates[track_index][0], coordinates[track_index][1],
+                        )
                     )
-                    pts.append((x_utm, y_utm))
-                ind = ind + along_sign
+                track_index = track_index + along_sign
 
-            # make the temporary line segment
-            line_segment = LineString([pts[pp] for pp in range(0, len(pts))])
+                # make the temporary line segment
+            line_segment = LineString(projected_points)
 
             # interpolate a distance "along_error" along the line
-            pnew = line_segment.interpolate(abs(along_error.magnitude))
+            projected_coordinate = line_segment.interpolate(abs(along_error.magnitude))
 
             # get back lat-lon
-            lon, lat = utm_projection(pnew.coords[0][0], pnew.coords[0][1], inverse=True,)
+            new_coordinates.append(
+                transformer.transform(
+                    projected_coordinate.coords[0][0],
+                    projected_coordinate.coords[0][1],
+                    direction=TransformDirection.INVERSE,
+                )
+            )
 
-            lon_new.append(lon)
-            lat_new.append(lat)
-
-        besttrack_dataframe['longitude'] = lon_new
-        besttrack_dataframe['latitude'] = lat_new
+        degree = PintType(units.degree)
+        besttrack_dataframe['longitude'], besttrack_dataframe['latitude'] = zip(
+            *new_coordinates
+        )
+        besttrack_dataframe['longitude'] = besttrack_dataframe['longitude'].astype(
+            degree, copy=False
+        )
+        besttrack_dataframe['latitude'] = besttrack_dataframe['latitude'].astype(
+            degree, copy=False
+        )
 
         return besttrack_dataframe
 
@@ -782,10 +808,10 @@ class BestTrackPerturber:
                     ].pint.magnitude
 
             xp = historical_forecast_errors.index
-            yp = historical_forecast_errors.values
+            fp = historical_forecast_errors.values
             base_errors = [
-                interp(self.validation_times / timedelta(hours=1), xp, yp[:, ncol])
-                for ncol in range(len(yp[0]))
+                interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
+                for ncol in range(len(fp[0]))
             ]
 
             for perturbation_index in range(1, number_of_perturbations + 1):
@@ -913,19 +939,16 @@ def storm_size_class(radius_of_maximum_winds: float) -> str:
         return '>45sm'  # very large
 
 
-def utm_proj_from_lon(lon_mean: float) -> Proj:
+def utm_crs_from_longitude(longitude: float) -> CRS:
     """
     utm_from_lon - UTM zone for a longitude
     Not right for some polar regions (Norway, Svalbard, Antartica)
-    :param lon_mean: longitude
 
-    :usage   x_utm,y_utm   = myProj(lon, lat  , inverse=False)
-    :usage   lon, lat      = myProj(xutm, yutm, inverse=True)
+    :param longitude: longitude
+    :return: coordinate reference system
     """
 
-    zone = floor((lon_mean + 180) / 6) + 1
-
-    return Proj(f'+proj=utm +zone={zone}K, +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+    return CRS.from_epsg(32600 + int(floor((longitude + 180) / 6) + 1))
 
 
 def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float, float):
