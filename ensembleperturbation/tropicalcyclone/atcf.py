@@ -27,7 +27,8 @@ import utm
 
 logger = logging.getLogger(__name__)
 
-class BestTrackForcing():
+
+class BestTrackForcing:
     def __init__(
         self,
         storm: Union[str, PathLike, DataFrame, io.BytesIO],
@@ -159,7 +160,7 @@ class BestTrackForcing():
         #         bBBCCYYYY.dat  - best track information
         #         fBBCCYYYY.dat  - fix information
         #         eBBCCYYYY.dat  - probability information
-        # 
+        #
         #  BB   - basin: al (Atlantic), ep (East Pacific), cp (Central Pacific),
         #            and sl (South Atlantic)
         #  CC   - storm number
@@ -544,10 +545,7 @@ class BestTrackForcing():
 
     @classmethod
     def from_fort22(
-        cls,
-        fort22: PathLike,
-        start_date: datetime = None,
-        end_date: datetime = None,
+        cls, fort22: PathLike, start_date: datetime = None, end_date: datetime = None,
     ) -> 'BestTrackForcing':
 
         data = read_atcf(fort22)

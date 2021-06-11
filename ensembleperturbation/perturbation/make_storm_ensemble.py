@@ -44,7 +44,6 @@ from pathlib import Path
 from random import gauss, random
 from typing import Union
 
-from ensembleperturbation.tropicalcyclone.atcf import BestTrackForcing
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -54,6 +53,8 @@ from pint_pandas import PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
+
+from ensembleperturbation.tropicalcyclone.atcf import BestTrackForcing
 
 units = pint.UnitRegistry()
 PintType.ureg = units
@@ -643,10 +644,7 @@ class AlongTrack(BestTrackPerturbedVariable):
 
 class BestTrackPerturber:
     def __init__(
-        self,
-        storm: str,
-        start_date: datetime = None,
-        end_date: datetime = None,
+        self, storm: str, start_date: datetime = None, end_date: datetime = None,
     ):
         """
         build storm perturber
