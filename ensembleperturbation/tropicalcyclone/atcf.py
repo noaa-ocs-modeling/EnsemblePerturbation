@@ -11,10 +11,7 @@ import pathlib
 import time
 from typing import Any, Union
 import urllib.request
-import zipfile
 
-import appdirs
-import geopandas
 from haversine import haversine
 import matplotlib.pyplot as plt
 from matplotlib.transforms import Bbox
