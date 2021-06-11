@@ -141,3 +141,4 @@ cython_debug/
 
 .idea/
 /examples/data/*
+/tests/data/output

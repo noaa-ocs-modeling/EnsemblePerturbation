@@ -44,7 +44,7 @@ from pathlib import Path
 from random import gauss, random
 from typing import Union
 
-from adcircpy.forcing.winds.best_track import BestTrackForcing
+from ensembleperturbation.tropicalcyclone.atcf import BestTrackForcing
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -645,8 +645,6 @@ class BestTrackPerturber:
     def __init__(
         self,
         storm: str,
-        nws: int = None,
-        interval: timedelta = None,
         start_date: datetime = None,
         end_date: datetime = None,
     ):
@@ -654,15 +652,11 @@ class BestTrackPerturber:
         build storm perturber
 
         :param storm: NHC storm code, for instance `al062018`
-        :param nws: wind stress parameter
-        :param interval: time interval
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
         """
 
         self.storm = storm
-        self.nws = nws
-        self.interval = interval
         self.start_date = start_date
         self.end_date = end_date
 
@@ -676,24 +670,6 @@ class BestTrackPerturber:
     @storm.setter
     def storm(self, storm: str):
         self.__storm = storm
-
-    @property
-    def nws(self) -> int:
-        return self.__nws
-
-    @nws.setter
-    def nws(self, nws: int):
-        self.__nws = nws
-
-    @property
-    def interval(self) -> timedelta:
-        return self.__interval
-
-    @interval.setter
-    def interval(self, interval: timedelta):
-        if interval is not None and not isinstance(interval, timedelta):
-            self.__interval = timedelta(seconds=interval)
-        self.__interval = interval
 
     @property
     def start_date(self) -> datetime:
@@ -717,14 +693,9 @@ class BestTrackPerturber:
 
     @property
     def forcing(self) -> BestTrackForcing:
-        interval = self.interval
-        if interval is not None:
-            interval = interval / timedelta(seconds=1)
 
         configuration = {
             'storm': self.storm,
-            'nws': self.nws,
-            'interval_seconds': interval,
             'start_date': self.start_date,
             'end_date': self.end_date,
         }
