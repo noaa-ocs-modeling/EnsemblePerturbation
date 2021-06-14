@@ -10,8 +10,8 @@ import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
 
-from ..utilities import get_logger
-from .utilities import decode_time
+from ensembleperturbation.parsing.utilities import decode_time
+from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
 

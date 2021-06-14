@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-latest, windows-latest ]
         python-version: [ 3.8, 3.9 ]
     steps:
       - name: Checkout repository
@@ -41,7 +41,7 @@ jobs:
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Run tests with coverage
-        run: pytest --cov=ensembleperturbation --numprocesses auto --ignore=tests/test_parser.py
+        run: pytest --cov=ensembleperturbation --numprocesses auto
       - name: Upload coverage to Codecov
         if: matrix.python-version == 3.9
         uses: codecov/codecov-action@v1

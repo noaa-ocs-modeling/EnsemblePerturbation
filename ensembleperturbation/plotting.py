@@ -1,122 +1,131 @@
+import io
+from os import PathLike
+import pathlib
 from typing import Union
+import zipfile
 
 # from affine import Affine
+import appdirs
+
+# import gdal
+import geopandas
 from matplotlib import pyplot
+from matplotlib.axes import Axes
 from matplotlib.cm import get_cmap
 import numpy
-from osgeo import gdal
+import requests
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.geometry import shape as shapely_shape
 
-from .utilities import get_logger
+from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('plotting')
 
 
-def geoarray_to_xyz(
-    data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
-) -> numpy.array:
-    """
-    Extract XYZ points from an array of data using the given raster-like
-    georeference (origin  and resolution).
-
-    Parameters
-    ----------
-    data
-        2D array of gridded data
-    origin
-        X, Y coordinates of northwest corner
-    resolution
-        cell size
-    nodata
-        value to exclude from point creation from the input grid
-
-    Returns
-    -------
-    numpy.array
-        N x 3 array of XYZ points
-    """
-
-    if nodata is None:
-        if data.dtype == float:
-            nodata = numpy.nan
-        elif data.dtype == int:
-            nodata = -2147483648
-        if data.dtype == bool:
-            nodata = False
-
-    data_coverage = where_not_nodata(data, nodata)
-    x_values, y_values = numpy.meshgrid(
-        numpy.linspace(origin[0], origin[0] + resolution[0] * data.shape[1], data.shape[1]),
-        numpy.linspace(origin[1], origin[1] + resolution[1] * data.shape[0], data.shape[0]),
-    )
-
-    return numpy.stack(
-        (x_values[data_coverage], y_values[data_coverage], data[data_coverage]), axis=1
-    )
-
-
-def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
-    """
-    Extract XYZ points from a GDAL dataset.
-
-    Parameters
-    ----------
-    dataset
-        GDAL dataset (point cloud or raster)
-    nodata
-        value to exclude from point creation
-
-    Returns
-    -------
-    numpy.array
-        N x M array of XYZ points
-    """
-
-    coordinates = None
-    layers_data = []
-    if dataset.RasterCount > 0:
-        for index in range(1, dataset.RasterCount + 1):
-            raster_band = dataset.GetRasterBand(index)
-            geotransform = dataset.GetGeoTransform()
-
-            if nodata is None:
-                nodata = raster_band.GetNoDataValue()
-
-            points = geoarray_to_xyz(
-                raster_band.ReadAsArray(),
-                origin=(geotransform[0], geotransform[3]),
-                resolution=(geotransform[1], geotransform[5]),
-                nodata=nodata,
-            )
-            if coordinates is None:
-                coordinates = points[:, :2]
-            layers_data.append(points[:, 2])
-    else:
-        for index in range(dataset.GetLayerCount()):
-            point_layer = dataset.GetLayerByIndex(index)
-            num_features = point_layer.GetFeatureCount()
-
-            for feature_index in range(num_features):
-                feature = point_layer.GetFeature(feature_index)
-                feature_geometry = feature.geometry()
-                num_points = feature_geometry.GetGeometryCount()
-                # TODO this assumes points in all layers are in the same order
-                points = numpy.array(
-                    [
-                        feature_geometry.GetGeometryRef(point_index).GetPoint()
-                        for point_index in range(num_points)
-                        if feature_geometry.GetGeometryRef(point_index).GetPoint()[2] != nodata
-                    ]
-                )
-
-                if coordinates is None:
-                    coordinates = points[:, :2]
-                layers_data.append(points[:, 2])
-
-    return numpy.concatenate(
-        [coordinates] + [numpy.expand_dims(data, axis=1) for data in layers_data], axis=1
-    )
+# def geoarray_to_xyz(
+#     data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
+# ) -> numpy.array:
+#     """
+#     Extract XYZ points from an array of data using the given raster-like
+#     georeference (origin  and resolution).
+#
+#     Parameters
+#     ----------
+#     data
+#         2D array of gridded data
+#     origin
+#         X, Y coordinates of northwest corner
+#     resolution
+#         cell size
+#     nodata
+#         value to exclude from point creation from the input grid
+#
+#     Returns
+#     -------
+#     numpy.array
+#         N x 3 array of XYZ points
+#     """
+#
+#     if nodata is None:
+#         if data.dtype == float:
+#             nodata = numpy.nan
+#         elif data.dtype == int:
+#             nodata = -2147483648
+#         if data.dtype == bool:
+#             nodata = False
+#
+#     data_coverage = where_not_nodata(data, nodata)
+#     x_values, y_values = numpy.meshgrid(
+#         numpy.linspace(origin[0], origin[0] + resolution[0] * data.shape[1], data.shape[1]),
+#         numpy.linspace(origin[1], origin[1] + resolution[1] * data.shape[0], data.shape[0]),
+#     )
+#
+#     return numpy.stack(
+#         (x_values[data_coverage], y_values[data_coverage], data[data_coverage]), axis=1
+#     )
+#
+#
+# def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
+#     """
+#     Extract XYZ points from a GDAL dataset.
+#
+#     Parameters
+#     ----------
+#     dataset
+#         GDAL dataset (point cloud or raster)
+#     nodata
+#         value to exclude from point creation
+#
+#     Returns
+#     -------
+#     numpy.array
+#         N x M array of XYZ points
+#     """
+#
+#     coordinates = None
+#     layers_data = []
+#     if dataset.RasterCount > 0:
+#         for index in range(1, dataset.RasterCount + 1):
+#             raster_band = dataset.GetRasterBand(index)
+#             geotransform = dataset.GetGeoTransform()
+#
+#             if nodata is None:
+#                 nodata = raster_band.GetNoDataValue()
+#
+#             points = geoarray_to_xyz(
+#                 raster_band.ReadAsArray(),
+#                 origin=(geotransform[0], geotransform[3]),
+#                 resolution=(geotransform[1], geotransform[5]),
+#                 nodata=nodata,
+#             )
+#             if coordinates is None:
+#                 coordinates = points[:, :2]
+#             layers_data.append(points[:, 2])
+#     else:
+#         for index in range(dataset.GetLayerCount()):
+#             point_layer = dataset.GetLayerByIndex(index)
+#             num_features = point_layer.GetFeatureCount()
+#
+#             for feature_index in range(num_features):
+#                 feature = point_layer.GetFeature(feature_index)
+#                 feature_geometry = feature.geometry()
+#                 num_points = feature_geometry.GetGeometryCount()
+#                 # TODO this assumes points in all layers are in the same order
+#                 points = numpy.array(
+#                     [
+#                         feature_geometry.GetGeometryRef(point_index).GetPoint()
+#                         for point_index in range(num_points)
+#                         if feature_geometry.GetGeometryRef(point_index).GetPoint()[2] != nodata
+#                     ]
+#                 )
+#
+#                 if coordinates is None:
+#                     coordinates = points[:, :2]
+#                 layers_data.append(points[:, 2])
+#
+#     return numpy.concatenate(
+#         [coordinates] + [numpy.expand_dims(data, axis=1) for data in layers_data], axis=1
+#     )
 
 
 def bounds_from_opposite_corners(
@@ -141,31 +150,31 @@ def bounds_from_opposite_corners(
     return numpy.ravel(numpy.sort(numpy.stack((corner_1, corner_2), axis=0), axis=0))
 
 
-def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
-    """
-    Get the bounds (grouped by dimension) of the given unrotated raster.
-
-    Parameters
-    ----------
-    raster
-        GDAL raster dataset
-
-    Returns
-    -------
-    float, float, float, float
-        min X, min Y, max X, max Y
-    """
-
-    geotransform = raster.GetGeoTransform()
-    origin = numpy.array((geotransform[0], geotransform[3]))
-    resolution = numpy.array((geotransform[1], geotransform[5]))
-    rotation = numpy.array((geotransform[2], geotransform[4]))
-    shape = raster.RasterYSize, raster.RasterXSize
-
-    if numpy.any(rotation != 0):
-        raise NotImplementedError('rotated rasters not supported')
-
-    return bounds_from_opposite_corners(origin, origin + numpy.flip(shape) * resolution)
+# def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
+#     """
+#     Get the bounds (grouped by dimension) of the given unrotated raster.
+#
+#     Parameters
+#     ----------
+#     raster
+#         GDAL raster dataset
+#
+#     Returns
+#     -------
+#     float, float, float, float
+#         min X, min Y, max X, max Y
+#     """
+#
+#     geotransform = raster.GetGeoTransform()
+#     origin = numpy.array((geotransform[0], geotransform[3]))
+#     resolution = numpy.array((geotransform[1], geotransform[5]))
+#     rotation = numpy.array((geotransform[2], geotransform[4]))
+#     shape = raster.RasterYSize, raster.RasterXSize
+#
+#     if numpy.any(rotation != 0):
+#         raise NotImplementedError('rotated rasters not supported')
+#
+#     return bounds_from_opposite_corners(origin, origin + numpy.flip(shape) * resolution)
 
 
 def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
@@ -529,3 +538,40 @@ def plot_points(
 #     nums, counts = numpy.unique(arr, return_counts=True)
 #     index = numpy.where(counts == numpy.amax(counts))
 #     return int(nums[index])
+
+
+def download_coastline(overwrite: bool = False) -> pathlib.Path:
+    data_directory = pathlib.Path(appdirs.user_data_dir('ne_coastline'))
+    if not data_directory.exists():
+        data_directory.mkdir(exist_ok=True, parents=True)
+
+    coastline_filename = data_directory / 'ne_110m_coastline.shp'
+
+    if not coastline_filename.exists() or overwrite:
+        # download and save if not present
+        url = 'http://naciscdn.org/naturalearth/110m/physical/ne_110m_coastline.zip'
+        response = requests.get(url, stream=True)
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
+            for member_filename in zip_file.namelist():
+                file_data = zip_file.read(member_filename)
+                with open(data_directory / member_filename, 'wb') as output_file:
+                    output_file.write(file_data)
+        assert coastline_filename.exists(), 'coastline file not downloaded'
+
+    return coastline_filename
+
+
+def plot_coastline(axis: Axes = None, show: bool = False, save_filename: PathLike = None):
+    if axis is None:
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+
+    coastline_filename = download_coastline()
+    dataframe = geopandas.read_file(coastline_filename)
+    dataframe.plot(ax=axis)
+
+    if save_filename is not None:
+        pyplot.savefig(save_filename)
+
+    if show:
+        pyplot.show()
