@@ -79,7 +79,6 @@ setup(
     python_requires='>=3.6',
     setup_requires=['dunamai', 'setuptools>=41.2'],
     install_requires=[
-        'adcircpy>=1.0.32',
         'bs4',
         'coupledmodeldriver',
         'fiona',

@@ -745,14 +745,14 @@ class BestTrackPerturber:
         print(f'Initial storm size: {storm_size}')
 
         # extracting original dataframe
-        df_original = self.forcing.df
+        original_data = self.forcing.data
 
         # add units to data frame
-        df_original = df_original.astype(
+        original_data = original_data.astype(
             {
                 variable.name: PintType(variable.unit)
                 for variable in variables
-                if variable.name in df_original
+                if variable.name in original_data
             },
             copy=False,
         )
@@ -785,12 +785,12 @@ class BestTrackPerturber:
 
             for perturbation_index in range(1, number_of_perturbations + 1):
                 # make a deepcopy to preserve the original dataframe
-                df_modified = df_original.copy(deep=True)
-                df_modified = df_modified.astype(
+                perturbed_data = original_data.copy(deep=True)
+                perturbed_data = perturbed_data.astype(
                     {
                         variable.name: PintType(variable.unit)
                         for variable in variables
-                        if variable.name in df_original
+                        if variable.name in original_data
                     },
                     copy=False,
                 )
@@ -806,8 +806,8 @@ class BestTrackPerturber:
                         perturbation *= variable.unit
 
                     # add the error to the variable with bounds to some physical constraints
-                    df_modified = variable.perturb(
-                        df_modified, values=perturbation, times=self.validation_times,
+                    perturbed_data = variable.perturb(
+                        perturbed_data, values=perturbation, times=self.validation_times,
                     )
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     if alpha is None:
@@ -819,21 +819,21 @@ class BestTrackPerturber:
                         perturbation *= variable.unit
 
                     # subtract the error from the variable with physical constraint bounds
-                    df_modified = variable.perturb(
-                        df_modified, values=perturbation, times=self.validation_times,
+                    perturbed_data = variable.perturb(
+                        perturbed_data, values=perturbation, times=self.validation_times,
                     )
 
                 if isinstance(variable, MaximumSustainedWindSpeed):
                     # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
-                    df_modified[CentralPressure.name] = self.compute_pc_from_Vmax(df_modified)
+                    perturbed_data[CentralPressure.name] = self.compute_pc_from_Vmax(perturbed_data)
 
                 # remove units from data frame
-                for column in df_modified:
-                    if isinstance(df_modified[column].dtype, PintType):
-                        df_modified[column] = df_modified[column].pint.magnitude
+                for column in perturbed_data:
+                    if isinstance(perturbed_data[column].dtype, PintType):
+                        perturbed_data[column] = perturbed_data[column].pint.magnitude
 
                 # reset the dataframe
-                self.forcing._df = df_modified
+                self.forcing._df = perturbed_data
 
                 # write out the modified fort.22
                 self.forcing.write(
@@ -847,12 +847,12 @@ class BestTrackPerturber:
 
     def compute_initial(self, var: str) -> float:
         """ the initial value of the input variable var (Vmax or Rmax) """
-        return self.forcing.df[var].iloc[0]
+        return self.forcing.data[var].iloc[0]
 
     @property
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
-        dataframe = self.forcing.df
+        dataframe = self.forcing.data
         Vmax = dataframe[MaximumSustainedWindSpeed.name]
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP

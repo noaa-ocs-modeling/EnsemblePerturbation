@@ -1,4 +1,4 @@
-from collections import Collection
+from collections.abc import Collection
 from datetime import datetime, timedelta
 from functools import wraps
 import gzip
@@ -12,15 +12,19 @@ import time
 from typing import Any, Union
 import urllib.request
 
+from dateutil.parser import parse as parse_date
 from haversine import haversine
-import matplotlib.pyplot as plt
+from matplotlib import pyplot
+from matplotlib.axes import Axes
 from matplotlib.transforms import Bbox
-import numpy as np
+import numpy as numpy
 from pandas import DataFrame, read_csv
-from pyproj import CRS, Proj, Transformer
+from pyproj import CRS, Geod, Transformer
 from shapely import ops
 from shapely.geometry import Point, Polygon
 import utm
+
+from ensembleperturbation.plotting import plot_coastline
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +37,14 @@ class BestTrackForcing:
         end_date: datetime = None,
         dst_crs: CRS = None,
     ):
+        self.__dataframe = None
+        self.__atcf = None
+        self.__storm_id = None
+        self.__start_date = None
+        self.__end_date = None
 
         if isinstance(storm, DataFrame):
-            self.__df = storm
+            self.__dataframe = storm
         elif isinstance(storm, io.BytesIO):
             self.__atcf = storm
         elif isinstance(storm, (str, PathLike, pathlib.Path)):
@@ -48,109 +57,16 @@ class BestTrackForcing:
         self._end_date = end_date
         self._dst_crs = dst_crs
 
-    def __str__(self):
-        record_number = self._generate_record_numbers()
-        fort22 = []
-        for i, (_, row) in enumerate(self.df.iterrows()):
-            line = []
-
-            line.extend(
-                [
-                    f'{row["basin"]:<2}',
-                    f'{row["storm_number"]:>3}',
-                    f'{row["datetime"]:%Y%m%d%H}'.rjust(11),
-                    f'{"":3}',
-                    f'{row["record_type"]:>5}',
-                    f'{convert_value((row["datetime"] - self.start_date) / timedelta(hours=1), to_type=int):>4}',
-                ]
-            )
-
-            latitude = convert_value(row['latitude'] / 0.1, to_type=int, round_digits=1,)
-            if latitude >= 0:
-                line.append(f'{latitude:>4}N')
-            else:
-                line.append(f'{latitude * -.1:>4}S')
-
-            longitude = convert_value(row['longitude'] / 0.1, to_type=int, round_digits=1,)
-            if longitude >= 0:
-                line.append(f'{longitude:>5}E')
-            else:
-                line.append(f'{longitude * -1:>5}W')
-
-            line.extend(
-                [
-                    f'{convert_value(row["max_sustained_wind_speed"], to_type=int, round_digits=0):>4}',
-                    f'{convert_value(row["central_pressure"], to_type=int, round_digits=0):>5}',
-                    f'{row["development_level"]:>3}',
-                    f'{convert_value(row["isotach"], to_type=int, round_digits=0):>4}',
-                    f'{row["quadrant"]:>4}',
-                    f'{convert_value(row["radius_for_NEQ"], to_type=int, round_digits=0):>5}',
-                    f'{convert_value(row["radius_for_SEQ"], to_type=int, round_digits=0):>5}',
-                    f'{convert_value(row["radius_for_SWQ"], to_type=int, round_digits=0):>5}',
-                    f'{convert_value(row["radius_for_NWQ"], to_type=int, round_digits=0):>5}',
-                ]
-            )
-
-            if row['background_pressure'] is None:
-                row['background_pressure'] = self.df['background_pressure'].iloc[i - 1]
-            if (
-                row['background_pressure'] <= row['central_pressure']
-                and 1013 > row['central_pressure']
-            ):
-                background_pressure = 1013
-            elif (
-                row['background_pressure'] <= row['central_pressure']
-                and 1013 <= row['central_pressure']
-            ):
-                background_pressure = convert_value(
-                    row['central_pressure'] + 1, to_type=int, round_digits=0,
-                )
-            else:
-                background_pressure = convert_value(
-                    row['background_pressure'], to_type=int, round_digits=0,
-                )
-            line.append(f'{background_pressure:>5}')
-
-            line.extend(
-                [
-                    f'{convert_value(row["radius_of_last_closed_isobar"], to_type=int, round_digits=0):>5}',
-                    f'{convert_value(row["radius_of_maximum_winds"], to_type=int, round_digits=0):>4}',
-                    f'{"":>5}',  # gust
-                    f'{"":>4}',  # eye
-                    f'{"":>4}',  # subregion
-                    f'{"":>4}',  # maxseas
-                    f'{"":>4}',  # initials
-                    f'{row["direction"]:>3}',
-                    f'{row["speed"]:>4}',
-                    f'{row["name"]:^12}',
-                ]
-            )
-
-            # from this point forwards it's all aswip
-            line.append(f'{record_number[i]:>4}')
-
-            fort22.append(','.join(line))
-
-        return '\n'.join(fort22)
-
-    def write(self, path: PathLike, overwrite: bool = False):
-        if not isinstance(path, pathlib.Path):
-            path = pathlib.Path(path)
-        if path.exists() and overwrite is False:
-            raise Exception('File exist, set overwrite=True to allow overwrite.')
-        with open(path, 'w') as f:
-            f.write(str(self))
+        self.__previous_configuration = None
 
     @property
     def storm_id(self) -> str:
-        return self._storm_id
-
-    @property
-    def _storm_id(self) -> str:
         return f'{self.basin}{self.storm_number}{self.year}'
 
-    @_storm_id.setter
-    def _storm_id(self, storm_id: str):
+    @storm_id.setter
+    def storm_id(self, storm_id: str):
+        self.__storm_id = storm_id
+
         # Different archive source information:
         #
         # files:  aBBCCYYYY.dat  - guidance information
@@ -200,198 +116,247 @@ class BestTrackForcing:
             self.__atcf = io.BytesIO(response.read())
 
     @property
-    def start_date(self) -> datetime:
-        return self._start_date
-
-    @start_date.setter
-    def start_date(self, start_date: datetime):
-        self._start_date = start_date
-
-    @property
-    def _start_date(self) -> datetime:
-        return self.__start_date
-
-    @_start_date.setter
-    def _start_date(self, start_date: datetime):
-        if start_date is not None:
-            assert isinstance(start_date, datetime)
-        else:
-            start_date = self._df['datetime'].iloc[0]
-        msg = f"start_date must be >= {self._df['datetime'].iloc[0]} "
-        msg += f"and <{self._df['datetime'].iloc[-1]}"
-        assert (
-            start_date >= self._df['datetime'].iloc[0]
-            and start_date < self._df['datetime'].iloc[-1]
-        ), msg
-        self.__start_date = start_date
-
-    @property
-    def end_date(self) -> datetime:
-        return self._end_date
-
-    @end_date.setter
-    def end_date(self, end_date: datetime):
-        self._end_date = end_date
-
-    @property
-    def _end_date(self) -> datetime:
-        return self.__end_date
-
-    @_end_date.setter
-    def _end_date(self, end_date: datetime):
-        if end_date is not None:
-            assert isinstance(end_date, datetime)
-        else:
-            end_date = self._df['datetime'].iloc[-1]
-        msg = f"end_date must be >= {self._df['datetime'].iloc[0]} "
-        msg += f"and <= {self._df['datetime'].iloc[-1]}. "
-        msg += f'The given end_date was {end_date}.'
-        assert (
-            end_date > self._df['datetime'].iloc[0]
-            and end_date <= self._df['datetime'].iloc[-1]
-        ), msg
-        msg = 'end_date must be larger than start_date.\n'
-        msg += f'start_date is {self.start_date} and end_date is {end_date}.'
-        assert end_date > self.start_date, msg
-        self.__end_date = end_date
-
-    @property
-    def name(self) -> str:
-        return self.df['name'].value_counts()[:].index.tolist()[0]
-
-    @property
-    def basin(self) -> str:
-        return self.df['basin'].iloc[0]
-
-    @property
-    def storm_number(self) -> str:
-        return self.df['storm_number'].iloc[0]
-
-    @property
-    def year(self) -> int:
-        return self.df['datetime'].iloc[0].year
-
-    @property
-    def datetime(self):
-        return self.df['datetime']
-
-    @property
-    def speed(self):
-        return self.df['speed']
-
-    @property
-    def direction(self):
-        return self.df['direction']
-
-    @property
-    def longitude(self):
-        return self.df['longitude']
-
-    @property
-    def latitude(self):
-        return self.df['latitude']
-
-    @property
-    def df(self):
+    def data(self):
         start_date_mask = self._df['datetime'] >= self.start_date
         end_date_mask = self._df['datetime'] <= self._file_end_date
         return self._df[start_date_mask & end_date_mask]
 
+    @data.setter
+    def data(self, dataframe: DataFrame):
+        self.__dataframe = dataframe
+
+    @property
+    def atcf(self):
+        # Different archive source information:
+        #
+        # files:  aBBCCYYYY.dat  - guidance information
+        #         bBBCCYYYY.dat  - best track information
+        #         fBBCCYYYY.dat  - fix information
+        #         eBBCCYYYY.dat  - probability information
+        #
+        #  BB   - basin: al (Atlantic), ep (East Pacific), cp (Central Pacific),
+        #            and sl (South Atlantic)
+        #  CC   - storm number
+        #  YYYY - 4-digit Year
+        # ref: ftp://ftp.nhc.noaa.gov/atcf/archive/README
+        if self.storm_id is not None:
+            chars = 0
+            for char in storm_id:
+                if char.isdigit():
+                    chars += 1
+
+            if chars == 4:
+
+                _atcf_id = atcf_id(storm_id)
+                if _atcf_id is None:
+                    msg = f'No storm with id: {storm_id}'
+                    raise Exception(msg)
+                storm_id = _atcf_id
+
+            url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/b{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
+
+            try:
+                logger.info(f'Downloading storm data from {url}')
+                response = urllib.request.urlopen(url)
+            except urllib.error.URLError as e:
+                if '550' in e.reason:
+                    raise NameError(
+                        f'Did not find storm with id {storm_id}. '
+                        + f'Submitted URL was {url}.'
+                    )
+                else:
+
+                    @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
+                    def make_request():
+                        logger.info(f'Downloading storm data from {url} failed, retrying...')
+                        return urllib.request.urlopen(url)
+
+                    response = make_request()
+
+            self.__atcf = io.BytesIO(response.read())
+
+        return self.__atcf
+
     @property
     def _df(self):
-        # https://www.nrlmry.navy.mil/atcf_web/docs/database/new/abdeck.txt
-        try:
-            return self.__df
-        except AttributeError:
-            data = {
-                'basin': list(),
-                'storm_number': list(),
-                'datetime': list(),
-                'record_type': list(),
-                'latitude': list(),
-                'longitude': list(),
-                'max_sustained_wind_speed': list(),
-                'central_pressure': list(),
-                'development_level': list(),
-                'isotach': list(),
-                'quadrant': list(),
-                'radius_for_NEQ': list(),
-                'radius_for_SEQ': list(),
-                'radius_for_SWQ': list(),
-                'radius_for_NWQ': list(),
-                'background_pressure': list(),
-                'radius_of_last_closed_isobar': list(),
-                'radius_of_maximum_winds': list(),
-                'name': list(),
-                'direction': list(),
-                'speed': list(),
-            }
-            if isinstance(self.__atcf, io.BytesIO):
-                fd = gzip.GzipFile(fileobj=self.__atcf)
-            else:
-                fd = self.__atcf
+        if self.__dataframe is None:
+            # https://www.nrlmry.navy.mil/atcf_web/docs/database/new/abdeck.txt
 
-            for i, line in enumerate(fd):
+            columns = [
+                'basin',
+                'storm_number',
+                'datetime',
+                'record_type',
+                'latitude',
+                'longitude',
+                'max_sustained_wind_speed',
+                'central_pressure',
+                'development_level',
+                'isotach',
+                'quadrant',
+                'radius_for_NEQ',
+                'radius_for_SEQ',
+                'radius_for_SWQ',
+                'radius_for_NWQ',
+                'background_pressure',
+                'radius_of_last_closed_isobar',
+                'radius_of_maximum_winds',
+                'name',
+                'direction',
+                'speed',
+            ]
+
+            if isinstance(self.__atcf, io.BytesIO):
+                lines = gzip.GzipFile(fileobj=self.__atcf)
+            else:
+                lines = self.__atcf
+
+            records = []
+            for line_index, line in enumerate(lines):
                 line = line.decode('UTF-8').split(',')
-                data['basin'].append(line[0])
-                data['storm_number'].append(line[1].strip(' '))
-                _datetime = line[2].strip(' ')
-                _minutes = line[3].strip(' ')
-                if _minutes == "":
-                    _minutes = '00'
-                _datetime = _datetime + _minutes
-                data['datetime'].append(datetime.strptime(_datetime, '%Y%m%d%H%M'))
-                data['record_type'].append(line[4].strip(' '))
-                if 'N' in line[6]:
-                    _lat = float(line[6].strip('N ')) * 0.1
-                elif 'S' in line:
-                    _lat = float(line[6].strip('S ')) * -0.1
-                data['latitude'].append(_lat)
-                if 'E' in line[7]:
-                    _lon = float(line[7].strip('E ')) * 0.1
-                elif 'W' in line[7]:
-                    _lon = float(line[7].strip('W ')) * -0.1
-                data['longitude'].append(_lon)
-                data['max_sustained_wind_speed'].append(float(line[8].strip(' ')))
-                data['central_pressure'].append(float(line[9].strip(' ')))
-                data['development_level'].append(line[10].strip(' '))
+
+                record = {
+                    'basin': line[0],
+                    'storm_number': line[1].strip(' '),
+                }
+
+                minutes = line[3].strip(' ')
+                if minutes == "":
+                    minutes = '00'
+                record['datetime'] = parse_date(line[2].strip(' ') + minutes)
+
+                record['record_type'] = line[4].strip(' ')
+
+                latitude = line[6]
+                if 'N' in latitude:
+                    latitude = float(latitude.strip('N '))
+                elif 'S' in latitude:
+                    latitude = float(latitude.strip('S ')) * -1
+                latitude *= 0.1
+                record['latitude'] = latitude
+
+                longitude = line[7]
+                if 'E' in longitude:
+                    longitude = float(longitude.strip('E ')) * 0.1
+                elif 'W' in longitude:
+                    longitude = float(longitude.strip('W ')) * -0.1
+                record['longitude'] = longitude
+
+                record.update({
+                    'max_sustained_wind_speed': float(line[8].strip(' ')),
+                    'central_pressure': float(line[9].strip(' ')),
+                    'development_level': line[10].strip(' '),
+                })
+
                 try:
-                    data['isotach'].append(int(line[11].strip(' ')))
+                    record['isotach'] = int(line[11].strip(' '))
                 except ValueError:
                     raise Exception(
                         'Error: No radial wind information for this storm; '
                         'parametric wind model cannot be built.'
                     )
-                data['quadrant'].append(line[12].strip(' '))
-                data['radius_for_NEQ'].append(int(line[13].strip(' ')))
-                data['radius_for_SEQ'].append(int(line[14].strip(' ')))
-                data['radius_for_SWQ'].append(int(line[15].strip(' ')))
-                data['radius_for_NWQ'].append(int(line[16].strip(' ')))
-                if len(line) > 18:
-                    data['background_pressure'].append(int(line[17].strip(' ')))
-                    data['radius_of_last_closed_isobar'].append(int(line[18].strip(' ')))
-                    data['radius_of_maximum_winds'].append(int(line[19].strip(' ')))
-                    if len(line) > 23:
-                        data['name'].append(line[27].strip(' '))
-                    else:
-                        data['name'].append("")
-                else:
-                    data['background_pressure'].append(data['background_pressure'][-1])
-                    data['radius_of_last_closed_isobar'].append(
-                        data['radius_of_last_closed_isobar'][-1]
-                    )
-                    data['radius_of_maximum_winds'].append(data['radius_of_maximum_winds'][-1])
-                    data['name'].append("")
-            data = self._compute_velocity(data)
-            # data = self._transform_coordinates(data)
-            self.__df = DataFrame(data=data)
-            return self.__df
 
-    @_df.setter
-    def _df(self, data):
-        msg = f'data must be a pandas {DataFrame} instance.'
-        assert isinstance(data, DataFrame), msg
-        self.__df = DataFrame(data=data)
+                record.update({
+                    'quadrant': line[12].strip(' '),
+                    'radius_for_NEQ': int(line[13].strip(' ')),
+                    'radius_for_SEQ': int(line[14].strip(' ')),
+                    'radius_for_SWQ': int(line[15].strip(' ')),
+                    'radius_for_NWQ': int(line[16].strip(' ')),
+                })
+
+                if len(line) > 18:
+                    record.update({
+                        'background_pressure': int(line[17].strip(' ')),
+                        'radius_of_last_closed_isobar': int(line[18].strip(' ')),
+                        'radius_of_maximum_winds': int(line[19].strip(' ')),
+                    })
+
+                    if len(line) > 23:
+                        record['name'] = line[27].strip(' ')
+                    else:
+                        record['name'] = ''
+                else:
+                    record.update({
+                        'background_pressure': record['background_pressure'][-1],
+                        'radius_of_last_closed_isobar': record['radius_of_last_closed_isobar'][-1],
+                        'radius_of_maximum_winds': record['radius_of_maximum_winds'][-1],
+                        'name': '',
+                    })
+
+                records.append(record)
+
+            self.__dataframe = self.__compute_velocity(DataFrame.from_records(data=records, columns=columns))
+        return self.__dataframe
+
+    @property
+    def start_date(self) -> datetime:
+        return self.__start_date
+
+    @start_date.setter
+    def start_date(self, start_date: datetime):
+        if start_date is None:
+            start_date = self._df['datetime'][0]
+        else:
+            if not isinstance(start_date, datetime):
+                start_date = parse_date(start_date)
+            if start_date < self._df['datetime'][0] or start_date > self._df['datetime'][-1]:
+                raise ValueError(
+                    f'given start date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})')
+        self.__start_date = start_date
+
+    @property
+    def end_date(self) -> datetime:
+        return self.__end_date
+
+    @end_date.setter
+    def end_date(self, end_date: datetime):
+        if end_date is None:
+            end_date = self._df['datetime'][-1]
+        else:
+            if not isinstance(end_date, datetime):
+                end_date = parse_date(end_date)
+            if end_date < self._df['datetime'][0] or end_date > self._df['datetime'][-1]:
+                raise ValueError(
+                    f'given end date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})')
+            if end_date <= self.start_date:
+                raise ValueError(f'end date must be after start date ({self.start_date})')
+        self.__end_date = end_date
+
+    @property
+    def name(self) -> str:
+        return self.data['name'].value_counts()[:].index.tolist()[0]
+
+    @property
+    def basin(self) -> str:
+        return self.data['basin'].iloc[0]
+
+    @property
+    def storm_number(self) -> str:
+        return self.data['storm_number'].iloc[0]
+
+    @property
+    def year(self) -> int:
+        return self.data['datetime'].iloc[0].year
+
+    @property
+    def datetime(self):
+        return self.data['datetime']
+
+    @property
+    def speed(self):
+        return self.data['speed']
+
+    @property
+    def direction(self):
+        return self.data['direction']
+
+    @property
+    def longitude(self):
+        return self.data['longitude']
+
+    @property
+    def latitude(self):
+        return self.data['latitude']
 
     def clip_to_bbox(self, bbox, bbox_crs):
         msg = f'bbox must be a {Bbox} instance.'
@@ -406,7 +371,7 @@ class BestTrackForcing:
             ]
         )
         _switch = True
-        unique_dates = np.unique(self._df['datetime'])
+        unique_dates = numpy.unique(self._df['datetime'])
         _found_start_date = False
         for _datetime in unique_dates:
             records = self._df[self._df['datetime'] == _datetime]
@@ -445,24 +410,24 @@ class BestTrackForcing:
         if _found_start_date is False:
             raise Exception(f'No data within mesh bounding box for storm {self.storm_id}.')
 
-    def plot_track(self, axes=None, show=False, color='k', **kwargs):
+    def plot_track(self, axis: Axes = None, show: bool = False, color: str = 'k', **kwargs):
         kwargs.update({'color': color})
-        if axes is None:
-            fig = plt.figure()
-            axes = fig.add_subplot(111)
+        if axis is None:
+            fig = pyplot.figure()
+            axis = fig.add_subplot(111)
         for i in range(len(self.speed)):
             # when dealing with nautical degrees, U is sine and V is cosine.
-            U = self.speed.iloc[i] * np.sin(np.deg2rad(self.direction.iloc[i]))
-            V = self.speed.iloc[i] * np.cos(np.deg2rad(self.direction.iloc[i]))
-            axes.quiver(self.longitude.iloc[i], self.latitude.iloc[i], U, V, **kwargs)
+            U = self.speed.iloc[i] * numpy.sin(numpy.deg2rad(self.direction.iloc[i]))
+            V = self.speed.iloc[i] * numpy.cos(numpy.deg2rad(self.direction.iloc[i]))
+            axis.quiver(self.longitude.iloc[i], self.latitude.iloc[i], U, V, **kwargs)
             if i % 6 == 0:
-                axes.annotate(
-                    self.df['datetime'].iloc[i],
+                axis.annotate(
+                    self.data['datetime'].iloc[i],
                     (self.longitude.iloc[i], self.latitude.iloc[i]),
                 )
         if show:
-            axes.axis('scaled')
-        _fetch_and_plot_coastline(axes, show)
+            axis.axis('scaled')
+        plot_coastline(axis, show)
 
     def _generate_record_numbers(self):
         record_number = [1]
@@ -478,66 +443,176 @@ class BestTrackForcing:
 
     @property
     def _file_end_date(self):
-        unique_dates = np.unique(self._df['datetime'])
+        unique_dates = numpy.unique(self._df['datetime'])
         for date in unique_dates:
-            if date >= np.datetime64(self.end_date):
+            if date >= numpy.datetime64(self.end_date):
                 return date
 
+    def __str__(self):
+        record_number = self._generate_record_numbers()
+        lines = []
+        for i, (_, row) in enumerate(self.data.iterrows()):
+            line = []
+
+            line.extend(
+                [
+                    f'{row["basin"]:<2}',
+                    f'{row["storm_number"]:>3}',
+                    f'{row["datetime"]:%Y%m%d%H}'.rjust(11),
+                    f'{"":3}',
+                    f'{row["record_type"]:>5}',
+                    f'{convert_value((row["datetime"] - self.start_date) / timedelta(hours=1), to_type=int):>4}',
+                ]
+            )
+
+            latitude = convert_value(row['latitude'] / 0.1, to_type=int, round_digits=1, )
+            if latitude >= 0:
+                line.append(f'{latitude:>4}N')
+            else:
+                line.append(f'{latitude * -.1:>4}S')
+
+            longitude = convert_value(row['longitude'] / 0.1, to_type=int, round_digits=1, )
+            if longitude >= 0:
+                line.append(f'{longitude:>5}E')
+            else:
+                line.append(f'{longitude * -1:>5}W')
+
+            line.extend(
+                [
+                    f'{convert_value(row["max_sustained_wind_speed"], to_type=int, round_digits=0):>4}',
+                    f'{convert_value(row["central_pressure"], to_type=int, round_digits=0):>5}',
+                    f'{row["development_level"]:>3}',
+                    f'{convert_value(row["isotach"], to_type=int, round_digits=0):>4}',
+                    f'{row["quadrant"]:>4}',
+                    f'{convert_value(row["radius_for_NEQ"], to_type=int, round_digits=0):>5}',
+                    f'{convert_value(row["radius_for_SEQ"], to_type=int, round_digits=0):>5}',
+                    f'{convert_value(row["radius_for_SWQ"], to_type=int, round_digits=0):>5}',
+                    f'{convert_value(row["radius_for_NWQ"], to_type=int, round_digits=0):>5}',
+                ]
+            )
+
+            if row['background_pressure'] is None:
+                row['background_pressure'] = self.data['background_pressure'].iloc[i - 1]
+            if (
+                row['background_pressure'] <= row['central_pressure']
+                and 1013 > row['central_pressure']
+            ):
+                background_pressure = 1013
+            elif (
+                row['background_pressure'] <= row['central_pressure']
+                and 1013 <= row['central_pressure']
+            ):
+                background_pressure = convert_value(
+                    row['central_pressure'] + 1, to_type=int, round_digits=0,
+                )
+            else:
+                background_pressure = convert_value(
+                    row['background_pressure'], to_type=int, round_digits=0,
+                )
+            line.append(f'{background_pressure:>5}')
+
+            line.extend(
+                [
+                    f'{convert_value(row["radius_of_last_closed_isobar"], to_type=int, round_digits=0):>5}',
+                    f'{convert_value(row["radius_of_maximum_winds"], to_type=int, round_digits=0):>4}',
+                    f'{"":>5}',  # gust
+                    f'{"":>4}',  # eye
+                    f'{"":>4}',  # subregion
+                    f'{"":>4}',  # maxseas
+                    f'{"":>4}',  # initials
+                    f'{row["direction"]:>3}',
+                    f'{row["speed"]:>4}',
+                    f'{row["name"]:^12}',
+                ]
+            )
+
+            # from this point forwards it's all aswip
+            line.append(f'{record_number[i]:>4}')
+
+            lines.append(','.join(line))
+
+        return '\n'.join(lines)
+
+    def write(self, path: PathLike, overwrite: bool = False):
+        if not isinstance(path, pathlib.Path):
+            path = pathlib.Path(path)
+        if path.exists() and overwrite is False:
+            raise Exception('File exist, set overwrite=True to allow overwrite.')
+        with open(path, 'w') as f:
+            f.write(str(self))
+
     @staticmethod
-    def _compute_velocity(data):
-        """
-        Output has units of meters per second.
-        """
-        merc = Proj('EPSG:3395')
-        x, y = merc(data['longitude'], data['latitude'])
-        unique_datetimes = np.unique(data['datetime'])
-        for i, _datetime in enumerate(unique_datetimes):
-            (indexes,) = np.where(np.asarray(data['datetime']) == _datetime)
-            for idx in indexes:
-                if indexes[-1] + 1 < len(data['datetime']):
+    def __compute_velocity(data: DataFrame) -> DataFrame:
+        """ Output has units of meters per second. """
+
+        geod = Geod()
+
+        unique_datetimes = numpy.unique(data['datetime'])
+        for datetime_index, unique_datetime in enumerate(unique_datetimes):
+            unique_datetime_indices = numpy.where(numpy.asarray(data['datetime']) == unique_datetime)[0]
+            for unique_datetime_index in unique_datetime_indices:
+                if unique_datetime_indices[-1] + 1 < len(data['datetime']):
                     dt = (
-                        data['datetime'][indexes[-1] + 1] - data['datetime'][idx]
-                    ).total_seconds() / (60.0 * 60.0)
+                             data['datetime'][unique_datetime_indices[-1] + 1] - data['datetime'][unique_datetime_index]
+                         ) / timedelta(hours=1)
+                    forward_azimuth, inverse_azimuth, distance = geod.inv(
+                        data['longitude'][unique_datetime_indices[-1] + 1],
+                        data['latitude'][unique_datetime_index],
+                        data['longitude'][unique_datetime_index],
+                        data['latitude'][unique_datetime_index],
+                    )
+
                     dx = haversine(
-                        (data['latitude'][idx], data['longitude'][indexes[-1] + 1]),
-                        (data['latitude'][idx], data['longitude'][idx]),
+                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_indices[-1] + 1]),
+                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
                         unit='nmi',
                     )
                     dy = haversine(
-                        (data['latitude'][indexes[-1] + 1], data['longitude'][idx]),
-                        (data['latitude'][idx], data['longitude'][idx]),
+                        (data['latitude'][unique_datetime_indices[-1] + 1], data['longitude'][unique_datetime_index]),
+                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
                         unit='nmi',
                     )
-                    vx = np.copysign(
-                        dx / dt, data['longitude'][indexes[-1] + 1] - data['longitude'][idx],
+                    vx = numpy.copysign(
+                        dx / dt, data['longitude'][unique_datetime_indices[-1] + 1] - data['longitude'][unique_datetime_index],
                     )
-                    vy = np.copysign(
-                        dy / dt, data['latitude'][indexes[-1] + 1] - data['latitude'][idx],
+                    vy = numpy.copysign(
+                        dy / dt, data['latitude'][unique_datetime_indices[-1] + 1] - data['latitude'][unique_datetime_index],
                     )
                 else:
                     dt = (
-                        data['datetime'][idx] - data['datetime'][indexes[0] - 1]
-                    ).total_seconds() / (60.0 * 60.0)
+                             data['datetime'][unique_datetime_index] - data['datetime'][unique_datetime_indices[0] - 1]
+                         ) / timedelta(hours=1)
+
+                    forward_azimuth, inverse_azimuth, distance = geod.inv(
+                        data['longitude'][unique_datetime_indices[0] - 1],
+                        data['latitude'][unique_datetime_index],
+                        data['longitude'][unique_datetime_index],
+                        data['latitude'][unique_datetime_index],
+                    )
+
                     dx = haversine(
-                        (data['latitude'][idx], data['longitude'][indexes[0] - 1]),
-                        (data['latitude'][idx], data['longitude'][idx]),
+                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_indices[0] - 1]),
+                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
                         unit='nmi',
                     )
                     dy = haversine(
-                        (data['latitude'][indexes[0] - 1], data['longitude'][idx]),
-                        (data['latitude'][idx], data['longitude'][idx]),
+                        (data['latitude'][unique_datetime_indices[0] - 1], data['longitude'][unique_datetime_index]),
+                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
                         unit='nmi',
                     )
-                    vx = np.copysign(
-                        dx / dt, data['longitude'][idx] - data['longitude'][indexes[0] - 1],
+                    vx = numpy.copysign(
+                        dx / dt, data['longitude'][unique_datetime_index] - data['longitude'][unique_datetime_indices[0] - 1],
                     )
-                    vy = np.copysign(
-                        dy / dt, data['latitude'][idx] - data['latitude'][indexes[0] - 1],
+                    vy = numpy.copysign(
+                        dy / dt, data['latitude'][unique_datetime_index] - data['latitude'][unique_datetime_indices[0] - 1],
                     )
-                speed = np.sqrt(dx ** 2 + dy ** 2) / dt
-                bearing = (360.0 + np.rad2deg(np.arctan2(vx, vy))) % 360
-                data['speed'].append(int(np.around(speed, 0)))
-                data['direction'].append(int(np.around(bearing, 0)))
+                speed = numpy.sqrt(dx ** 2 + dy ** 2) / dt
+                bearing = (360.0 + numpy.rad2deg(numpy.arctan2(vx, vy))) % 360
+
+                speed = distance / dt
+
+                data['speed'].append(int(numpy.around(speed, 0)))
+                data['direction'].append(int(numpy.around(bearing, 0)))
         return data
 
     @classmethod
@@ -554,9 +629,9 @@ class BestTrackForcing:
         if end_date is None:
             end_date = max(data['datetime'])
 
-        instance = cls(storm=storm_id, start_date=start_date, end_date=end_date,)
+        instance = cls(storm=storm_id, start_date=start_date, end_date=end_date)
 
-        instance.__df = data
+        instance.__dataframe = data
 
         return instance
 
@@ -564,7 +639,7 @@ class BestTrackForcing:
     def from_atcf_file(
         cls, atcf: PathLike, start_date: datetime = None, end_date: datetime = None,
     ) -> 'BestTrackForcing':
-        return cls(storm=atcf, start_date=start_date, end_date=end_date,)
+        return cls(storm=atcf, start_date=start_date, end_date=end_date)
 
 
 def convert_value(value: Any, to_type: type, round_digits: int = None) -> Any:
@@ -629,7 +704,7 @@ def atcf_id(storm_id):
         return urllib.request.urlopen(url)
 
     res = request_url()
-    df = read_csv(StringIO("".join([_.decode('utf-8') for _ in res])), header=None,)
+    df = read_csv(StringIO("".join([_.decode('utf-8') for _ in res])), header=None, )
     name = storm_id[:-4]
     year = storm_id[-4:]
     entry = df.loc[(df[0] == name.upper().rjust(10)) & (df[8] == int(year))]
@@ -697,15 +772,15 @@ def read_atcf(track: PathLike) -> DataFrame:
         row_data['max_sustained_wind_speed'] = convert_value(
             row[8], to_type=int, round_digits=0,
         )
-        row_data['central_pressure'] = convert_value(row[9], to_type=int, round_digits=0,)
+        row_data['central_pressure'] = convert_value(row[9], to_type=int, round_digits=0, )
         row_data['development_level'] = row[10]
-        row_data['isotach'] = convert_value(row[11], to_type=int, round_digits=0,)
+        row_data['isotach'] = convert_value(row[11], to_type=int, round_digits=0, )
         row_data['quadrant'] = row[12]
-        row_data['radius_for_NEQ'] = convert_value(row[13], to_type=int, round_digits=0,)
-        row_data['radius_for_SEQ'] = convert_value(row[14], to_type=int, round_digits=0,)
-        row_data['radius_for_SWQ'] = convert_value(row[15], to_type=int, round_digits=0,)
-        row_data['radius_for_NWQ'] = convert_value(row[16], to_type=int, round_digits=0,)
-        row_data['background_pressure'] = convert_value(row[17], to_type=int, round_digits=0,)
+        row_data['radius_for_NEQ'] = convert_value(row[13], to_type=int, round_digits=0, )
+        row_data['radius_for_SEQ'] = convert_value(row[14], to_type=int, round_digits=0, )
+        row_data['radius_for_SWQ'] = convert_value(row[15], to_type=int, round_digits=0, )
+        row_data['radius_for_NWQ'] = convert_value(row[16], to_type=int, round_digits=0, )
+        row_data['background_pressure'] = convert_value(row[17], to_type=int, round_digits=0, )
         row_data['radius_of_last_closed_isobar'] = convert_value(
             row[18], to_type=int, round_digits=0,
         )
