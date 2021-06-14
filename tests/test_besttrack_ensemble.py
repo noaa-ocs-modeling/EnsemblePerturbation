@@ -1,6 +1,6 @@
 from ensembleperturbation.perturbation.make_storm_ensemble import (
     AlongTrack,
-    BestTrackPerturber,
+    VortexPerturber,
     CrossTrack,
     MaximumSustainedWindSpeed,
     RadiusOfMaximumWinds,
@@ -23,7 +23,7 @@ def test_besttrack_ensemble():
         CrossTrack,
     ]
 
-    perturber = BestTrackPerturber(storm='al062018', start_date='20180911', end_date=None)
+    perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
 
     perturber.write(
         number_of_perturbations=3, variables=variables, directory=output_directory, alpha=0.5,
