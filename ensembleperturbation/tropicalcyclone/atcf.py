@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from functools import wraps
 import gzip
 import io
-from io import StringIO
 import logging
 import os
 from os import PathLike
@@ -13,7 +12,6 @@ from typing import Any, Union
 import urllib.request
 
 from dateutil.parser import parse as parse_date
-from haversine import haversine
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 from matplotlib.transforms import Bbox
@@ -25,6 +23,7 @@ from shapely.geometry import Point, Polygon
 import utm
 
 from ensembleperturbation.plotting import plot_coastline
+from ensembleperturbation.utilities import units
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,6 @@ class BestTrackForcing:
         storm: Union[str, PathLike, DataFrame, io.BytesIO],
         start_date: datetime = None,
         end_date: datetime = None,
-        dst_crs: CRS = None,
     ):
         self.__dataframe = None
         self.__atcf = None
@@ -51,75 +49,27 @@ class BestTrackForcing:
             if os.path.exists(storm):
                 self.__atcf = io.open(storm, 'rb')
             else:
-                self._storm_id = storm
+                self.__storm_id = storm
 
-        self._start_date = start_date
-        self._end_date = end_date
-        self._dst_crs = dst_crs
+        self.start_date = start_date
+        self.end_date = end_date
 
         self.__previous_configuration = None
 
     @property
     def storm_id(self) -> str:
-        return f'{self.basin}{self.storm_number}{self.year}'
+        return self.__storm_id
 
     @storm_id.setter
     def storm_id(self, storm_id: str):
         self.__storm_id = storm_id
-
-        # Different archive source information:
-        #
-        # files:  aBBCCYYYY.dat  - guidance information
-        #         bBBCCYYYY.dat  - best track information
-        #         fBBCCYYYY.dat  - fix information
-        #         eBBCCYYYY.dat  - probability information
-        #
-        #  BB   - basin: al (Atlantic), ep (East Pacific), cp (Central Pacific),
-        #            and sl (South Atlantic)
-        #  CC   - storm number
-        #  YYYY - 4-digit Year
-        # ref: ftp://ftp.nhc.noaa.gov/atcf/archive/README
-        if storm_id is not None:
-            chars = 0
-            for char in storm_id:
-                if char.isdigit():
-                    chars += 1
-
-            if chars == 4:
-
-                _atcf_id = atcf_id(storm_id)
-                if _atcf_id is None:
-                    msg = f'No storm with id: {storm_id}'
-                    raise Exception(msg)
-                storm_id = _atcf_id
-
-            url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/b{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
-
-            try:
-                logger.info(f'Downloading storm data from {url}')
-                response = urllib.request.urlopen(url)
-            except urllib.error.URLError as e:
-                if '550' in e.reason:
-                    raise NameError(
-                        f'Did not find storm with id {storm_id}. '
-                        + f'Submitted URL was {url}.'
-                    )
-                else:
-
-                    @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
-                    def make_request():
-                        logger.info(f'Downloading storm data from {url} failed, retrying...')
-                        return urllib.request.urlopen(url)
-
-                    response = make_request()
-
-            self.__atcf = io.BytesIO(response.read())
+        self.__storm_id = f'{self.basin}{self.storm_number}{self.year}'
 
     @property
     def data(self):
-        start_date_mask = self._df['datetime'] >= self.start_date
-        end_date_mask = self._df['datetime'] <= self._file_end_date
-        return self._df[start_date_mask & end_date_mask]
+        start_date_mask = self.dataframe['datetime'] >= self.start_date
+        end_date_mask = self.dataframe['datetime'] <= self._file_end_date
+        return self.dataframe[start_date_mask & end_date_mask]
 
     @data.setter
     def data(self, dataframe: DataFrame):
@@ -139,19 +89,18 @@ class BestTrackForcing:
         #  CC   - storm number
         #  YYYY - 4-digit Year
         # ref: ftp://ftp.nhc.noaa.gov/atcf/archive/README
-        if self.storm_id is not None:
-            chars = 0
-            for char in storm_id:
-                if char.isdigit():
-                    chars += 1
+        storm_id = self.storm_id
 
-            if chars == 4:
+        if storm_id is not None:
+            digits = sum([1 for character in storm_id if character.isdigit()])
 
-                _atcf_id = atcf_id(storm_id)
-                if _atcf_id is None:
-                    msg = f'No storm with id: {storm_id}'
-                    raise Exception(msg)
-                storm_id = _atcf_id
+            if digits == 4:
+                atcf_id = get_atcf_id(storm_id)
+                if atcf_id is None:
+                    raise ValueError(f'No storm with id: {storm_id}')
+                storm_id = atcf_id
+
+            self.__storm_id = storm_id
 
             url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/b{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
 
@@ -178,7 +127,7 @@ class BestTrackForcing:
         return self.__atcf
 
     @property
-    def _df(self):
+    def dataframe(self):
         if self.__dataframe is None:
             # https://www.nrlmry.navy.mil/atcf_web/docs/database/new/abdeck.txt
 
@@ -206,10 +155,10 @@ class BestTrackForcing:
                 'speed',
             ]
 
-            if isinstance(self.__atcf, io.BytesIO):
-                lines = gzip.GzipFile(fileobj=self.__atcf)
+            if isinstance(self.atcf, io.BytesIO):
+                lines = gzip.GzipFile(fileobj=self.atcf)
             else:
-                lines = self.__atcf
+                lines = self.atcf
 
             records = []
             for line_index, line in enumerate(lines):
@@ -307,13 +256,16 @@ class BestTrackForcing:
     @start_date.setter
     def start_date(self, start_date: datetime):
         if start_date is None:
-            start_date = self._df['datetime'][0]
+            start_date = self.dataframe['datetime'][0]
         else:
             if not isinstance(start_date, datetime):
                 start_date = parse_date(start_date)
-            if start_date < self._df['datetime'][0] or start_date > self._df['datetime'][-1]:
+            if (
+                start_date < self.dataframe['datetime'].iloc[0]
+                or start_date > self.dataframe['datetime'].iloc[-1]
+            ):
                 raise ValueError(
-                    f'given start date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})'
+                    f'given start date is outside of data bounds ({self.dataframe["datetime"].iloc[0]} - {self.dataframe["datetime"].iloc[-1]})'
                 )
         self.__start_date = start_date
 
@@ -324,13 +276,16 @@ class BestTrackForcing:
     @end_date.setter
     def end_date(self, end_date: datetime):
         if end_date is None:
-            end_date = self._df['datetime'][-1]
+            end_date = self.dataframe['datetime'].iloc[-1]
         else:
             if not isinstance(end_date, datetime):
                 end_date = parse_date(end_date)
-            if end_date < self._df['datetime'][0] or end_date > self._df['datetime'][-1]:
+            if (
+                end_date < self.dataframe['datetime'].iloc[0]
+                or end_date > self.dataframe['datetime'].iloc[-1]
+            ):
                 raise ValueError(
-                    f'given end date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})'
+                    f'given end date is outside of data bounds ({self.dataframe["datetime"].iloc[0]} - {self.dataframe["datetime"].iloc[-1]})'
                 )
             if end_date <= self.start_date:
                 raise ValueError(f'end date must be after start date ({self.start_date})')
@@ -385,10 +340,10 @@ class BestTrackForcing:
             ]
         )
         _switch = True
-        unique_dates = numpy.unique(self._df['datetime'])
+        unique_dates = numpy.unique(self.dataframe['datetime'])
         _found_start_date = False
         for _datetime in unique_dates:
-            records = self._df[self._df['datetime'] == _datetime]
+            records = self.dataframe[self.dataframe['datetime'] == _datetime]
             radii = records['radius_of_last_closed_isobar'].iloc[0]
             radii = 1852.0 * radii  # convert to meters
             lon = records['longitude'].iloc[0]
@@ -457,7 +412,7 @@ class BestTrackForcing:
 
     @property
     def _file_end_date(self):
-        unique_dates = numpy.unique(self._df['datetime'])
+        unique_dates = numpy.unique(self.dataframe['datetime'])
         for date in unique_dates:
             if date >= numpy.datetime64(self.end_date):
                 return date
@@ -479,13 +434,13 @@ class BestTrackForcing:
                 ]
             )
 
-            latitude = convert_value(row['latitude'] / 0.1, to_type=int, round_digits=1,)
+            latitude = convert_value(row['latitude'] / 0.1, to_type=int, round_digits=1)
             if latitude >= 0:
                 line.append(f'{latitude:>4}N')
             else:
                 line.append(f'{latitude * -.1:>4}S')
 
-            longitude = convert_value(row['longitude'] / 0.1, to_type=int, round_digits=1,)
+            longitude = convert_value(row['longitude'] / 0.1, to_type=int, round_digits=1)
             if longitude >= 0:
                 line.append(f'{longitude:>5}E')
             else:
@@ -559,7 +514,7 @@ class BestTrackForcing:
     def __compute_velocity(data: DataFrame) -> DataFrame:
         """ Output has units of meters per second. """
 
-        geod = Geod()
+        geodetic = Geod(ellps='WGS84')
 
         unique_datetimes = numpy.unique(data['datetime'])
         for datetime_index, unique_datetime in enumerate(unique_datetimes):
@@ -571,98 +526,33 @@ class BestTrackForcing:
                     dt = (
                         data['datetime'][unique_datetime_indices[-1] + 1]
                         - data['datetime'][unique_datetime_index]
-                    ) / timedelta(hours=1)
-                    forward_azimuth, inverse_azimuth, distance = geod.inv(
+                    )
+                    forward_azimuth, inverse_azimuth, distance = geodetic.inv(
                         data['longitude'][unique_datetime_indices[-1] + 1],
                         data['latitude'][unique_datetime_index],
                         data['longitude'][unique_datetime_index],
                         data['latitude'][unique_datetime_index],
                     )
-
-                    dx = haversine(
-                        (
-                            data['latitude'][unique_datetime_index],
-                            data['longitude'][unique_datetime_indices[-1] + 1],
-                        ),
-                        (
-                            data['latitude'][unique_datetime_index],
-                            data['longitude'][unique_datetime_index],
-                        ),
-                        unit='nmi',
-                    )
-                    dy = haversine(
-                        (
-                            data['latitude'][unique_datetime_indices[-1] + 1],
-                            data['longitude'][unique_datetime_index],
-                        ),
-                        (
-                            data['latitude'][unique_datetime_index],
-                            data['longitude'][unique_datetime_index],
-                        ),
-                        unit='nmi',
-                    )
-                    vx = numpy.copysign(
-                        dx / dt,
-                        data['longitude'][unique_datetime_indices[-1] + 1]
-                        - data['longitude'][unique_datetime_index],
-                    )
-                    vy = numpy.copysign(
-                        dy / dt,
-                        data['latitude'][unique_datetime_indices[-1] + 1]
-                        - data['latitude'][unique_datetime_index],
-                    )
                 else:
                     dt = (
                         data['datetime'][unique_datetime_index]
                         - data['datetime'][unique_datetime_indices[0] - 1]
-                    ) / timedelta(hours=1)
-
-                    forward_azimuth, inverse_azimuth, distance = geod.inv(
+                    )
+                    forward_azimuth, inverse_azimuth, distance = geodetic.inv(
                         data['longitude'][unique_datetime_indices[0] - 1],
                         data['latitude'][unique_datetime_index],
                         data['longitude'][unique_datetime_index],
                         data['latitude'][unique_datetime_index],
                     )
 
-                    dx = haversine(
-                        (
-                            data['latitude'][unique_datetime_index],
-                            data['longitude'][unique_datetime_indices[0] - 1],
-                        ),
-                        (
-                            data['latitude'][unique_datetime_index],
-                            data['longitude'][unique_datetime_index],
-                        ),
-                        unit='nmi',
-                    )
-                    dy = haversine(
-                        (
-                            data['latitude'][unique_datetime_indices[0] - 1],
-                            data['longitude'][unique_datetime_index],
-                        ),
-                        (
-                            data['latitude'][unique_datetime_index],
-                            data['longitude'][unique_datetime_index],
-                        ),
-                        unit='nmi',
-                    )
-                    vx = numpy.copysign(
-                        dx / dt,
-                        data['longitude'][unique_datetime_index]
-                        - data['longitude'][unique_datetime_indices[0] - 1],
-                    )
-                    vy = numpy.copysign(
-                        dy / dt,
-                        data['latitude'][unique_datetime_index]
-                        - data['latitude'][unique_datetime_indices[0] - 1],
-                    )
-                speed = numpy.sqrt(dx ** 2 + dy ** 2) / dt
-                bearing = (360.0 + numpy.rad2deg(numpy.arctan2(vx, vy))) % 360
+                speed = distance / (dt / timedelta(seconds=1)) * units.meter / units.second
+                speed = speed.to(units.nautical_mile / units.hour)
+                bearing = inverse_azimuth % 360 * units.degree
 
-                speed = distance / dt
-
-                data['speed'].append(int(numpy.around(speed, 0)))
-                data['direction'].append(int(numpy.around(bearing, 0)))
+                data['speed'][unique_datetime_index] = int(numpy.around(speed.magnitude, 0))
+                data['direction'][unique_datetime_index] = int(
+                    numpy.around(bearing.magnitude, 0)
+                )
         return data
 
     @classmethod
@@ -745,19 +635,13 @@ def retry(ExceptionToCheck, tries=4, delay=3, backoff=2, logger=None):
     return deco_retry
 
 
-def atcf_id(storm_id):
+def get_atcf_id(storm_id: str):
     url = 'ftp://ftp.nhc.noaa.gov/atcf/archive/storm.table'
 
-    @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
-    def request_url():
-        logger.info(f'Querying storm name from: {url}')
-        return urllib.request.urlopen(url)
-
-    res = request_url()
-    df = read_csv(StringIO("".join([_.decode('utf-8') for _ in res])), header=None,)
+    dataframe = read_csv(url, header=None)
     name = storm_id[:-4]
     year = storm_id[-4:]
-    entry = df.loc[(df[0] == name.upper().rjust(10)) & (df[8] == int(year))]
+    entry = dataframe[(dataframe[0] == name.upper().rjust(10)) & (dataframe[8] == int(year))]
     if len(entry) == 0:
         return None
     else:
@@ -822,15 +706,15 @@ def read_atcf(track: PathLike) -> DataFrame:
         row_data['max_sustained_wind_speed'] = convert_value(
             row[8], to_type=int, round_digits=0,
         )
-        row_data['central_pressure'] = convert_value(row[9], to_type=int, round_digits=0,)
+        row_data['central_pressure'] = convert_value(row[9], to_type=int, round_digits=0)
         row_data['development_level'] = row[10]
-        row_data['isotach'] = convert_value(row[11], to_type=int, round_digits=0,)
+        row_data['isotach'] = convert_value(row[11], to_type=int, round_digits=0)
         row_data['quadrant'] = row[12]
-        row_data['radius_for_NEQ'] = convert_value(row[13], to_type=int, round_digits=0,)
-        row_data['radius_for_SEQ'] = convert_value(row[14], to_type=int, round_digits=0,)
-        row_data['radius_for_SWQ'] = convert_value(row[15], to_type=int, round_digits=0,)
-        row_data['radius_for_NWQ'] = convert_value(row[16], to_type=int, round_digits=0,)
-        row_data['background_pressure'] = convert_value(row[17], to_type=int, round_digits=0,)
+        row_data['radius_for_NEQ'] = convert_value(row[13], to_type=int, round_digits=0)
+        row_data['radius_for_SEQ'] = convert_value(row[14], to_type=int, round_digits=0)
+        row_data['radius_for_SWQ'] = convert_value(row[15], to_type=int, round_digits=0)
+        row_data['radius_for_NWQ'] = convert_value(row[16], to_type=int, round_digits=0)
+        row_data['background_pressure'] = convert_value(row[17], to_type=int, round_digits=0)
         row_data['radius_of_last_closed_isobar'] = convert_value(
             row[18], to_type=int, round_digits=0,
         )

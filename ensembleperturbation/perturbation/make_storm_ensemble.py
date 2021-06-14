@@ -55,9 +55,7 @@ from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
 from ensembleperturbation.tropicalcyclone.atcf import BestTrackForcing
-
-units = pint.UnitRegistry()
-PintType.ureg = units
+from ensembleperturbation.utilities import units
 
 AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
@@ -447,7 +445,7 @@ class CrossTrack(BestTrackPerturbedVariable):
 
             # get previous projected coordinate
             x_p, y_p = (
-                transformer.transform(track_coords[idx_p][0], track_coords[idx_p][1],)
+                transformer.transform(track_coords[idx_p][0], track_coords[idx_p][1])
                 * units.meter
             )
 
@@ -465,7 +463,7 @@ class CrossTrack(BestTrackPerturbedVariable):
 
             # get previous projected coordinate
             x_n, y_n = (
-                transformer.transform(track_coords[idx_n][0], track_coords[idx_n][1],)
+                transformer.transform(track_coords[idx_n][0], track_coords[idx_n][1])
                 * units.meter
             )
 
@@ -588,7 +586,7 @@ class AlongTrack(BestTrackPerturbedVariable):
         after_diffs = numpy.repeat(
             [unique_times[-1] - unique_times[-2]], max_interpolated_points
         ) * numpy.arange(1, max_interpolated_points + 1)
-        hours = numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs,))
+        hours = numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs))
 
         # loop over all coordinates
         new_coordinates = []
@@ -922,7 +920,7 @@ def utm_crs_from_longitude(longitude: float) -> CRS:
     return CRS.from_epsg(32600 + int(floor((longitude + 180) / 6) + 1))
 
 
-def get_offset(x1: float, y1: float, x2: float, y2: float, d: float,) -> (float, float):
+def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, float):
     """
     get_offset(x1,y1,x2,y2,d)
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
