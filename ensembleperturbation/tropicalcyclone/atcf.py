@@ -49,7 +49,7 @@ class BestTrackForcing:
             if os.path.exists(storm):
                 self.__atcf = io.open(storm, 'rb')
             else:
-                self.__storm_id = storm
+                self.storm_id = storm
 
         self.start_date = start_date
         self.end_date = end_date
@@ -62,35 +62,6 @@ class BestTrackForcing:
 
     @storm_id.setter
     def storm_id(self, storm_id: str):
-        self.__storm_id = storm_id
-        self.__storm_id = f'{self.basin}{self.storm_number}{self.year}'
-
-    @property
-    def data(self):
-        start_date_mask = self.dataframe['datetime'] >= self.start_date
-        end_date_mask = self.dataframe['datetime'] <= self._file_end_date
-        return self.dataframe[start_date_mask & end_date_mask]
-
-    @data.setter
-    def data(self, dataframe: DataFrame):
-        self.__dataframe = dataframe
-
-    @property
-    def atcf(self):
-        # Different archive source information:
-        #
-        # files:  aBBCCYYYY.dat  - guidance information
-        #         bBBCCYYYY.dat  - best track information
-        #         fBBCCYYYY.dat  - fix information
-        #         eBBCCYYYY.dat  - probability information
-        #
-        #  BB   - basin: al (Atlantic), ep (East Pacific), cp (Central Pacific),
-        #            and sl (South Atlantic)
-        #  CC   - storm number
-        #  YYYY - 4-digit Year
-        # ref: ftp://ftp.nhc.noaa.gov/atcf/archive/README
-        storm_id = self.storm_id
-
         if storm_id is not None:
             digits = sum([1 for character in storm_id if character.isdigit()])
 
@@ -99,8 +70,25 @@ class BestTrackForcing:
                 if atcf_id is None:
                     raise ValueError(f'No storm with id: {storm_id}')
                 storm_id = atcf_id
+        self.__storm_id = storm_id
 
-            self.__storm_id = storm_id
+    @property
+    def data(self):
+        start_date_mask = self.dataframe['datetime'] >= self.start_date
+        if self.end_date is None:
+            return self.dataframe[start_date_mask]
+        else:
+            return self.dataframe[start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)]
+
+    @data.setter
+    def data(self, dataframe: DataFrame):
+        self.__dataframe = dataframe
+
+    @property
+    def atcf(self) -> io.BytesIO:
+        configuration = {'storm_id': self.storm_id}
+        if self.__atcf is None or configuration != self.__previous_configuration:
+            storm_id = configuration['storm_id']
 
             url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/b{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
 
@@ -110,11 +98,9 @@ class BestTrackForcing:
             except urllib.error.URLError as e:
                 if '550' in e.reason:
                     raise NameError(
-                        f'Did not find storm with id {storm_id}. '
-                        + f'Submitted URL was {url}.'
+                        f'storm with id {storm_id} not found at {url}'
                     )
                 else:
-
                     @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
                     def make_request():
                         logger.info(f'Downloading storm data from {url} failed, retrying...')
@@ -123,12 +109,14 @@ class BestTrackForcing:
                     response = make_request()
 
             self.__atcf = io.BytesIO(response.read())
+            self.__previous_configuration = configuration
 
         return self.__atcf
 
     @property
     def dataframe(self):
-        if self.__dataframe is None:
+        configuration = {'storm_id': self.__storm_id}
+        if self.__dataframe is None or len(self.__dataframe) == 0 or configuration != self.__previous_configuration:
             # https://www.nrlmry.navy.mil/atcf_web/docs/database/new/abdeck.txt
 
             columns = [
@@ -247,6 +235,8 @@ class BestTrackForcing:
             self.__dataframe = self.__compute_velocity(
                 DataFrame.from_records(data=records, columns=columns)
             )
+            self.__previous_configuration = configuration
+
         return self.__dataframe
 
     @property
@@ -398,7 +388,7 @@ class BestTrackForcing:
             axis.axis('scaled')
         plot_coastline(axis, show)
 
-    def _generate_record_numbers(self):
+    def __generate_record_numbers(self):
         record_number = [1]
         for i in range(1, len(self.datetime)):
             if self.datetime.iloc[i] == self.datetime.iloc[i - 1]:
@@ -407,18 +397,15 @@ class BestTrackForcing:
                 record_number.append(record_number[-1] + 1)
         return record_number
 
-    def transform_to(self, crs):
-        pass
-
     @property
-    def _file_end_date(self):
+    def __file_end_date(self):
         unique_dates = numpy.unique(self.dataframe['datetime'])
         for date in unique_dates:
             if date >= numpy.datetime64(self.end_date):
                 return date
 
     def __str__(self):
-        record_number = self._generate_record_numbers()
+        record_number = self.__generate_record_numbers()
         lines = []
         for i, (_, row) in enumerate(self.data.iterrows()):
             line = []
