@@ -2,6 +2,7 @@ import io
 from os import PathLike
 import pathlib
 from typing import Union
+
 # from affine import Affine
 import zipfile
 
@@ -13,8 +14,8 @@ from matplotlib.cm import get_cmap
 import numpy
 from osgeo import gdal
 import requests
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, \
-    shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import shape as shapely_shape
 
 from .utilities import get_logger
 

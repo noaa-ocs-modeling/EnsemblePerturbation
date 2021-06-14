@@ -242,11 +242,13 @@ class BestTrackForcing:
                     longitude = float(longitude.strip('W ')) * -0.1
                 record['longitude'] = longitude
 
-                record.update({
-                    'max_sustained_wind_speed': float(line[8].strip(' ')),
-                    'central_pressure': float(line[9].strip(' ')),
-                    'development_level': line[10].strip(' '),
-                })
+                record.update(
+                    {
+                        'max_sustained_wind_speed': float(line[8].strip(' ')),
+                        'central_pressure': float(line[9].strip(' ')),
+                        'development_level': line[10].strip(' '),
+                    }
+                )
 
                 try:
                     record['isotach'] = int(line[11].strip(' '))
@@ -256,36 +258,46 @@ class BestTrackForcing:
                         'parametric wind model cannot be built.'
                     )
 
-                record.update({
-                    'quadrant': line[12].strip(' '),
-                    'radius_for_NEQ': int(line[13].strip(' ')),
-                    'radius_for_SEQ': int(line[14].strip(' ')),
-                    'radius_for_SWQ': int(line[15].strip(' ')),
-                    'radius_for_NWQ': int(line[16].strip(' ')),
-                })
+                record.update(
+                    {
+                        'quadrant': line[12].strip(' '),
+                        'radius_for_NEQ': int(line[13].strip(' ')),
+                        'radius_for_SEQ': int(line[14].strip(' ')),
+                        'radius_for_SWQ': int(line[15].strip(' ')),
+                        'radius_for_NWQ': int(line[16].strip(' ')),
+                    }
+                )
 
                 if len(line) > 18:
-                    record.update({
-                        'background_pressure': int(line[17].strip(' ')),
-                        'radius_of_last_closed_isobar': int(line[18].strip(' ')),
-                        'radius_of_maximum_winds': int(line[19].strip(' ')),
-                    })
+                    record.update(
+                        {
+                            'background_pressure': int(line[17].strip(' ')),
+                            'radius_of_last_closed_isobar': int(line[18].strip(' ')),
+                            'radius_of_maximum_winds': int(line[19].strip(' ')),
+                        }
+                    )
 
                     if len(line) > 23:
                         record['name'] = line[27].strip(' ')
                     else:
                         record['name'] = ''
                 else:
-                    record.update({
-                        'background_pressure': record['background_pressure'][-1],
-                        'radius_of_last_closed_isobar': record['radius_of_last_closed_isobar'][-1],
-                        'radius_of_maximum_winds': record['radius_of_maximum_winds'][-1],
-                        'name': '',
-                    })
+                    record.update(
+                        {
+                            'background_pressure': record['background_pressure'][-1],
+                            'radius_of_last_closed_isobar': record[
+                                'radius_of_last_closed_isobar'
+                            ][-1],
+                            'radius_of_maximum_winds': record['radius_of_maximum_winds'][-1],
+                            'name': '',
+                        }
+                    )
 
                 records.append(record)
 
-            self.__dataframe = self.__compute_velocity(DataFrame.from_records(data=records, columns=columns))
+            self.__dataframe = self.__compute_velocity(
+                DataFrame.from_records(data=records, columns=columns)
+            )
         return self.__dataframe
 
     @property
@@ -301,7 +313,8 @@ class BestTrackForcing:
                 start_date = parse_date(start_date)
             if start_date < self._df['datetime'][0] or start_date > self._df['datetime'][-1]:
                 raise ValueError(
-                    f'given start date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})')
+                    f'given start date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})'
+                )
         self.__start_date = start_date
 
     @property
@@ -317,7 +330,8 @@ class BestTrackForcing:
                 end_date = parse_date(end_date)
             if end_date < self._df['datetime'][0] or end_date > self._df['datetime'][-1]:
                 raise ValueError(
-                    f'given end date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})')
+                    f'given end date is outside of data bounds ({self._df["datetime"][0]} - {self._df["datetime"][-1]})'
+                )
             if end_date <= self.start_date:
                 raise ValueError(f'end date must be after start date ({self.start_date})')
         self.__end_date = end_date
@@ -465,13 +479,13 @@ class BestTrackForcing:
                 ]
             )
 
-            latitude = convert_value(row['latitude'] / 0.1, to_type=int, round_digits=1, )
+            latitude = convert_value(row['latitude'] / 0.1, to_type=int, round_digits=1,)
             if latitude >= 0:
                 line.append(f'{latitude:>4}N')
             else:
                 line.append(f'{latitude * -.1:>4}S')
 
-            longitude = convert_value(row['longitude'] / 0.1, to_type=int, round_digits=1, )
+            longitude = convert_value(row['longitude'] / 0.1, to_type=int, round_digits=1,)
             if longitude >= 0:
                 line.append(f'{longitude:>5}E')
             else:
@@ -549,12 +563,15 @@ class BestTrackForcing:
 
         unique_datetimes = numpy.unique(data['datetime'])
         for datetime_index, unique_datetime in enumerate(unique_datetimes):
-            unique_datetime_indices = numpy.where(numpy.asarray(data['datetime']) == unique_datetime)[0]
+            unique_datetime_indices = numpy.where(
+                numpy.asarray(data['datetime']) == unique_datetime
+            )[0]
             for unique_datetime_index in unique_datetime_indices:
                 if unique_datetime_indices[-1] + 1 < len(data['datetime']):
                     dt = (
-                             data['datetime'][unique_datetime_indices[-1] + 1] - data['datetime'][unique_datetime_index]
-                         ) / timedelta(hours=1)
+                        data['datetime'][unique_datetime_indices[-1] + 1]
+                        - data['datetime'][unique_datetime_index]
+                    ) / timedelta(hours=1)
                     forward_azimuth, inverse_azimuth, distance = geod.inv(
                         data['longitude'][unique_datetime_indices[-1] + 1],
                         data['latitude'][unique_datetime_index],
@@ -563,25 +580,42 @@ class BestTrackForcing:
                     )
 
                     dx = haversine(
-                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_indices[-1] + 1]),
-                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
+                        (
+                            data['latitude'][unique_datetime_index],
+                            data['longitude'][unique_datetime_indices[-1] + 1],
+                        ),
+                        (
+                            data['latitude'][unique_datetime_index],
+                            data['longitude'][unique_datetime_index],
+                        ),
                         unit='nmi',
                     )
                     dy = haversine(
-                        (data['latitude'][unique_datetime_indices[-1] + 1], data['longitude'][unique_datetime_index]),
-                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
+                        (
+                            data['latitude'][unique_datetime_indices[-1] + 1],
+                            data['longitude'][unique_datetime_index],
+                        ),
+                        (
+                            data['latitude'][unique_datetime_index],
+                            data['longitude'][unique_datetime_index],
+                        ),
                         unit='nmi',
                     )
                     vx = numpy.copysign(
-                        dx / dt, data['longitude'][unique_datetime_indices[-1] + 1] - data['longitude'][unique_datetime_index],
+                        dx / dt,
+                        data['longitude'][unique_datetime_indices[-1] + 1]
+                        - data['longitude'][unique_datetime_index],
                     )
                     vy = numpy.copysign(
-                        dy / dt, data['latitude'][unique_datetime_indices[-1] + 1] - data['latitude'][unique_datetime_index],
+                        dy / dt,
+                        data['latitude'][unique_datetime_indices[-1] + 1]
+                        - data['latitude'][unique_datetime_index],
                     )
                 else:
                     dt = (
-                             data['datetime'][unique_datetime_index] - data['datetime'][unique_datetime_indices[0] - 1]
-                         ) / timedelta(hours=1)
+                        data['datetime'][unique_datetime_index]
+                        - data['datetime'][unique_datetime_indices[0] - 1]
+                    ) / timedelta(hours=1)
 
                     forward_azimuth, inverse_azimuth, distance = geod.inv(
                         data['longitude'][unique_datetime_indices[0] - 1],
@@ -591,20 +625,36 @@ class BestTrackForcing:
                     )
 
                     dx = haversine(
-                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_indices[0] - 1]),
-                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
+                        (
+                            data['latitude'][unique_datetime_index],
+                            data['longitude'][unique_datetime_indices[0] - 1],
+                        ),
+                        (
+                            data['latitude'][unique_datetime_index],
+                            data['longitude'][unique_datetime_index],
+                        ),
                         unit='nmi',
                     )
                     dy = haversine(
-                        (data['latitude'][unique_datetime_indices[0] - 1], data['longitude'][unique_datetime_index]),
-                        (data['latitude'][unique_datetime_index], data['longitude'][unique_datetime_index]),
+                        (
+                            data['latitude'][unique_datetime_indices[0] - 1],
+                            data['longitude'][unique_datetime_index],
+                        ),
+                        (
+                            data['latitude'][unique_datetime_index],
+                            data['longitude'][unique_datetime_index],
+                        ),
                         unit='nmi',
                     )
                     vx = numpy.copysign(
-                        dx / dt, data['longitude'][unique_datetime_index] - data['longitude'][unique_datetime_indices[0] - 1],
+                        dx / dt,
+                        data['longitude'][unique_datetime_index]
+                        - data['longitude'][unique_datetime_indices[0] - 1],
                     )
                     vy = numpy.copysign(
-                        dy / dt, data['latitude'][unique_datetime_index] - data['latitude'][unique_datetime_indices[0] - 1],
+                        dy / dt,
+                        data['latitude'][unique_datetime_index]
+                        - data['latitude'][unique_datetime_indices[0] - 1],
                     )
                 speed = numpy.sqrt(dx ** 2 + dy ** 2) / dt
                 bearing = (360.0 + numpy.rad2deg(numpy.arctan2(vx, vy))) % 360
@@ -704,7 +754,7 @@ def atcf_id(storm_id):
         return urllib.request.urlopen(url)
 
     res = request_url()
-    df = read_csv(StringIO("".join([_.decode('utf-8') for _ in res])), header=None, )
+    df = read_csv(StringIO("".join([_.decode('utf-8') for _ in res])), header=None,)
     name = storm_id[:-4]
     year = storm_id[-4:]
     entry = df.loc[(df[0] == name.upper().rjust(10)) & (df[8] == int(year))]
@@ -772,15 +822,15 @@ def read_atcf(track: PathLike) -> DataFrame:
         row_data['max_sustained_wind_speed'] = convert_value(
             row[8], to_type=int, round_digits=0,
         )
-        row_data['central_pressure'] = convert_value(row[9], to_type=int, round_digits=0, )
+        row_data['central_pressure'] = convert_value(row[9], to_type=int, round_digits=0,)
         row_data['development_level'] = row[10]
-        row_data['isotach'] = convert_value(row[11], to_type=int, round_digits=0, )
+        row_data['isotach'] = convert_value(row[11], to_type=int, round_digits=0,)
         row_data['quadrant'] = row[12]
-        row_data['radius_for_NEQ'] = convert_value(row[13], to_type=int, round_digits=0, )
-        row_data['radius_for_SEQ'] = convert_value(row[14], to_type=int, round_digits=0, )
-        row_data['radius_for_SWQ'] = convert_value(row[15], to_type=int, round_digits=0, )
-        row_data['radius_for_NWQ'] = convert_value(row[16], to_type=int, round_digits=0, )
-        row_data['background_pressure'] = convert_value(row[17], to_type=int, round_digits=0, )
+        row_data['radius_for_NEQ'] = convert_value(row[13], to_type=int, round_digits=0,)
+        row_data['radius_for_SEQ'] = convert_value(row[14], to_type=int, round_digits=0,)
+        row_data['radius_for_SWQ'] = convert_value(row[15], to_type=int, round_digits=0,)
+        row_data['radius_for_NWQ'] = convert_value(row[16], to_type=int, round_digits=0,)
+        row_data['background_pressure'] = convert_value(row[17], to_type=int, round_digits=0,)
         row_data['radius_of_last_closed_isobar'] = convert_value(
             row[18], to_type=int, round_digits=0,
         )
