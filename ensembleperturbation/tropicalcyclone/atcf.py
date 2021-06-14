@@ -34,6 +34,7 @@ class VortexForcing:
         storm: Union[str, PathLike, DataFrame, io.BytesIO],
         start_date: datetime = None,
         end_date: datetime = None,
+        file_deck: str = 'b', 
     ):
         self.__dataframe = None
         self.__atcf = None
@@ -41,6 +42,7 @@ class VortexForcing:
         self.__start_date = start_date #initially used to filter A-deck here
         self.__end_date = None
         self.__previous_configuration = None
+        self.__file_deck = file_deck 
 
         if isinstance(storm, DataFrame):
             self.__dataframe = storm
@@ -71,6 +73,12 @@ class VortexForcing:
                     raise ValueError(f'No storm with id: {storm_id}')
                 storm_id = atcf_id
         self.__storm_id = storm_id
+    
+    @property
+    def file_deck(self) -> str:
+        if self.__file_deck not in ['a','b']:
+            raise ValueError(f'file_deck = {self.__file_deck} not allowed, select from a or b')
+        return self.__file_deck
 
     @property
     def data(self):
@@ -92,7 +100,7 @@ class VortexForcing:
         if self.__atcf is None or configuration != self.__previous_configuration:
             storm_id = configuration['storm_id']
             if storm_id is not None:
-                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/b{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
+                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/{self.file_deck}{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
 
                 try:
                     logger.info(f'Downloading storm data from {url}')
