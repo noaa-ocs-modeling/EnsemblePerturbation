@@ -8,7 +8,7 @@ import sys
 
 from setuptools import config, find_packages, setup
 
-BUILT_PACKAGES = {'fiona': ['gdal'], 'numpy': [], 'pyproj': ['gdal'], 'shapely': ['gdal']}
+BUILT_PACKAGES = {'fiona': ['gdal'], 'gdal': [], 'numpy': [], 'pyproj': ['gdal'], 'shapely': ['gdal']}
 is_conda = (Path(sys.prefix) / 'conda-meta').exists()
 
 if is_conda:
@@ -83,6 +83,7 @@ setup(
         'bs4',
         'coupledmodeldriver',
         'fiona',
+        'gdal',
         'geopandas',
         'matplotlib',
         'nemspy>=0.6.16',
