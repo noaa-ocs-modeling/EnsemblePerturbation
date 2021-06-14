@@ -12,8 +12,12 @@ from pandas import DataFrame
 from pyproj import CRS, Geod
 import shapely
 
-from ..utilities import get_logger
-from .adcirc import fort61_stations_zeta, fort62_stations_uv, parse_adcirc_outputs
+from ensembleperturbation.parsing.adcirc import (
+    fort61_stations_zeta,
+    fort62_stations_uv,
+    parse_adcirc_outputs,
+)
+from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.comparison')
 
