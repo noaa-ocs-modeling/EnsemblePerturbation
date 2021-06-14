@@ -48,4 +48,4 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: python${{ matrix.python-version }}-${{ runner.os }}
-          fail_ci_if_error: false
+          fail_ci_if_error: true
