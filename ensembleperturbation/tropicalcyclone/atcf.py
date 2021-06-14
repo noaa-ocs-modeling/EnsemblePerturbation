@@ -78,7 +78,9 @@ class BestTrackForcing:
         if self.end_date is None:
             return self.dataframe[start_date_mask]
         else:
-            return self.dataframe[start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)]
+            return self.dataframe[
+                start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)
+            ]
 
     @data.setter
     def data(self, dataframe: DataFrame):
@@ -97,10 +99,9 @@ class BestTrackForcing:
                 response = urllib.request.urlopen(url)
             except urllib.error.URLError as e:
                 if '550' in e.reason:
-                    raise NameError(
-                        f'storm with id {storm_id} not found at {url}'
-                    )
+                    raise NameError(f'storm with id {storm_id} not found at {url}')
                 else:
+
                     @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
                     def make_request():
                         logger.info(f'Downloading storm data from {url} failed, retrying...')
@@ -116,7 +117,11 @@ class BestTrackForcing:
     @property
     def dataframe(self):
         configuration = {'storm_id': self.__storm_id}
-        if self.__dataframe is None or len(self.__dataframe) == 0 or configuration != self.__previous_configuration:
+        if (
+            self.__dataframe is None
+            or len(self.__dataframe) == 0
+            or configuration != self.__previous_configuration
+        ):
             # https://www.nrlmry.navy.mil/atcf_web/docs/database/new/abdeck.txt
 
             columns = [
