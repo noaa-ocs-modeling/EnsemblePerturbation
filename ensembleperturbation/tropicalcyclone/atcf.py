@@ -35,6 +35,7 @@ class VortexForcing:
         start_date: datetime = None,
         end_date: datetime = None,
         file_deck: str = 'b', 
+        requested_record_type: str = None,
     ):
         self.__dataframe = None
         self.__atcf = None
@@ -43,6 +44,7 @@ class VortexForcing:
         self.__end_date = None
         self.__previous_configuration = None
         self.__file_deck = file_deck 
+        self.__requested_record_type = requested_record_type #e.g., BEST, OFCL, HWRF
 
         if isinstance(storm, DataFrame):
             self.__dataframe = storm
@@ -79,6 +81,19 @@ class VortexForcing:
         if self.__file_deck not in ['a','b']:
             raise ValueError(f'file_deck = {self.__file_deck} not allowed, select from a or b')
         return self.__file_deck
+    
+    @property
+    def requested_record_type(self) -> str:
+        if self.__requested_record_type is not None:
+            if self.file_deck == 'a':
+                # see ftp://ftp.nhc.noaa.gov/atcf/docs/nhc_techlist.dat
+                # there are more but they may not have enough columns
+                record_types_list = ['OFCL','OFCP','HWRF','HMON','CARQ']
+            elif self.file_deck == 'b':
+                record_types_list = ['BEST']
+            if self.__requested_record_type not in record_types_list:
+                raise ValueError(f'request_record_type = {self.__requested_record_type} not allowed, select from {record_types_list}')
+        return self.__requested_record_type
 
     @property
     def data(self):
@@ -162,6 +177,11 @@ class VortexForcing:
                 lines = self.atcf
 
             start_date = self.start_date
+            # Only accept request record type or 
+            # BEST track or OFCL (official) advisory by default 
+            allowed_record_types = self.requested_record_type
+            if allowed_record_types is None:
+                allowed_record_types = ['BEST','OFCL']
             records = []
             for line_index, line in enumerate(lines):
                 line = line.decode('UTF-8').split(',')
@@ -173,8 +193,7 @@ class VortexForcing:
 
                 record['record_type'] = line[4].strip(' ')
  
-                # only accept BEST track or OFCL (official) advisory 
-                if record['record_type'] not in ['BEST','OFCL']:
+                if record['record_type'] not in allowed_record_types:
                     continue
 
                 # computing the actual datetime based on record_type 
