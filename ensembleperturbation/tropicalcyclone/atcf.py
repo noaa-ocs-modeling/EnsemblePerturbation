@@ -1,5 +1,6 @@
 from collections.abc import Collection
 from datetime import datetime, timedelta
+from enum import Enum
 from functools import wraps
 import gzip
 import io
@@ -28,18 +29,31 @@ from ensembleperturbation.utilities import units
 logger = logging.getLogger(__name__)
 
 
-class BestTrackForcing:
+class FileDeck(Enum):
+    a = 'a'
+    b = 'b'
+
+
+class VortexForcing:
     def __init__(
         self,
         storm: Union[str, PathLike, DataFrame, io.BytesIO],
         start_date: datetime = None,
         end_date: datetime = None,
+        file_deck: FileDeck = FileDeck.b,
+        requested_record_type: str = None,
     ):
         self.__dataframe = None
         self.__atcf = None
         self.__storm_id = None
-        self.__start_date = None
+        self.__start_date = start_date  # initially used to filter A-deck here
         self.__end_date = None
+        self.__previous_configuration = None
+        self.__file_deck = None
+        self.__requested_record_type = None
+
+        self.file_deck = file_deck
+        self.requested_record_type = requested_record_type
 
         if isinstance(storm, DataFrame):
             self.__dataframe = storm
@@ -51,10 +65,9 @@ class BestTrackForcing:
             else:
                 self.storm_id = storm
 
+        # use start and end dates to mask dataframe here
         self.start_date = start_date
         self.end_date = end_date
-
-        self.__previous_configuration = None
 
     @property
     def storm_id(self) -> str:
@@ -73,6 +86,46 @@ class BestTrackForcing:
         self.__storm_id = storm_id
 
     @property
+    def file_deck(self) -> FileDeck:
+        return self.__file_deck
+
+    @file_deck.setter
+    def file_deck(self, file_deck: FileDeck):
+        if not isinstance(file_deck, FileDeck):
+            try:
+                file_deck = FileDeck[file_deck]
+            except (KeyError, ValueError):
+                try:
+                    file_deck = FileDeck(file_deck)
+                except (KeyError, ValueError):
+                    raise ValueError(
+                        f'unrecognized entry "{file_deck}"; must be one of {list(FileDeck)}'
+                    )
+        self.__file_deck = file_deck
+
+    @property
+    def requested_record_type(self) -> str:
+        return self.__requested_record_type
+
+    @requested_record_type.setter
+    def requested_record_type(self, requested_record_type: str):
+        # e.g. BEST, OFCL, HWRF, etc.
+        if requested_record_type is not None:
+            if self.file_deck == FileDeck.a:
+                # see ftp://ftp.nhc.noaa.gov/atcf/docs/nhc_techlist.dat
+                # there are more but they may not have enough columns
+                record_types_list = ['OFCL', 'OFCP', 'HWRF', 'HMON', 'CARQ']
+            elif self.file_deck == FileDeck.b:
+                record_types_list = ['BEST']
+            else:
+                raise ValueError('invalid file deck')
+            if requested_record_type not in record_types_list:
+                raise ValueError(
+                    f'request_record_type = {requested_record_type} not allowed, select from {record_types_list}'
+                )
+        self.__requested_record_type = requested_record_type
+
+    @property
     def data(self):
         start_date_mask = self.dataframe['datetime'] >= self.start_date
         if self.end_date is None:
@@ -80,7 +133,7 @@ class BestTrackForcing:
         else:
             return self.dataframe[
                 start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)
-            ]
+                ]
 
     @data.setter
     def data(self, dataframe: DataFrame):
@@ -91,26 +144,28 @@ class BestTrackForcing:
         configuration = {'storm_id': self.storm_id}
         if self.__atcf is None or configuration != self.__previous_configuration:
             storm_id = configuration['storm_id']
+            if storm_id is not None:
+                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/{self.file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
 
-            url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/b{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
+                try:
+                    logger.info(f'Downloading storm data from {url}')
+                    response = urllib.request.urlopen(url)
+                except urllib.error.URLError as e:
+                    if '550' in e.reason:
+                        raise NameError(f'storm with id {storm_id} not found at {url}')
+                    else:
 
-            try:
-                logger.info(f'Downloading storm data from {url}')
-                response = urllib.request.urlopen(url)
-            except urllib.error.URLError as e:
-                if '550' in e.reason:
-                    raise NameError(f'storm with id {storm_id} not found at {url}')
-                else:
+                        @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
+                        def make_request():
+                            logger.info(
+                                f'Downloading storm data from {url} failed, retrying...'
+                            )
+                            return urllib.request.urlopen(url)
 
-                    @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
-                    def make_request():
-                        logger.info(f'Downloading storm data from {url} failed, retrying...')
-                        return urllib.request.urlopen(url)
+                        response = make_request()
 
-                    response = make_request()
-
-            self.__atcf = io.BytesIO(response.read())
-            self.__previous_configuration = configuration
+                self.__atcf = io.BytesIO(response.read())
+                self.__previous_configuration = configuration
 
         return self.__atcf
 
@@ -153,6 +208,12 @@ class BestTrackForcing:
             else:
                 lines = self.atcf
 
+            start_date = self.start_date
+            # Only accept request record type or
+            # BEST track or OFCL (official) advisory by default
+            allowed_record_types = self.requested_record_type
+            if allowed_record_types is None:
+                allowed_record_types = ['BEST', 'OFCL']
             records = []
             for line_index, line in enumerate(lines):
                 line = line.decode('UTF-8').split(',')
@@ -162,12 +223,28 @@ class BestTrackForcing:
                     'storm_number': line[1].strip(' '),
                 }
 
-                minutes = line[3].strip(' ')
-                if minutes == "":
-                    minutes = '00'
-                record['datetime'] = parse_date(line[2].strip(' ') + minutes)
-
                 record['record_type'] = line[4].strip(' ')
+
+                if record['record_type'] not in allowed_record_types:
+                    continue
+
+                # computing the actual datetime based on record_type
+                if record['record_type'] == 'BEST':
+                    # Add minutes line to base datetime
+                    minutes = line[3].strip(' ')
+                    if minutes == "":
+                        minutes = '00'
+                    record['datetime'] = parse_date(line[2].strip(' ') + minutes)
+                else:
+                    # Add validation time to base datetime
+                    minutes = '00'
+                    record['datetime'] = parse_date(line[2].strip(' ') + minutes)
+                    if start_date is not None:
+                        # Only keep records where base date == start time for advisories
+                        if start_date != record['datetime']:
+                            continue
+                    validation_time = int(line[5].strip(' '))
+                    record['datetime'] = record['datetime'] + timedelta(hours=validation_time)
 
                 latitude = line[6]
                 if 'N' in latitude:
@@ -550,7 +627,7 @@ class BestTrackForcing:
     @classmethod
     def from_fort22(
         cls, fort22: PathLike, start_date: datetime = None, end_date: datetime = None,
-    ) -> 'BestTrackForcing':
+    ) -> 'VortexForcing':
 
         data = read_atcf(fort22)
 
@@ -570,7 +647,7 @@ class BestTrackForcing:
     @classmethod
     def from_atcf_file(
         cls, atcf: PathLike, start_date: datetime = None, end_date: datetime = None,
-    ) -> 'BestTrackForcing':
+    ) -> 'VortexForcing':
         return cls(storm=atcf, start_date=start_date, end_date=end_date)
 
 

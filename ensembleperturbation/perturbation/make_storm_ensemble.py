@@ -54,7 +54,7 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
-from ensembleperturbation.tropicalcyclone.atcf import BestTrackForcing
+from ensembleperturbation.tropicalcyclone.atcf import VortexForcing
 from ensembleperturbation.utilities import units
 
 AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
@@ -71,7 +71,7 @@ class PerturbationType(Enum):
     LINEAR = 'linear'
 
 
-class BestTrackPerturbedVariable(ABC):
+class VortexPerturbedVariable(ABC):
     name: str
     perturbation_type: PerturbationType
 
@@ -188,34 +188,34 @@ class BestTrackPerturbedVariable(ABC):
         self.__default = default
 
     def perturb(
-        self, besttrack_dataframe: DataFrame, values: [float], times: [datetime],
+        self, vortex_dataframe: DataFrame, values: [float], times: [datetime],
     ) -> DataFrame:
         """
         perturb the variable within physical bounds
 
-        :param besttrack_dataframe: ATCF dataframe containing track info
+        :param vortex_dataframe: ATCF dataframe containing track info
         :param values: values for each forecast time (VT)
         :param times: forecast times (VT)
         :return: updated ATCF dataframe with perturbed values
         """
 
-        all_values = besttrack_dataframe[self.name].values + values
-        besttrack_dataframe[self.name] = [
+        all_values = vortex_dataframe[self.name].values + values
+        vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             for value in all_values
         ] * self.unit
 
-        return besttrack_dataframe
+        return vortex_dataframe
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(lower_bound={repr(self.lower_bound)}, upper_bound={repr(self.upper_bound)}, historical_forecast_errors={repr(self.historical_forecast_errors)}, default={repr(self.default)}, unit={repr(self.unit)})'
 
 
-class CentralPressure(BestTrackPerturbedVariable):
+class CentralPressure(VortexPerturbedVariable):
     name = 'central_pressure'
 
 
-class BackgroundPressure(BestTrackPerturbedVariable):
+class BackgroundPressure(VortexPerturbedVariable):
     name = 'background_pressure'
 
     def __init__(self):
@@ -224,7 +224,7 @@ class BackgroundPressure(BestTrackPerturbedVariable):
         )
 
 
-class MaximumSustainedWindSpeed(BestTrackPerturbedVariable):
+class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     name = 'max_sustained_wind_speed'
     perturbation_type = PerturbationType.GAUSSIAN
 
@@ -261,7 +261,7 @@ class MaximumSustainedWindSpeed(BestTrackPerturbedVariable):
         )
 
 
-class RadiusOfMaximumWinds(BestTrackPerturbedVariable):
+class RadiusOfMaximumWinds(VortexPerturbedVariable):
     name = 'radius_of_maximum_winds'
     perturbation_type = PerturbationType.LINEAR
 
@@ -361,7 +361,7 @@ class RadiusOfMaximumWinds(BestTrackPerturbedVariable):
         )
 
 
-class CrossTrack(BestTrackPerturbedVariable):
+class CrossTrack(VortexPerturbedVariable):
     name = 'cross_track'
     perturbation_type = PerturbationType.GAUSSIAN
 
@@ -398,20 +398,20 @@ class CrossTrack(BestTrackPerturbedVariable):
         )
 
     def perturb(
-        self, besttrack_dataframe: DataFrame, values: [float], times: [datetime],
+        self, vortex_dataframe: DataFrame, values: [float], times: [datetime],
     ) -> DataFrame:
         """
         offset_track(df_,VT,cross_track_errors)
           - Offsets points by a given perpendicular error/distance from the original track
 
-        :param besttrack_dataframe: ATCF dataframe containing track info
+        :param vortex_dataframe: ATCF dataframe containing track info
         :param values: cross-track errors [nm] for each forecast time (VT)
         :param times: forecast times (VT)
         :return: updated ATCF dataframe with different longitude latitude locations based on perpendicular offsets set by the cross_track_errors
         """
 
         # Get the coordinates of the track
-        track_coords = besttrack_dataframe[['longitude', 'latitude']].values.tolist()
+        track_coords = vortex_dataframe[['longitude', 'latitude']].values.tolist()
 
         # get the utm projection for the reference coordinate
         utm_crs = utm_crs_from_longitude(numpy.mean(track_coords[0]))
@@ -485,20 +485,16 @@ class CrossTrack(BestTrackPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        besttrack_dataframe['longitude'], besttrack_dataframe['latitude'] = zip(
-            *new_coordinates
-        )
-        besttrack_dataframe['longitude'] = besttrack_dataframe['longitude'].astype(
+        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
+        vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
-        besttrack_dataframe['latitude'] = besttrack_dataframe['latitude'].astype(
-            degree, copy=False
-        )
+        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(degree, copy=False)
 
-        return besttrack_dataframe
+        return vortex_dataframe
 
 
-class AlongTrack(BestTrackPerturbedVariable):
+class AlongTrack(VortexPerturbedVariable):
     name = 'along_track'
     perturbation_type = PerturbationType.GAUSSIAN
 
@@ -535,13 +531,13 @@ class AlongTrack(BestTrackPerturbedVariable):
         )
 
     def perturb(
-        self, besttrack_dataframe: DataFrame, values: [float], times: [datetime],
+        self, vortex_dataframe: DataFrame, values: [float], times: [datetime],
     ) -> DataFrame:
         """
         interpolate_along_track(df_,VT,along_track_errros)
         Offsets points by a given error/distance by interpolating along the track
 
-        :param besttrack_dataframe: ATCF dataframe containing track info
+        :param vortex_dataframe: ATCF dataframe containing track info
         :param values: along-track errors for each forecast time (VT)
         :param times: forecast timed (VT)
         :return: updated ATCF dataframe with different longitude latitude locations based on interpolated errors along track
@@ -550,7 +546,7 @@ class AlongTrack(BestTrackPerturbedVariable):
         max_interpolated_points = 5  # maximum number of pts along line for each interpolation
 
         # Get the coordinates of the track
-        coordinates = besttrack_dataframe[['longitude', 'latitude']].values
+        coordinates = vortex_dataframe[['longitude', 'latitude']].values
 
         # get the utm projection for the reference coordinate
         utm_crs = utm_crs_from_longitude(numpy.mean(coordinates[:, 0]))
@@ -627,20 +623,16 @@ class AlongTrack(BestTrackPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        besttrack_dataframe['longitude'], besttrack_dataframe['latitude'] = zip(
-            *new_coordinates
-        )
-        besttrack_dataframe['longitude'] = besttrack_dataframe['longitude'].astype(
+        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
+        vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
-        besttrack_dataframe['latitude'] = besttrack_dataframe['latitude'].astype(
-            degree, copy=False
-        )
+        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(degree, copy=False)
 
-        return besttrack_dataframe
+        return vortex_dataframe
 
 
-class BestTrackPerturber:
+class VortexPerturber:
     def __init__(
         self, storm: str, start_date: datetime = None, end_date: datetime = None,
     ):
@@ -688,7 +680,7 @@ class BestTrackPerturber:
         self.__end_date = end_date
 
     @property
-    def forcing(self) -> BestTrackForcing:
+    def forcing(self) -> VortexForcing:
 
         configuration = {
             'storm': self.storm,
@@ -697,7 +689,7 @@ class BestTrackPerturber:
         }
 
         if configuration != self.__previous_configuration:
-            self.__forcing = BestTrackForcing(**configuration)
+            self.__forcing = VortexForcing(**configuration)
             self.__previous_configuration = configuration
 
         self.__storm = self.__forcing.storm_id
@@ -707,7 +699,7 @@ class BestTrackPerturber:
     def write(
         self,
         number_of_perturbations: int,
-        variables: [BestTrackPerturbedVariable],
+        variables: [VortexPerturbedVariable],
         directory: PathLike = None,
         alpha: float = None,
     ):
@@ -979,7 +971,7 @@ if __name__ == '__main__':
         CrossTrack,
     ]
 
-    perturber = BestTrackPerturber(
+    perturber = VortexPerturber(
         storm=arguments.storm_code,
         start_date=arguments.start_date,
         end_date=arguments.end_date,
