@@ -1,5 +1,6 @@
 from collections.abc import Collection
 from datetime import datetime, timedelta
+from enum import Enum
 from functools import wraps
 import gzip
 import io
@@ -28,13 +29,18 @@ from ensembleperturbation.utilities import units
 logger = logging.getLogger(__name__)
 
 
+class FileDeck(Enum):
+    a = 'a'
+    b = 'b'
+
+
 class VortexForcing:
     def __init__(
         self,
         storm: Union[str, PathLike, DataFrame, io.BytesIO],
         start_date: datetime = None,
         end_date: datetime = None,
-        file_deck: str = 'b',
+        file_deck: FileDeck = FileDeck.b,
         requested_record_type: str = None,
     ):
         self.__dataframe = None
@@ -43,8 +49,8 @@ class VortexForcing:
         self.__start_date = start_date  # initially used to filter A-deck here
         self.__end_date = None
         self.__previous_configuration = None
-        self.__file_deck = file_deck
-        self.__requested_record_type = requested_record_type  # e.g., BEST, OFCL, HWRF
+        self.__file_deck = None
+        self.__requested_record_type = None
 
         if isinstance(storm, DataFrame):
             self.__dataframe = storm
@@ -59,6 +65,9 @@ class VortexForcing:
         # use start and end dates to mask dataframe here
         self.start_date = start_date
         self.end_date = end_date
+
+        self.file_deck = file_deck
+        self.requested_record_type = requested_record_type
 
     @property
     def storm_id(self) -> str:
@@ -77,25 +86,36 @@ class VortexForcing:
         self.__storm_id = storm_id
 
     @property
-    def file_deck(self) -> str:
-        if self.__file_deck not in ['a', 'b']:
-            raise ValueError(f'file_deck = {self.__file_deck} not allowed, select from a or b')
+    def file_deck(self) -> FileDeck:
         return self.__file_deck
+
+    @file_deck.setter
+    def file_deck(self, file_deck: FileDeck):
+        if isinstance(file_deck, str) and file_deck not in ['a', 'b']:
+            raise ValueError(f'file_deck = {file_deck} not allowed, select from a or b')
+        self.__file_deck = convert_value(file_deck, FileDeck)
 
     @property
     def requested_record_type(self) -> str:
-        if self.__requested_record_type is not None:
-            if self.file_deck == 'a':
+        return self.__requested_record_type
+
+    @requested_record_type.setter
+    def requested_record_type(self, requested_record_type: str):
+        # e.g. BEST, OFCL, HWRF, etc.
+        if requested_record_type is not None:
+            if self.file_deck == FileDeck.a:
                 # see ftp://ftp.nhc.noaa.gov/atcf/docs/nhc_techlist.dat
                 # there are more but they may not have enough columns
                 record_types_list = ['OFCL', 'OFCP', 'HWRF', 'HMON', 'CARQ']
-            elif self.file_deck == 'b':
+            elif self.file_deck == FileDeck.b:
                 record_types_list = ['BEST']
-            if self.__requested_record_type not in record_types_list:
+            else:
+                raise ValueError('invalid file deck')
+            if requested_record_type not in record_types_list:
                 raise ValueError(
-                    f'request_record_type = {self.__requested_record_type} not allowed, select from {record_types_list}'
+                    f'request_record_type = {requested_record_type} not allowed, select from {record_types_list}'
                 )
-        return self.__requested_record_type
+        self.__requested_record_type = requested_record_type
 
     @property
     def data(self):
