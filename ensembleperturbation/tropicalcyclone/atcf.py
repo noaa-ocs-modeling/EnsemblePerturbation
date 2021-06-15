@@ -91,9 +91,17 @@ class VortexForcing:
 
     @file_deck.setter
     def file_deck(self, file_deck: FileDeck):
-        if isinstance(file_deck, str) and file_deck not in ['a', 'b']:
-            raise ValueError(f'file_deck = {file_deck} not allowed, select from a or b')
-        self.__file_deck = convert_value(file_deck, FileDeck)
+        if not isinstance(file_deck, FileDeck):
+            try:
+                file_deck = FileDeck[file_deck]
+            except (KeyError, ValueError):
+                try:
+                    file_deck = FileDeck(file_deck)
+                except (KeyError, ValueError):
+                    raise ValueError(
+                        f'unrecognized entry "{file_deck}"; must be one of {list(FileDeck)}'
+                    )
+        self.__file_deck = file_deck
 
     @property
     def requested_record_type(self) -> str:
@@ -125,7 +133,7 @@ class VortexForcing:
         else:
             return self.dataframe[
                 start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)
-            ]
+                ]
 
     @data.setter
     def data(self, dataframe: DataFrame):
