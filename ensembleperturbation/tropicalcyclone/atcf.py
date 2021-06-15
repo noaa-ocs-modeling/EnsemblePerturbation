@@ -133,7 +133,7 @@ class VortexForcing:
         else:
             return self.dataframe[
                 start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)
-                ]
+            ]
 
     @data.setter
     def data(self, dataframe: DataFrame):
