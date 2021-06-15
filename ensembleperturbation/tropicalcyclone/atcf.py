@@ -33,6 +33,9 @@ class FileDeck(Enum):
     a = 'a'
     b = 'b'
 
+class Mode(Enum):
+    historical = 'historical'
+    realtime = 'real-time'
 
 class VortexForcing:
     def __init__(
@@ -41,6 +44,7 @@ class VortexForcing:
         start_date: datetime = None,
         end_date: datetime = None,
         file_deck: FileDeck = FileDeck.b,
+        mode: Mode = Mode.historical,
         requested_record_type: str = None,
     ):
         self.__dataframe = None
@@ -50,9 +54,11 @@ class VortexForcing:
         self.__end_date = None
         self.__previous_configuration = None
         self.__file_deck = None
+        self.__mode = None
         self.__requested_record_type = None
 
         self.file_deck = file_deck
+        self.mode = mode
         self.requested_record_type = requested_record_type
 
         if isinstance(storm, DataFrame):
@@ -102,6 +108,24 @@ class VortexForcing:
                         f'unrecognized entry "{file_deck}"; must be one of {list(FileDeck)}'
                     )
         self.__file_deck = file_deck
+    
+    @property
+    def mode(self) -> Mode:
+        return self.__mode
+
+    @mode.setter
+    def mode(self, mode: Mode):
+        if not isinstance(mode, Mode):
+            try:
+                mode = Mode[mode]
+            except (KeyError, ValueError):
+                try:
+                    mode = Mode(mode)
+                except (KeyError, ValueError):
+                    raise ValueError(
+                        f'unrecognized entry "{mode}"; must be one of {list(Mode)}'
+                    )
+        self.__mode = mode
 
     @property
     def requested_record_type(self) -> str:
@@ -141,11 +165,24 @@ class VortexForcing:
 
     @property
     def atcf(self) -> io.BytesIO:
-        configuration = {'storm_id': self.storm_id}
+        configuration = {'storm_id': self.storm_id,
+                         'mode': self.mode,
+                         'file_deck': self.file_deck}
         if self.__atcf is None or configuration != self.__previous_configuration:
             storm_id = configuration['storm_id']
             if storm_id is not None:
-                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/{self.file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
+                if configuration['mode'] == Mode.historical: 
+                    nhc_dir = f'archive/{storm_id[4:]}'
+                    suffix  = '.dat.gz'
+                elif configuration['mode'] == Mode.realtime:
+                    if configuration['file_deck'] == FileDeck.a:
+                        nhc_dir = 'aid_public'
+                        suffix  = '.dat.gz'
+                    elif configuration['file_deck'] == FileDeck.b:
+                        nhc_dir = 'btk'
+                        suffix  = '.dat'
+
+                url = f'ftp://ftp.nhc.noaa.gov/atcf/{nhc_dir}/{self.file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}{suffix}'
 
                 try:
                     logger.info(f'Downloading storm data from {url}')
@@ -203,11 +240,15 @@ class VortexForcing:
                 'speed',
             ]
 
+            lines = self.atcf
             if isinstance(self.atcf, io.BytesIO):
-                lines = gzip.GzipFile(fileobj=self.atcf)
-            else:
-                lines = self.atcf
-
+                # test if Gzip file
+                if lines.read(2) == b'\x1f\x8b':
+                    lines.seek(0) #rewind
+                    lines = gzip.GzipFile(fileobj=self.atcf)
+                else:
+                    lines.seek(0) #rewind
+            
             start_date = self.start_date
             # Only accept request record type or
             # BEST track or OFCL (official) advisory by default
