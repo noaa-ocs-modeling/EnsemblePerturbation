@@ -52,6 +52,9 @@ class VortexForcing:
         self.__file_deck = None
         self.__requested_record_type = None
 
+        self.file_deck = file_deck
+        self.requested_record_type = requested_record_type
+
         if isinstance(storm, DataFrame):
             self.__dataframe = storm
         elif isinstance(storm, io.BytesIO):
@@ -65,9 +68,6 @@ class VortexForcing:
         # use start and end dates to mask dataframe here
         self.start_date = start_date
         self.end_date = end_date
-
-        self.file_deck = file_deck
-        self.requested_record_type = requested_record_type
 
     @property
     def storm_id(self) -> str:
@@ -145,7 +145,7 @@ class VortexForcing:
         if self.__atcf is None or configuration != self.__previous_configuration:
             storm_id = configuration['storm_id']
             if storm_id is not None:
-                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/{self.file_deck}{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
+                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/{self.file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
 
                 try:
                     logger.info(f'Downloading storm data from {url}')
