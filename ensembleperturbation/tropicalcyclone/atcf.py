@@ -34,17 +34,17 @@ class VortexForcing:
         storm: Union[str, PathLike, DataFrame, io.BytesIO],
         start_date: datetime = None,
         end_date: datetime = None,
-        file_deck: str = 'b', 
+        file_deck: str = 'b',
         requested_record_type: str = None,
     ):
         self.__dataframe = None
         self.__atcf = None
         self.__storm_id = None
-        self.__start_date = start_date #initially used to filter A-deck here
+        self.__start_date = start_date  # initially used to filter A-deck here
         self.__end_date = None
         self.__previous_configuration = None
-        self.__file_deck = file_deck 
-        self.__requested_record_type = requested_record_type #e.g., BEST, OFCL, HWRF
+        self.__file_deck = file_deck
+        self.__requested_record_type = requested_record_type  # e.g., BEST, OFCL, HWRF
 
         if isinstance(storm, DataFrame):
             self.__dataframe = storm
@@ -75,24 +75,26 @@ class VortexForcing:
                     raise ValueError(f'No storm with id: {storm_id}')
                 storm_id = atcf_id
         self.__storm_id = storm_id
-    
+
     @property
     def file_deck(self) -> str:
-        if self.__file_deck not in ['a','b']:
+        if self.__file_deck not in ['a', 'b']:
             raise ValueError(f'file_deck = {self.__file_deck} not allowed, select from a or b')
         return self.__file_deck
-    
+
     @property
     def requested_record_type(self) -> str:
         if self.__requested_record_type is not None:
             if self.file_deck == 'a':
                 # see ftp://ftp.nhc.noaa.gov/atcf/docs/nhc_techlist.dat
                 # there are more but they may not have enough columns
-                record_types_list = ['OFCL','OFCP','HWRF','HMON','CARQ']
+                record_types_list = ['OFCL', 'OFCP', 'HWRF', 'HMON', 'CARQ']
             elif self.file_deck == 'b':
                 record_types_list = ['BEST']
             if self.__requested_record_type not in record_types_list:
-                raise ValueError(f'request_record_type = {self.__requested_record_type} not allowed, select from {record_types_list}')
+                raise ValueError(
+                    f'request_record_type = {self.__requested_record_type} not allowed, select from {record_types_list}'
+                )
         return self.__requested_record_type
 
     @property
@@ -127,7 +129,9 @@ class VortexForcing:
 
                         @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
                         def make_request():
-                            logger.info(f'Downloading storm data from {url} failed, retrying...')
+                            logger.info(
+                                f'Downloading storm data from {url} failed, retrying...'
+                            )
                             return urllib.request.urlopen(url)
 
                         response = make_request()
@@ -177,11 +181,11 @@ class VortexForcing:
                 lines = self.atcf
 
             start_date = self.start_date
-            # Only accept request record type or 
-            # BEST track or OFCL (official) advisory by default 
+            # Only accept request record type or
+            # BEST track or OFCL (official) advisory by default
             allowed_record_types = self.requested_record_type
             if allowed_record_types is None:
-                allowed_record_types = ['BEST','OFCL']
+                allowed_record_types = ['BEST', 'OFCL']
             records = []
             for line_index, line in enumerate(lines):
                 line = line.decode('UTF-8').split(',')
@@ -192,13 +196,13 @@ class VortexForcing:
                 }
 
                 record['record_type'] = line[4].strip(' ')
- 
+
                 if record['record_type'] not in allowed_record_types:
                     continue
 
-                # computing the actual datetime based on record_type 
+                # computing the actual datetime based on record_type
                 if record['record_type'] == 'BEST':
-                    # Add minutes line to base datetime 
+                    # Add minutes line to base datetime
                     minutes = line[3].strip(' ')
                     if minutes == "":
                         minutes = '00'
@@ -208,11 +212,11 @@ class VortexForcing:
                     minutes = '00'
                     record['datetime'] = parse_date(line[2].strip(' ') + minutes)
                     if start_date is not None:
-                    # Only keep records where base date == start time for advisories
+                        # Only keep records where base date == start time for advisories
                         if start_date != record['datetime']:
                             continue
                     validation_time = int(line[5].strip(' '))
-                    record['datetime'] = record['datetime'] + timedelta(hours=validation_time) 
+                    record['datetime'] = record['datetime'] + timedelta(hours=validation_time)
 
                 latitude = line[6]
                 if 'N' in latitude:
@@ -715,7 +719,7 @@ def read_atcf(track: PathLike) -> DataFrame:
         'direction': [],
         'speed': [],
     }
-    
+
     for index, row in enumerate(track):
         row = [value.strip() for value in row.split(',')]
 

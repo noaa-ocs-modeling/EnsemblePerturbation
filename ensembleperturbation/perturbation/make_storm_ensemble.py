@@ -485,15 +485,11 @@ class CrossTrack(VortexPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(
-            *new_coordinates
-        )
+        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
         vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
-        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(
-            degree, copy=False
-        )
+        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(degree, copy=False)
 
         return vortex_dataframe
 
@@ -627,15 +623,11 @@ class AlongTrack(VortexPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(
-            *new_coordinates
-        )
+        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
         vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
-        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(
-            degree, copy=False
-        )
+        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(degree, copy=False)
 
         return vortex_dataframe
 
