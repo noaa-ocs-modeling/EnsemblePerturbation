@@ -702,7 +702,7 @@ class VortexPerturber:
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
         alpha: float = None,
-    ):
+    ) -> [Path]:
         """
         :param number_of_perturbations: number of perturbations to create
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
@@ -748,6 +748,7 @@ class VortexPerturber:
         )
 
         # for each variable, perturb the values and write each to a new `fort.22`
+        output_filenames = []
         for variable in variables:
             print(f'writing perturbations for "{variable.name}"')
             # Make the random pertubations based on the historical forecast errors
@@ -828,9 +829,13 @@ class VortexPerturber:
                 self.forcing._df = perturbed_data
 
                 # write out the modified fort.22
+                output_filename = directory / f'{variable.name}_{perturbation_index}.22'
                 self.forcing.write(
-                    directory / f'{variable.name}_{perturbation_index}.22', overwrite=True,
+                    output_filename, overwrite=True,
                 )
+                output_filenames.append(output_filename)
+
+        return output_filenames
 
     @property
     def validation_times(self) -> [timedelta]:
