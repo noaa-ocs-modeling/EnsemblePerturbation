@@ -22,7 +22,7 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('perturb.adcirc')
 
 SHARED_DIRECTORY = Path('/scratch2/COASTAL/coastal/save/shared')
-OUTPUT_DIRECTORY = SHARED_DIRECTORY / 'working' / 'zach' / 'adcirc'
+OUTPUT_DIRECTORY = SHARED_DIRECTORY / 'working' / 'zach' / 'adcirc' / 'perturbed_track_example'
 TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
 
 if not OUTPUT_DIRECTORY.exists():
