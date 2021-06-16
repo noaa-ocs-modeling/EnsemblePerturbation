@@ -102,9 +102,6 @@ setup(
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={
-        'console_scripts': [
-            'initialize_adcirc=client.initialize_adcirc:main',
-            'generate_adcirc=client.generate_adcirc:main',
-        ],
+        'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main',],
     },
 )

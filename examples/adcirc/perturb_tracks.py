@@ -10,7 +10,7 @@ from coupledmodeldriver.generate import (
     NEMSADCIRCRunConfiguration,
 )
 
-from ensembleperturbation.perturbation.make_storm_ensemble import (
+from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
     MaximumSustainedWindSpeed,
