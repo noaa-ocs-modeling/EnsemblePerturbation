@@ -23,9 +23,12 @@ LOGGER = get_logger('perturb.adcirc')
 
 SHARED_DIRECTORY = Path('/scratch2/COASTAL/coastal/save/shared')
 OUTPUT_DIRECTORY = SHARED_DIRECTORY / 'working' / 'zach' / 'adcirc'
+TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
 
 if not OUTPUT_DIRECTORY.exists():
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+if not TRACK_DIRECTORY.exists():
+    TRACK_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
 # start and end times for model
 STORM = 'al062018'
@@ -96,10 +99,7 @@ if __name__ == '__main__':
     )
 
     track_filenames = perturber.write(
-        number_of_perturbations=3,
-        variables=variables,
-        directory=OUTPUT_DIRECTORY / 'track_files',
-        alpha=0.5,
+        number_of_perturbations=3, variables=variables, directory=TRACK_DIRECTORY, alpha=0.5,
     )
 
     perturbations = {
