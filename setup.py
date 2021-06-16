@@ -94,7 +94,6 @@ setup(
         'pyproj>=2.6',
         'python-dateutil',
         'requests',
-        'requests_futures',
         'shapely',
     ],
     extras_require={
