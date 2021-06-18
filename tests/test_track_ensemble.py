@@ -43,11 +43,11 @@ def test_vortex_types():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     file_decks = {
-        # 'a': {
-        #     'start_date': parse_date('2018-09-11 06:00'),
-        #     'end_date': None,
-        #     'record_types': ['OFCL', 'HWRF', 'HMON', 'CARQ'],
-        # },
+        'a': {
+            'start_date': parse_date('2018-09-11 06:00'),
+            'end_date': None,
+            'record_types': ['OFCL', 'HWRF', 'HMON', 'CARQ'],
+        },
         'b': {
             'start_date': parse_date('2018-09-11 06:00'),
             'end_date': parse_date('2018-09-18 06:00'),
