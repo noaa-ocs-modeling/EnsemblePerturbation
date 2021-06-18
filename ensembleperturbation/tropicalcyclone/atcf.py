@@ -172,21 +172,25 @@ class VortexForcing:
             'mode': self.mode,
             'file_deck': self.file_deck,
         }
+
+        # only download new file if the configuration has changed since the last download
         if self.__atcf is None or configuration != self.__previous_configuration:
             storm_id = configuration['storm_id']
+            mode = configuration['mode']
+            file_deck = configuration['file_deck']
             if storm_id is not None:
-                if configuration['mode'] == Mode.historical:
+                if mode == Mode.historical:
                     nhc_dir = f'archive/{storm_id[4:]}'
                     suffix = '.dat.gz'
-                elif configuration['mode'] == Mode.realtime:
-                    if configuration['file_deck'] == FileDeck.a:
+                elif mode == Mode.realtime:
+                    if file_deck == FileDeck.a:
                         nhc_dir = 'aid_public'
                         suffix = '.dat.gz'
-                    elif configuration['file_deck'] == FileDeck.b:
+                    elif file_deck == FileDeck.b:
                         nhc_dir = 'btk'
                         suffix = '.dat'
 
-                url = f'ftp://ftp.nhc.noaa.gov/atcf/{nhc_dir}/{self.file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}{suffix}'
+                url = f'ftp://ftp.nhc.noaa.gov/atcf/{nhc_dir}/{file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}{suffix}'
 
                 try:
                     logger.info(f'Downloading storm data from {url}')
