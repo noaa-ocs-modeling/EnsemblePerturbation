@@ -81,6 +81,7 @@ setup(
     install_requires=[
         'appdirs',
         'bs4',
+        'click',
         'coupledmodeldriver',
         'fiona',
         'geopandas',

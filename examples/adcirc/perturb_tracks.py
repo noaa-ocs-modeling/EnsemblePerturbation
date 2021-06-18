@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import click
 from coupledmodeldriver import Platform
 from coupledmodeldriver.configure import BestTrackForcingJSON, TidalForcingJSON
 from coupledmodeldriver.generate import (
@@ -22,7 +23,13 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('perturb.adcirc')
 
 SHARED_DIRECTORY = Path('/scratch2/COASTAL/coastal/save/shared')
-OUTPUT_DIRECTORY = SHARED_DIRECTORY / 'working' / 'zach' / 'adcirc' / 'perturbed_track_example'
+OUTPUT_DIRECTORY = (
+    SHARED_DIRECTORY
+    / 'working'
+    / 'zach'
+    / 'adcirc'
+    / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
+)
 TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
 
 if not OUTPUT_DIRECTORY.exists():
@@ -61,7 +68,7 @@ NEMS_EXECUTABLE = (
     SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'NEMS' / 'exe' / 'NEMS.x'
 )
 ADCIRC_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'adcirc'
+    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'padcirc'
 )
 ADCPREP_EXECUTABLE = (
     SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'adcprep'
@@ -149,6 +156,8 @@ if __name__ == '__main__':
         )
 
     configuration.write_directory(OUTPUT_DIRECTORY, overwrite=True)
-    generate_adcirc_configuration(OUTPUT_DIRECTORY, overwrite=True)
+
+    if click.confirm('generate configuration?', default=True):
+        generate_adcirc_configuration(OUTPUT_DIRECTORY, overwrite=True)
 
     print('done')
