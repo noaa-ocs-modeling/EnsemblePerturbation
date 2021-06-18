@@ -35,7 +35,6 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 """
 
 from abc import ABC
-from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from enum import Enum
 from math import exp, inf, sqrt
@@ -702,7 +701,7 @@ class VortexPerturber:
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
         alpha: float = None,
-    ):
+    ) -> [Path]:
         """
         :param number_of_perturbations: number of perturbations to create
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
@@ -748,6 +747,7 @@ class VortexPerturber:
         )
 
         # for each variable, perturb the values and write each to a new `fort.22`
+        output_filenames = []
         for variable in variables:
             print(f'writing perturbations for "{variable.name}"')
             # Make the random pertubations based on the historical forecast errors
@@ -828,9 +828,13 @@ class VortexPerturber:
                 self.forcing._df = perturbed_data
 
                 # write out the modified fort.22
+                output_filename = directory / f'{variable.name}_{perturbation_index}.22'
                 self.forcing.write(
-                    directory / f'{variable.name}_{perturbation_index}.22', overwrite=True,
+                    output_filename, overwrite=True,
                 )
+                output_filenames.append(output_filename)
+
+        return output_filenames
 
     @property
     def validation_times(self) -> [timedelta]:
@@ -946,37 +950,3 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, 
         dy = pslope * dx
 
     return dx, dy
-
-
-if __name__ == '__main__':
-    ##################################
-    # Example calls from command line for 2018 Hurricane Florence:
-    # - python3 make_storm_ensemble.py 3 al062018 2018-09-11-06 2018-09-17-06
-    # - python3 make_storm_ensemble.py 5 Florence2018 2018-09-11-06
-    ##################################
-
-    # Implement argument parsing
-    argument_parser = ArgumentParser()
-    argument_parser.add_argument('number_of_perturbations', help='number of perturbations')
-    argument_parser.add_argument('storm_code', help='storm name/code')
-    argument_parser.add_argument('start_date', nargs='?', help='start date')
-    argument_parser.add_argument('end_date', nargs='?', help='end date')
-    arguments = argument_parser.parse_args()
-
-    # hardcoding variable list for now
-    variables = [
-        MaximumSustainedWindSpeed,
-        RadiusOfMaximumWinds,
-        AlongTrack,
-        CrossTrack,
-    ]
-
-    perturber = VortexPerturber(
-        storm=arguments.storm_code,
-        start_date=arguments.start_date,
-        end_date=arguments.end_date,
-    )
-
-    perturber.write(
-        number_of_perturbations=arguments.number_of_perturbations, variables=variables,
-    )

@@ -81,7 +81,8 @@ setup(
     install_requires=[
         'appdirs',
         'bs4',
-        'coupledmodeldriver',
+        'click',
+        'coupledmodeldriver>=1.2.25',
         'fiona',
         'geopandas',
         'matplotlib',
@@ -94,7 +95,6 @@ setup(
         'pyproj>=2.6',
         'python-dateutil',
         'requests',
-        'requests_futures',
         'shapely',
     ],
     extras_require={
@@ -102,9 +102,6 @@ setup(
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={
-        'console_scripts': [
-            'initialize_adcirc=client.initialize_adcirc:main',
-            'generate_adcirc=client.generate_adcirc:main',
-        ],
+        'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main',],
     },
 )
