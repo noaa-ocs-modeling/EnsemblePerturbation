@@ -1,6 +1,7 @@
 from collections.abc import Collection
 from datetime import datetime, timedelta
 from enum import Enum
+import ftplib
 from functools import wraps
 import gzip
 import io
@@ -32,6 +33,10 @@ logger = logging.getLogger(__name__)
 class FileDeck(Enum):
     a = 'a'
     b = 'b'
+    c = 'c'
+    d = 'd'
+    e = 'e'
+    f = 'f'
 
 
 class Mode(Enum):
@@ -100,15 +105,7 @@ class VortexForcing:
     @file_deck.setter
     def file_deck(self, file_deck: FileDeck):
         if not isinstance(file_deck, FileDeck):
-            try:
-                file_deck = FileDeck[file_deck]
-            except (KeyError, ValueError):
-                try:
-                    file_deck = FileDeck(file_deck)
-                except (KeyError, ValueError):
-                    raise ValueError(
-                        f'unrecognized entry "{file_deck}"; must be one of {list(FileDeck)}'
-                    )
+            file_deck = convert_value(file_deck, FileDeck)
         self.__file_deck = file_deck
 
     @property
@@ -118,15 +115,8 @@ class VortexForcing:
     @mode.setter
     def mode(self, mode: Mode):
         if not isinstance(mode, Mode):
-            try:
-                mode = Mode[mode]
-            except (KeyError, ValueError):
-                try:
-                    mode = Mode(mode)
-                except (KeyError, ValueError):
-                    raise ValueError(
-                        f'unrecognized entry "{mode}"; must be one of {list(Mode)}'
-                    )
+            if not isinstance(mode, Mode):
+                mode = convert_value(mode, Mode)
         self.__mode = mode
 
     @property
@@ -178,19 +168,9 @@ class VortexForcing:
             storm_id = configuration['storm_id']
             mode = configuration['mode']
             file_deck = configuration['file_deck']
+            year = int(storm_id[4:])
             if storm_id is not None:
-                if mode == Mode.historical:
-                    nhc_dir = f'archive/{storm_id[4:]}'
-                    suffix = '.dat.gz'
-                elif mode == Mode.realtime:
-                    if file_deck == FileDeck.a:
-                        nhc_dir = 'aid_public'
-                        suffix = '.dat.gz'
-                    elif file_deck == FileDeck.b:
-                        nhc_dir = 'btk'
-                        suffix = '.dat'
-
-                url = f'ftp://ftp.nhc.noaa.gov/atcf/{nhc_dir}/{file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}{suffix}'
+                url = atcf_url(file_deck, storm_id, mode, year)
 
                 try:
                     logger.info(f'Downloading storm data from {url}')
@@ -701,7 +681,17 @@ class VortexForcing:
 
 
 def convert_value(value: Any, to_type: type, round_digits: int = None) -> Any:
-    if value is not None and value != "":
+    if issubclass(to_type, Enum):
+        try:
+            value = to_type[value]
+        except (KeyError, ValueError):
+            try:
+                value = to_type(value)
+            except (KeyError, ValueError):
+                raise ValueError(
+                    f'unrecognized entry "{value}"; must be one of {list(to_type)}'
+                )
+    elif value is not None and value != "":
         if round_digits is not None and issubclass(to_type, (int, float)):
             if isinstance(value, str):
                 value = float(value)
@@ -850,3 +840,56 @@ def read_atcf(track: PathLike) -> DataFrame:
                 data[key] = value
 
     return DataFrame(data=data)
+
+
+def atcf_url(
+    file_deck: FileDeck = None, storm_id: str = None, mode: Mode = None, year: int = None
+):
+    if file_deck is None:
+        file_deck = FileDeck.a
+    elif not isinstance(file_deck, FileDeck):
+        file_deck = convert_value(file_deck, FileDeck)
+
+    if mode is None:
+        mode = Mode.realtime
+    elif not isinstance(mode, Mode):
+        mode = convert_value(mode, Mode)
+
+    if mode == Mode.historical:
+        if year is None:
+            year = datetime.now().year - 1
+        nhc_dir = f'archive/{year}'
+        suffix = '.dat.gz'
+    elif mode == Mode.realtime:
+        if file_deck == FileDeck.a:
+            nhc_dir = 'aid_public'
+            suffix = '.dat.gz'
+        elif file_deck == FileDeck.b:
+            nhc_dir = 'btk'
+            suffix = '.dat'
+
+    url = f'ftp://ftp.nhc.noaa.gov/atcf/{nhc_dir}/'
+
+    if storm_id is not None:
+        url += f'{file_deck.value}{storm_id.lower()}{suffix}'
+
+    return url
+
+
+def atcf_storm_ids(file_deck: FileDeck = None, mode: Mode = None, year: int = None) -> [str]:
+    if file_deck is None:
+        file_deck = FileDeck.a
+    elif not isinstance(file_deck, FileDeck):
+        file_deck = convert_value(file_deck, FileDeck)
+
+    url = atcf_url(file_deck=file_deck, mode=mode, year=year).replace('ftp://', '')
+    hostname, directory = url.split('/', 1)
+    ftp = ftplib.FTP(hostname, 'anonymous', '')
+
+    filenames = [
+        filename for filename, metadata in ftp.mlsd(directory) if metadata['type'] == 'file'
+    ]
+    if file_deck is not None:
+        filenames = [filename for filename in filenames if filename[0] == file_deck.value]
+
+    return sorted((filename.split('.')[0] for filename in filenames), reverse=True)
