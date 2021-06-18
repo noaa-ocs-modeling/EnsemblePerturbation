@@ -1,6 +1,7 @@
 from collections.abc import Collection
 from datetime import datetime, timedelta
 from enum import Enum
+import ftplib
 from functools import wraps
 import gzip
 import io
@@ -10,7 +11,6 @@ from os import PathLike
 import pathlib
 import time
 from typing import Any, Union
-import urllib.request
 
 from dateutil.parser import parse as parse_date
 from matplotlib import pyplot
@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 class FileDeck(Enum):
     a = 'a'
     b = 'b'
+    c = 'c'
+    d = 'd'
+    e = 'e'
+    f = 'f'
+
+
+class Mode(Enum):
+    historical = 'historical'
+    realtime = 'real-time'
 
 
 class VortexForcing:
@@ -41,6 +50,7 @@ class VortexForcing:
         start_date: datetime = None,
         end_date: datetime = None,
         file_deck: FileDeck = FileDeck.b,
+        mode: Mode = Mode.historical,
         requested_record_type: str = None,
     ):
         self.__dataframe = None
@@ -50,9 +60,11 @@ class VortexForcing:
         self.__end_date = None
         self.__previous_configuration = None
         self.__file_deck = None
+        self.__mode = None
         self.__requested_record_type = None
 
         self.file_deck = file_deck
+        self.mode = mode
         self.requested_record_type = requested_record_type
 
         if isinstance(storm, DataFrame):
@@ -92,16 +104,19 @@ class VortexForcing:
     @file_deck.setter
     def file_deck(self, file_deck: FileDeck):
         if not isinstance(file_deck, FileDeck):
-            try:
-                file_deck = FileDeck[file_deck]
-            except (KeyError, ValueError):
-                try:
-                    file_deck = FileDeck(file_deck)
-                except (KeyError, ValueError):
-                    raise ValueError(
-                        f'unrecognized entry "{file_deck}"; must be one of {list(FileDeck)}'
-                    )
+            file_deck = convert_value(file_deck, FileDeck)
         self.__file_deck = file_deck
+
+    @property
+    def mode(self) -> Mode:
+        return self.__mode
+
+    @mode.setter
+    def mode(self, mode: Mode):
+        if not isinstance(mode, Mode):
+            if not isinstance(mode, Mode):
+                mode = convert_value(mode, Mode)
+        self.__mode = mode
 
     @property
     def requested_record_type(self) -> str:
@@ -140,38 +155,34 @@ class VortexForcing:
         self.__dataframe = dataframe
 
     @property
-    def atcf(self) -> io.BytesIO:
-        configuration = {'storm_id': self.storm_id}
-        if self.__atcf is None or configuration != self.__previous_configuration:
-            storm_id = configuration['storm_id']
-            if storm_id is not None:
-                url = f'ftp://ftp.nhc.noaa.gov/atcf/archive/{storm_id[4:]}/{self.file_deck.value}{storm_id[0:2].lower()}{storm_id[2:]}.dat.gz'
+    def atcf(self) -> open:
+        if self.storm_id is not None:
+            url = atcf_url(
+                file_deck=self.file_deck, storm_id=self.storm_id, mode=self.mode
+            ).replace('ftp://', '')
+            logger.info(f'Downloading storm data from {url}')
 
-                try:
-                    logger.info(f'Downloading storm data from {url}')
-                    response = urllib.request.urlopen(url)
-                except urllib.error.URLError as e:
-                    if '550' in e.reason:
-                        raise NameError(f'storm with id {storm_id} not found at {url}')
-                    else:
+            hostname, filename = url.split('/', 1)
 
-                        @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
-                        def make_request():
-                            logger.info(
-                                f'Downloading storm data from {url} failed, retrying...'
-                            )
-                            return urllib.request.urlopen(url)
+            handle = io.BytesIO()
 
-                        response = make_request()
+            ftp = ftplib.FTP(hostname, 'anonymous', '')
+            ftp.encoding = 'utf-8'
+            ftp.retrbinary(f'RETR {filename}', handle.write)
 
-                self.__atcf = io.BytesIO(response.read())
-                self.__previous_configuration = configuration
+            self.__atcf = handle
 
         return self.__atcf
 
     @property
     def dataframe(self):
-        configuration = {'storm_id': self.__storm_id}
+        configuration = {
+            'storm_id': self.storm_id,
+            'mode': self.mode,
+            'file_deck': self.file_deck,
+        }
+
+        # only download new file if the configuration has changed since the last download
         if (
             self.__dataframe is None
             or len(self.__dataframe) == 0
@@ -203,10 +214,15 @@ class VortexForcing:
                 'speed',
             ]
 
-            if isinstance(self.atcf, io.BytesIO):
-                lines = gzip.GzipFile(fileobj=self.atcf)
-            else:
-                lines = self.atcf
+            atcf = self.atcf
+            if isinstance(atcf, io.BytesIO):
+                # test if Gzip file
+                atcf.seek(0)  # rewind
+                if atcf.read(2) == b'\x1f\x8b':
+                    atcf.seek(0)  # rewind
+                    atcf = gzip.GzipFile(fileobj=atcf)
+                else:
+                    atcf.seek(0)  # rewind
 
             start_date = self.start_date
             # Only accept request record type or
@@ -215,7 +231,8 @@ class VortexForcing:
             if allowed_record_types is None:
                 allowed_record_types = ['BEST', 'OFCL']
             records = []
-            for line_index, line in enumerate(lines):
+
+            for line_index, line in enumerate(atcf):
                 line = line.decode('UTF-8').split(',')
 
                 record = {
@@ -313,6 +330,9 @@ class VortexForcing:
                     )
 
                 records.append(record)
+
+            if len(records) == 0:
+                raise ValueError(f'no records found with type(s) "{allowed_record_types}"')
 
             self.__dataframe = self.__compute_velocity(
                 DataFrame.from_records(data=records, columns=columns)
@@ -652,7 +672,17 @@ class VortexForcing:
 
 
 def convert_value(value: Any, to_type: type, round_digits: int = None) -> Any:
-    if value is not None and value != "":
+    if issubclass(to_type, Enum):
+        try:
+            value = to_type[value]
+        except (KeyError, ValueError):
+            try:
+                value = to_type(value)
+            except (KeyError, ValueError):
+                raise ValueError(
+                    f'unrecognized entry "{value}"; must be one of {list(to_type)}'
+                )
+    elif value is not None and value != "":
         if round_digits is not None and issubclass(to_type, (int, float)):
             if isinstance(value, str):
                 value = float(value)
@@ -801,3 +831,59 @@ def read_atcf(track: PathLike) -> DataFrame:
                 data[key] = value
 
     return DataFrame(data=data)
+
+
+def atcf_url(file_deck: FileDeck = None, storm_id: str = None, mode: Mode = None):
+    if storm_id is not None:
+        if file_deck is None:
+            file_deck = storm_id[0]
+        year = int(storm_id[4:])
+    else:
+        year = None
+
+    if file_deck is None:
+        file_deck = FileDeck.a
+    elif not isinstance(file_deck, FileDeck):
+        file_deck = convert_value(file_deck, FileDeck)
+
+    if mode is None:
+        mode = Mode.realtime
+    elif not isinstance(mode, Mode):
+        mode = convert_value(mode, Mode)
+
+    if mode == Mode.historical:
+        nhc_dir = f'archive/{year}'
+        suffix = '.dat.gz'
+    elif mode == Mode.realtime:
+        if file_deck == FileDeck.a:
+            nhc_dir = 'aid_public'
+            suffix = '.dat.gz'
+        elif file_deck == FileDeck.b:
+            nhc_dir = 'btk'
+            suffix = '.dat'
+
+    url = f'ftp://ftp.nhc.noaa.gov/atcf/{nhc_dir}/'
+
+    if storm_id is not None:
+        url += f'{file_deck.value}{storm_id.lower()}{suffix}'
+
+    return url
+
+
+def atcf_storm_ids(file_deck: FileDeck = None, mode: Mode = None) -> [str]:
+    if file_deck is None:
+        file_deck = FileDeck.a
+    elif not isinstance(file_deck, FileDeck):
+        file_deck = convert_value(file_deck, FileDeck)
+
+    url = atcf_url(file_deck=file_deck, mode=mode).replace('ftp://', '')
+    hostname, directory = url.split('/', 1)
+    ftp = ftplib.FTP(hostname, 'anonymous', '')
+
+    filenames = [
+        filename for filename, metadata in ftp.mlsd(directory) if metadata['type'] == 'file'
+    ]
+    if file_deck is not None:
+        filenames = [filename for filename in filenames if filename[0] == file_deck.value]
+
+    return sorted((filename.split('.')[0] for filename in filenames), reverse=True)
