@@ -11,7 +11,6 @@ from os import PathLike
 import pathlib
 import time
 from typing import Any, Union
-import urllib.request
 
 from dateutil.parser import parse as parse_date
 from matplotlib import pyplot
@@ -156,7 +155,27 @@ class VortexForcing:
         self.__dataframe = dataframe
 
     @property
-    def atcf(self) -> io.BytesIO:
+    def atcf(self) -> open:
+        if self.storm_id is not None:
+            url = atcf_url(
+                file_deck=self.file_deck, storm_id=self.storm_id, mode=self.mode
+            ).replace('ftp://', '')
+            logger.info(f'Downloading storm data from {url}')
+
+            hostname, filename = url.split('/', 1)
+
+            handle = io.BytesIO()
+
+            ftp = ftplib.FTP(hostname, 'anonymous', '')
+            ftp.encoding = 'utf-8'
+            ftp.retrbinary(f'RETR {filename}', handle.write)
+
+            self.__atcf = handle
+
+        return self.__atcf
+
+    @property
+    def dataframe(self):
         configuration = {
             'storm_id': self.storm_id,
             'mode': self.mode,
@@ -164,39 +183,6 @@ class VortexForcing:
         }
 
         # only download new file if the configuration has changed since the last download
-        if self.__atcf is None or configuration != self.__previous_configuration:
-            storm_id = configuration['storm_id']
-            mode = configuration['mode']
-            file_deck = configuration['file_deck']
-            year = int(storm_id[4:])
-            if storm_id is not None:
-                url = atcf_url(file_deck, storm_id, mode, year)
-
-                try:
-                    logger.info(f'Downloading storm data from {url}')
-                    response = urllib.request.urlopen(url)
-                except urllib.error.URLError as e:
-                    if '550' in e.reason:
-                        raise NameError(f'storm with id {storm_id} not found at {url}')
-                    else:
-
-                        @retry(urllib.error.URLError, tries=4, delay=3, backoff=2)
-                        def make_request():
-                            logger.info(
-                                f'Downloading storm data from {url} failed, retrying...'
-                            )
-                            return urllib.request.urlopen(url)
-
-                        response = make_request()
-
-                self.__atcf = io.BytesIO(response.read())
-                self.__previous_configuration = configuration
-
-        return self.__atcf
-
-    @property
-    def dataframe(self):
-        configuration = {'storm_id': self.__storm_id}
         if (
             self.__dataframe is None
             or len(self.__dataframe) == 0
@@ -228,14 +214,15 @@ class VortexForcing:
                 'speed',
             ]
 
-            lines = self.atcf
-            if isinstance(self.atcf, io.BytesIO):
+            atcf = self.atcf
+            if isinstance(atcf, io.BytesIO):
                 # test if Gzip file
-                if lines.read(2) == b'\x1f\x8b':
-                    lines.seek(0)  # rewind
-                    lines = gzip.GzipFile(fileobj=self.atcf)
+                atcf.seek(0)  # rewind
+                if atcf.read(2) == b'\x1f\x8b':
+                    atcf.seek(0)  # rewind
+                    atcf = gzip.GzipFile(fileobj=atcf)
                 else:
-                    lines.seek(0)  # rewind
+                    atcf.seek(0)  # rewind
 
             start_date = self.start_date
             # Only accept request record type or
@@ -244,7 +231,8 @@ class VortexForcing:
             if allowed_record_types is None:
                 allowed_record_types = ['BEST', 'OFCL']
             records = []
-            for line_index, line in enumerate(lines):
+
+            for line_index, line in enumerate(atcf):
                 line = line.decode('UTF-8').split(',')
 
                 record = {
@@ -342,6 +330,9 @@ class VortexForcing:
                     )
 
                 records.append(record)
+
+            if len(records) == 0:
+                raise ValueError(f'no records found with type(s) "{allowed_record_types}"')
 
             self.__dataframe = self.__compute_velocity(
                 DataFrame.from_records(data=records, columns=columns)
@@ -842,9 +833,14 @@ def read_atcf(track: PathLike) -> DataFrame:
     return DataFrame(data=data)
 
 
-def atcf_url(
-    file_deck: FileDeck = None, storm_id: str = None, mode: Mode = None, year: int = None
-):
+def atcf_url(file_deck: FileDeck = None, storm_id: str = None, mode: Mode = None):
+    if storm_id is not None:
+        if file_deck is None:
+            file_deck = storm_id[0]
+        year = int(storm_id[4:])
+    else:
+        year = None
+
     if file_deck is None:
         file_deck = FileDeck.a
     elif not isinstance(file_deck, FileDeck):
@@ -856,8 +852,6 @@ def atcf_url(
         mode = convert_value(mode, Mode)
 
     if mode == Mode.historical:
-        if year is None:
-            year = datetime.now().year - 1
         nhc_dir = f'archive/{year}'
         suffix = '.dat.gz'
     elif mode == Mode.realtime:
@@ -876,13 +870,13 @@ def atcf_url(
     return url
 
 
-def atcf_storm_ids(file_deck: FileDeck = None, mode: Mode = None, year: int = None) -> [str]:
+def atcf_storm_ids(file_deck: FileDeck = None, mode: Mode = None) -> [str]:
     if file_deck is None:
         file_deck = FileDeck.a
     elif not isinstance(file_deck, FileDeck):
         file_deck = convert_value(file_deck, FileDeck)
 
-    url = atcf_url(file_deck=file_deck, mode=mode, year=year).replace('ftp://', '')
+    url = atcf_url(file_deck=file_deck, mode=mode).replace('ftp://', '')
     hostname, directory = url.split('/', 1)
     ftp = ftplib.FTP(hostname, 'anonymous', '')
 
