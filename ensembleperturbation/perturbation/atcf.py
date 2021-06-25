@@ -825,7 +825,7 @@ class VortexPerturber:
                         perturbed_data[column] = perturbed_data[column].pint.magnitude
 
                 # reset the dataframe
-                self.forcing._df = perturbed_data
+                self.forcing.dataframe = perturbed_data
 
                 # write out the modified fort.22
                 output_filename = directory / f'{variable.name}_{perturbation_index}.22'

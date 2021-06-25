@@ -150,10 +150,6 @@ class VortexForcing:
                 start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)
             ]
 
-    @data.setter
-    def data(self, dataframe: DataFrame):
-        self.__dataframe = dataframe
-
     @property
     def atcf(self) -> open:
         if self.storm_id is not None:
@@ -340,6 +336,10 @@ class VortexForcing:
             self.__previous_configuration = configuration
 
         return self.__dataframe
+
+    @dataframe.setter
+    def dataframe(self, dataframe: DataFrame):
+        self.__dataframe = dataframe
 
     @property
     def start_date(self) -> datetime:
