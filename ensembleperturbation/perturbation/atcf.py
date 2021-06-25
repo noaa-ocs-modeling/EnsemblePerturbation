@@ -62,7 +62,7 @@ E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
 ERROR_INDICES_NO_60H = [0, 12, 24, 36, 48, 72, 96, 120]  # no 60-hr data
-ERROR_INDICES_60HR = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+ERROR_INDICES_60H = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
 
 
 class PerturbationType(Enum):
@@ -271,89 +271,53 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<15sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [
-                                0.0,
-                                -13.82,
-                                -19.67,
-                                -21.37,
-                                -26.31,
-                                -32.71,
-                                -39.12,
-                                -46.80,
-                                -52.68,
-                            ],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
+                        'minimum error [sm]':
+                            [0.0, -13.82, -19.67, -21.37, -26.31, -32.71, -39.12, -46.80, -52.68],
+                        'maximum error [sm]':
                             [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '15-25sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [
-                                0.0,
-                                -10.47,
-                                -14.54,
-                                -20.35,
-                                -23.88,
-                                -21.78,
-                                -19.68,
-                                -24.24,
-                                -28.30,
-                            ],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
+                        'minimum error [sm]':
+                            [0.0, -10.47, -14.54, -20.35, -23.88, -21.78, -19.68, -24.24, -28.30],
+                        'maximum error [sm]': 
                             [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '25-35sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
+                        'minimum error [sm]': 
                             [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
+                        'maximum error [sm]': 
                             [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '35-45sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
+                        'minimum error [sm]':
                             [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
-                            index=ERROR_INDICES_60HR,
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
+                        'maximum error [sm]': 
                             [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
-                            index=ERROR_INDICES_60HR,
-                            dtype=PintType(units.us_statute_mile),
-                        ),
                     },
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '>45sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
+                        'minimum error [sm]': 
                             [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
+                        'maximum error [sm]': 
                             [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -811,7 +775,6 @@ class VortexPerturber:
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     if alpha is None:
                         alpha = random()
-
                     print(f'Random number in [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                     if variable.unit is not None and variable.unit != units.dimensionless:
