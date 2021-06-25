@@ -226,7 +226,8 @@ class BackgroundPressure(VortexPerturbedVariable):
 class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     name = 'max_sustained_wind_speed'
     perturbation_type = PerturbationType.GAUSSIAN
-
+    #Reference - 2019_Psurge_Error_Update_FINAL.docx 
+    #Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=25,
@@ -241,18 +242,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
-                    {
-                        'mean error [kt]': [
-                            2.80,
-                            7.94,
-                            11.53,
-                            13.27,
-                            12.66,
-                            13.41,
-                            13.46,
-                            13.55,
-                        ]
-                    },
+                    {'mean error [kt]': [2.80, 7.94, 11.53, 13.27, 12.66, 13.41, 13.46, 13.55]},
                     index=ERROR_INDICES_NO_60H,
                 ),
             },
@@ -327,34 +317,24 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
 class CrossTrack(VortexPerturbedVariable):
     name = 'cross_track'
     perturbation_type = PerturbationType.GAUSSIAN
-
+    #Reference - 2019_Psurge_Error_Update_FINAL.docx 
+    #Table 8: Adjusted cross-track errors [nm] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=-inf,
             upper_bound=+inf,
             historical_forecast_errors={
                 '<50kt': DataFrame(
-                    {'mean error [nm]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    {'mean error [nm]': [4.98, 16.16, 23.10, 28.95, 38.03, 56.88, 92.95, 119.67]},
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '50-95kt': DataFrame(
-                    {'mean error [nm]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    {'mean error [nm]': [2.89, 11.58, 16.83, 21.10, 27.76, 47.51, 68.61, 103.45]},
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
-                    {
-                        'mean error [nm]': [
-                            2.80,
-                            7.94,
-                            11.53,
-                            13.27,
-                            12.66,
-                            13.41,
-                            13.46,
-                            13.55,
-                        ]
-                    },
-                    index=ERROR_INDICES_NO_60H,
+                    {'mean error [nm]': [1.85, 7.79, 12.68, 17.92, 25.01, 40.48, 60.69, 79.98]},
+                    index=ERROR_INDICES_,NO_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -460,33 +440,23 @@ class CrossTrack(VortexPerturbedVariable):
 class AlongTrack(VortexPerturbedVariable):
     name = 'along_track'
     perturbation_type = PerturbationType.GAUSSIAN
-
+    #Reference - 2019_Psurge_Error_Update_FINAL.docx 
+    #Table 7: Adjusted along-track errors [nm] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=-inf,
             upper_bound=+inf,
             historical_forecast_errors={
                 '<50kt': DataFrame(
-                    {'mean error [nm]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    {'mean error [nm]': [6.33, 17.77, 26.66, 37.75, 51.07, 69.22, 108.59, 125.01]},
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '50-95kt': DataFrame(
-                    {'mean error [nm]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    {'mean error [nm]': [3.68, 12.74, 19.43, 27.51, 37.28, 57.82, 80.15, 108.07]},
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
-                    {
-                        'mean error [nm]': [
-                            2.80,
-                            7.94,
-                            11.53,
-                            13.27,
-                            12.66,
-                            13.41,
-                            13.46,
-                            13.55,
-                        ]
-                    },
+                    {'mean error [nm]': [2.35, 8.57, 14.64, 23.36, 33.59, 49.26, 70.90, 83.55]},
                     index=ERROR_INDICES_NO_60H,
                 ),
             },
