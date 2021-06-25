@@ -585,7 +585,9 @@ class AlongTrack(VortexPerturbedVariable):
 
         # loop over all coordinates
         new_coordinates = []
-        for index in range(len(values)):
+        # range (1)-to-(len-1) is important because the (0) and (len) 
+        # indices are the locations of extrapolated track
+        for index in range(1,len(values)-1):
             along_error = values[index - 1].to(units.meter)
             along_sign = int(sign(along_error))
 
@@ -606,7 +608,7 @@ class AlongTrack(VortexPerturbedVariable):
                     )
                 track_index = track_index + along_sign
 
-                # make the temporary line segment
+            # make the temporary line segment
             line_segment = LineString(projected_points)
 
             # interpolate a distance "along_error" along the line
@@ -700,17 +702,22 @@ class VortexPerturber:
         number_of_perturbations: int,
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
-        alpha: float = None,
+        alphas: float = None,
     ) -> [Path]:
         """
         :param number_of_perturbations: number of perturbations to create
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
-        :param alpha: value between [0, 1) with which to multiply error for perturbation; leave None for random
+        :param alphas: list of floats meant to represent a point on the standard Gaussian distribution (see random.gauss function) for all variables except for "radius_of_maximum_winds" where should be list of floats in range [0, 1) (see random.random function). These alpha values are used to multiply error for perturbation; leave None for random
         """
 
         if number_of_perturbations is not None:
             number_of_perturbations = int(number_of_perturbations)
+
+        if alphas is None:
+           alphas = [None]*number_of_perturbations
+        elif len(alphas) != number_of_perturbations:
+           raise ValueError('length of alphas list must equal number_of_perturbations')
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
@@ -785,6 +792,8 @@ class VortexPerturber:
                     copy=False,
                 )
 
+                # setting the alpha to the value from the input list
+                alpha = alphas[perturbation_index-1]
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:
