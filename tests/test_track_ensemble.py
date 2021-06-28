@@ -19,8 +19,7 @@ def test_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     # list of variables where perturbation is Gaussian
-    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
-    # AlongTrack,
+    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
     perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
     perturber.write(
         number_of_perturbations=2,

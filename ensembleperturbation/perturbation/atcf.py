@@ -651,10 +651,8 @@ class AlongTrack(VortexPerturbedVariable):
         # Get the coordinates of the track
         coordinates = vortex_dataframe[['longitude', 'latitude']].values
 
-        # get the utm projection for the reference coordinate
-        utm_crs = utm_crs_from_longitude(numpy.mean(coordinates[:, 0]))
+        # set the EPSG of the track coordinates
         wgs84 = CRS.from_epsg(4326)
-        transformer = Transformer.from_crs(wgs84, utm_crs)
 
         hours = (times / timedelta(hours=1)).values
 
@@ -689,17 +687,18 @@ class AlongTrack(VortexPerturbedVariable):
 
         # loop over all coordinates
         new_coordinates = []
-        # range (1)-to-(len-1) is important because the (0) and (len)
         # indices are the locations of extrapolated track
-        for index in range(1, len(values) - 1):
-            along_error = values[index - 1].to(units.meter)
+        for index in range(max_interpolated_points, len(hours) - max_interpolated_points):
+            # get the utm projection for the reference coordinate
+            utm_crs = utm_crs_from_longitude(coordinates[index][0])
+            transformer = Transformer.from_crs(wgs84, utm_crs)
+
+            along_error = values[index - max_interpolated_points].to(units.meter)
             along_sign = int(sign(along_error))
 
             projected_points = []
             track_index = index
             while len(projected_points) < max_interpolated_points:
-                if track_index < 0 or track_index > len(coordinates) - 1:
-                    break  # reached end of line
                 if (
                     track_index == index
                     or hours[track_index] != hours[track_index - along_sign]
@@ -707,7 +706,7 @@ class AlongTrack(VortexPerturbedVariable):
                     # get the x,y utm coordinate for this line string
                     projected_points.append(
                         transformer.transform(
-                            coordinates[track_index][0], coordinates[track_index][1],
+                            coordinates[track_index][1], coordinates[track_index][0],
                         )
                     )
                 track_index = track_index + along_sign
@@ -728,7 +727,7 @@ class AlongTrack(VortexPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
+        vortex_dataframe['latitude'], vortex_dataframe['longitude'] = zip(*new_coordinates)
         vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
