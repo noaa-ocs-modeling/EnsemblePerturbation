@@ -334,7 +334,7 @@ class CrossTrack(VortexPerturbedVariable):
                 ),
                 '>95kt': DataFrame(
                     {'mean error [nm]': [1.85, 7.79, 12.68, 17.92, 25.01, 40.48, 60.69, 79.98]},
-                    index=ERROR_INDICES_,NO_60H,
+                    index=ERROR_INDICES_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
