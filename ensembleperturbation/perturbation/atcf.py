@@ -226,8 +226,8 @@ class BackgroundPressure(VortexPerturbedVariable):
 class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     name = 'max_sustained_wind_speed'
     perturbation_type = PerturbationType.GAUSSIAN
-    #Reference - 2019_Psurge_Error_Update_FINAL.docx 
-    #Table 12: Adjusted intensity errors [kt] for 2015-2019
+    # Reference - 2019_Psurge_Error_Update_FINAL.docx
+    # Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=25,
@@ -242,7 +242,18 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
-                    {'mean error [kt]': [2.80, 7.94, 11.53, 13.27, 12.66, 13.41, 13.46, 13.55]},
+                    {
+                        'mean error [kt]': [
+                            2.80,
+                            7.94,
+                            11.53,
+                            13.27,
+                            12.66,
+                            13.41,
+                            13.46,
+                            13.55,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
             },
@@ -261,50 +272,140 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<15sm': DataFrame(
                     {
-                        'minimum error [sm]':
-                            [0.0, -13.82, -19.67, -21.37, -26.31, -32.71, -39.12, -46.80, -52.68],
-                        'maximum error [sm]':
-                            [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
+                        'minimum error [sm]': [
+                            0.0,
+                            -13.82,
+                            -19.67,
+                            -21.37,
+                            -26.31,
+                            -32.71,
+                            -39.12,
+                            -46.80,
+                            -52.68,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            1.27,
+                            0.22,
+                            1.02,
+                            0.00,
+                            -2.59,
+                            -5.18,
+                            -7.15,
+                            -12.91,
+                        ],
                     },
                     dtype=PintType(units.us_statute_mile),
                     index=ERROR_INDICES_60H,
                 ),
                 '15-25sm': DataFrame(
                     {
-                        'minimum error [sm]':
-                            [0.0, -10.47, -14.54, -20.35, -23.88, -21.78, -19.68, -24.24, -28.30],
-                        'maximum error [sm]': 
-                            [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
+                        'minimum error [sm]': [
+                            0.0,
+                            -10.47,
+                            -14.54,
+                            -20.35,
+                            -23.88,
+                            -21.78,
+                            -19.68,
+                            -24.24,
+                            -28.30,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            4.17,
+                            6.70,
+                            6.13,
+                            6.54,
+                            6.93,
+                            7.32,
+                            9.33,
+                            8.03,
+                        ],
                     },
                     dtype=PintType(units.us_statute_mile),
                     index=ERROR_INDICES_60H,
                 ),
                 '25-35sm': DataFrame(
                     {
-                        'minimum error [sm]': 
-                            [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
-                        'maximum error [sm]': 
-                            [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
+                        'minimum error [sm]': [
+                            0.0,
+                            -8.57,
+                            -13.41,
+                            -10.87,
+                            -9.26,
+                            -9.34,
+                            -9.42,
+                            -7.41,
+                            -7.40,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            8.21,
+                            10.62,
+                            13.93,
+                            15.62,
+                            16.04,
+                            16.46,
+                            16.51,
+                            16.70,
+                        ],
                     },
                     dtype=PintType(units.us_statute_mile),
                     index=ERROR_INDICES_60H,
                 ),
                 '35-45sm': DataFrame(
                     {
-                        'minimum error [sm]':
-                            [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
-                        'maximum error [sm]': 
-                            [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
+                        'minimum error [sm]': [
+                            0.0,
+                            -10.66,
+                            -7.64,
+                            -5.68,
+                            -3.25,
+                            -1.72,
+                            -0.19,
+                            3.65,
+                            2.59,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            14.77,
+                            17.85,
+                            22.07,
+                            27.60,
+                            27.08,
+                            26.56,
+                            26.80,
+                            28.30,
+                        ],
                     },
                     dtype=PintType(units.us_statute_mile),
                     index=ERROR_INDICES_60H,
                 ),
                 '>45sm': DataFrame(
                     {
-                        'minimum error [sm]': 
-                            [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
-                        'maximum error [sm]': 
-                            [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
+                        'minimum error [sm]': [
+                            0.0,
+                            -15.36,
+                            -10.37,
+                            3.14,
+                            12.10,
+                            12.21,
+                            12.33,
+                            6.66,
+                            7.19,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            21.43,
+                            29.96,
+                            37.22,
+                            39.27,
+                            39.10,
+                            38.93,
+                            34.40,
+                            35.93,
+                        ],
                     },
                     dtype=PintType(units.us_statute_mile),
                     index=ERROR_INDICES_60H,
@@ -317,23 +418,56 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
 class CrossTrack(VortexPerturbedVariable):
     name = 'cross_track'
     perturbation_type = PerturbationType.GAUSSIAN
-    #Reference - 2019_Psurge_Error_Update_FINAL.docx 
-    #Table 8: Adjusted cross-track errors [nm] for 2015-2019
+    # Reference - 2019_Psurge_Error_Update_FINAL.docx
+    # Table 8: Adjusted cross-track errors [nm] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=-inf,
             upper_bound=+inf,
             historical_forecast_errors={
                 '<50kt': DataFrame(
-                    {'mean error [nm]': [4.98, 16.16, 23.10, 28.95, 38.03, 56.88, 92.95, 119.67]},
+                    {
+                        'mean error [nm]': [
+                            4.98,
+                            16.16,
+                            23.10,
+                            28.95,
+                            38.03,
+                            56.88,
+                            92.95,
+                            119.67,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '50-95kt': DataFrame(
-                    {'mean error [nm]': [2.89, 11.58, 16.83, 21.10, 27.76, 47.51, 68.61, 103.45]},
+                    {
+                        'mean error [nm]': [
+                            2.89,
+                            11.58,
+                            16.83,
+                            21.10,
+                            27.76,
+                            47.51,
+                            68.61,
+                            103.45,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
-                    {'mean error [nm]': [1.85, 7.79, 12.68, 17.92, 25.01, 40.48, 60.69, 79.98]},
+                    {
+                        'mean error [nm]': [
+                            1.85,
+                            7.79,
+                            12.68,
+                            17.92,
+                            25.01,
+                            40.48,
+                            60.69,
+                            79.98,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
             },
@@ -440,23 +574,56 @@ class CrossTrack(VortexPerturbedVariable):
 class AlongTrack(VortexPerturbedVariable):
     name = 'along_track'
     perturbation_type = PerturbationType.GAUSSIAN
-    #Reference - 2019_Psurge_Error_Update_FINAL.docx 
-    #Table 7: Adjusted along-track errors [nm] for 2015-2019
+    # Reference - 2019_Psurge_Error_Update_FINAL.docx
+    # Table 7: Adjusted along-track errors [nm] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=-inf,
             upper_bound=+inf,
             historical_forecast_errors={
                 '<50kt': DataFrame(
-                    {'mean error [nm]': [6.33, 17.77, 26.66, 37.75, 51.07, 69.22, 108.59, 125.01]},
+                    {
+                        'mean error [nm]': [
+                            6.33,
+                            17.77,
+                            26.66,
+                            37.75,
+                            51.07,
+                            69.22,
+                            108.59,
+                            125.01,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '50-95kt': DataFrame(
-                    {'mean error [nm]': [3.68, 12.74, 19.43, 27.51, 37.28, 57.82, 80.15, 108.07]},
+                    {
+                        'mean error [nm]': [
+                            3.68,
+                            12.74,
+                            19.43,
+                            27.51,
+                            37.28,
+                            57.82,
+                            80.15,
+                            108.07,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
-                    {'mean error [nm]': [2.35, 8.57, 14.64, 23.36, 33.59, 49.26, 70.90, 83.55]},
+                    {
+                        'mean error [nm]': [
+                            2.35,
+                            8.57,
+                            14.64,
+                            23.36,
+                            33.59,
+                            49.26,
+                            70.90,
+                            83.55,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
             },
@@ -519,9 +686,9 @@ class AlongTrack(VortexPerturbedVariable):
 
         # loop over all coordinates
         new_coordinates = []
-        # range (1)-to-(len-1) is important because the (0) and (len) 
+        # range (1)-to-(len-1) is important because the (0) and (len)
         # indices are the locations of extrapolated track
-        for index in range(1,len(values)-1):
+        for index in range(1, len(values) - 1):
             along_error = values[index - 1].to(units.meter)
             along_sign = int(sign(along_error))
 
@@ -649,9 +816,9 @@ class VortexPerturber:
             number_of_perturbations = int(number_of_perturbations)
 
         if alphas is None:
-           alphas = [None]*number_of_perturbations
+            alphas = [None] * number_of_perturbations
         elif len(alphas) != number_of_perturbations:
-           raise ValueError('length of alphas list must equal number_of_perturbations')
+            raise ValueError('length of alphas list must equal number_of_perturbations')
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
@@ -727,7 +894,7 @@ class VortexPerturber:
                 )
 
                 # setting the alpha to the value from the input list
-                alpha = alphas[perturbation_index-1]
+                alpha = alphas[perturbation_index - 1]
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:

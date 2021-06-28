@@ -19,24 +19,27 @@ def test_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     # list of variables where perturbation is Gaussian
-    gauss_variables = [
-        MaximumSustainedWindSpeed,
-        CrossTrack
-    ]
-    #AlongTrack,
+    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
+    # AlongTrack,
     perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
     perturber.write(
-        number_of_perturbations=2, variables=gauss_variables, directory=output_directory, alphas=[-1.0,1.0],
+        number_of_perturbations=2,
+        variables=gauss_variables,
+        directory=output_directory,
+        alphas=[-1.0, 1.0],
     )
-   
-    # list of variables where perturbation is bounded in the range [0,1) 
+
+    # list of variables where perturbation is bounded in the range [0,1)
     range_variables = [RadiusOfMaximumWinds]
     perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
     perturber.write(
-        number_of_perturbations=2, variables=range_variables, directory=output_directory, alphas=[0.25,0.75],
+        number_of_perturbations=2,
+        variables=range_variables,
+        directory=output_directory,
+        alphas=[0.25, 0.75],
     )
-    
-    #check_reference_directory(output_directory, reference_directory)
+
+    # check_reference_directory(output_directory, reference_directory)
 
 
 def test_vortex_types():
