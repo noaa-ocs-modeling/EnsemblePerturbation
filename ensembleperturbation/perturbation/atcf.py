@@ -490,23 +490,25 @@ class CrossTrack(VortexPerturbedVariable):
         # Get the coordinates of the track
         track_coords = vortex_dataframe[['longitude', 'latitude']].values.tolist()
 
-        # get the utm projection for the reference coordinate
-        utm_crs = utm_crs_from_longitude(numpy.mean(track_coords[0]))
+        # set the EPSG of the track coordinates
         wgs84 = CRS.from_epsg(4326)
-        transformer = Transformer.from_crs(wgs84, utm_crs)
 
         times = (times / timedelta(hours=1)).values * units.hours
 
         # loop over all coordinates
         new_coordinates = []
         for track_coord_index in range(0, len(track_coords)):
+            # get the utm projection for the reference coordinate
+            utm_crs = utm_crs_from_longitude(track_coords[track_coord_index][0])
+            transformer = Transformer.from_crs(wgs84, utm_crs)
+
             # get the current cross_track_error
             cross_track_error = values[track_coord_index].to(units.meter)
 
             # get the location of the original reference coordinate
             x_ref, y_ref = (
                 transformer.transform(
-                    track_coords[track_coord_index][0], track_coords[track_coord_index][1],
+                    track_coords[track_coord_index][1], track_coords[track_coord_index][0],
                 )
                 * units.meter
             )
@@ -522,7 +524,7 @@ class CrossTrack(VortexPerturbedVariable):
 
             # get previous projected coordinate
             x_p, y_p = (
-                transformer.transform(track_coords[idx_p][0], track_coords[idx_p][1])
+                transformer.transform(track_coords[idx_p][1], track_coords[idx_p][0])
                 * units.meter
             )
 
@@ -540,7 +542,7 @@ class CrossTrack(VortexPerturbedVariable):
 
             # get previous projected coordinate
             x_n, y_n = (
-                transformer.transform(track_coords[idx_n][0], track_coords[idx_n][1])
+                transformer.transform(track_coords[idx_n][1], track_coords[idx_n][0])
                 * units.meter
             )
 
@@ -562,7 +564,7 @@ class CrossTrack(VortexPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
+        vortex_dataframe['latitude'], vortex_dataframe['longitude'] = zip(*new_coordinates)
         vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
@@ -1034,7 +1036,10 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, 
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
     """
 
-    if x1 == x2:
+    if x1 == x2 and y1 == y2:
+        dx = 0
+        dy = 0
+    elif x1 == x2:
         dx = d
         dy = 0
     elif y1 == y2:
