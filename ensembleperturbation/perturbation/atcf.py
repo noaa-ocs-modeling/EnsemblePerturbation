@@ -35,6 +35,7 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 """
 
 from abc import ABC
+from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
 from math import exp, inf, sqrt
@@ -939,11 +940,12 @@ class VortexPerturber:
                         perturbed_data[column] = perturbed_data[column].pint.magnitude
 
                 # reset the dataframe
-                self.forcing.dataframe = perturbed_data
+                perturbed_forcing = copy(self.forcing)
+                perturbed_forcing.dataframe = perturbed_data
 
                 # write out the modified fort.22
                 output_filename = directory / f'{variable.name}_{perturbation_index}.22'
-                self.forcing.write(
+                perturbed_forcing.write(
                     output_filename, overwrite=True,
                 )
                 output_filenames.append(output_filename)

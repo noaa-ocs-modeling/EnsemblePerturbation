@@ -90,34 +90,43 @@ def test_original_file():
 
     original_data = open(reference_directory / 'original.22').read()
 
-    gauss_variables = [
-        MaximumSustainedWindSpeed,
-        CrossTrack
-    ]
+    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
 
     perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
 
     perturber.write(
-        number_of_perturbations=2, variables=gauss_variables, directory=run_1_directory, alphas=[-1.0, 1.0],
+        number_of_perturbations=2,
+        variables=gauss_variables,
+        directory=run_1_directory,
+        alphas=[-1.0, 1.0],
     )
 
     assert open(run_1_directory / 'original.22').read() == original_data
 
     perturber.write(
-        number_of_perturbations=2, variables=range_variables, directory=run_1_directory, alphas=[0.25, 0.75],
+        number_of_perturbations=2,
+        variables=gauss_variables,
+        directory=run_1_directory,
+        alphas=[-1.0, 1.0],
     )
 
     assert open(run_1_directory / 'original.22').read() == original_data
 
     perturber.write(
-        number_of_perturbations=2, variables=range_variables, directory=run_2_directory, alphas=[0.25, 0.75],
+        number_of_perturbations=2,
+        variables=gauss_variables,
+        directory=run_2_directory,
+        alphas=[-1.0, 1.0],
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
 
     perturber.write(
-        number_of_perturbations=2, variables=gauss_variables, directory=run_2_directory, alphas=[-1.0, 1.0],
+        number_of_perturbations=2,
+        variables=range_variables,
+        directory=run_2_directory,
+        alphas=[0.25, 0.75],
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
