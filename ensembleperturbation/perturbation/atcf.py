@@ -46,7 +46,7 @@ from typing import Union
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
-from pandas import DataFrame, Series
+from pandas import DataFrame
 import pint
 from pint_pandas import PintType
 from pyproj import CRS, Transformer
@@ -803,7 +803,7 @@ class VortexPerturber:
         number_of_perturbations: int,
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
-        alphas: float = None,
+        alphas: [float] = None,
     ) -> [Path]:
         """
         :param number_of_perturbations: number of perturbations to create
@@ -815,10 +815,13 @@ class VortexPerturber:
         if number_of_perturbations is not None:
             number_of_perturbations = int(number_of_perturbations)
 
+        if isinstance(alphas, float):
+            alphas = [alphas]
+
         if alphas is None:
             alphas = [None] * number_of_perturbations
         elif len(alphas) != number_of_perturbations:
-            raise ValueError('length of alphas list must equal number_of_perturbations')
+            raise ValueError(f'alphas list must have {number_of_perturbations} items')
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
