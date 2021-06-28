@@ -506,6 +506,17 @@ class VortexForcing:
             if date >= numpy.datetime64(self.end_date):
                 return date
 
+    def __copy__(self) -> 'VortexForcing':
+        instance = self.__class__(
+            storm=self.storm_id,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            file_deck=self.file_deck,
+            requested_record_type=self.requested_record_type,
+        )
+        instance.dataframe = self.dataframe.copy()
+        return instance
+
     def __str__(self):
         record_number = self.__generate_record_numbers()
         lines = []
