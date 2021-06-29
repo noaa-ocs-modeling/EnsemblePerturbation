@@ -227,6 +227,7 @@ class BackgroundPressure(VortexPerturbedVariable):
 class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     name = 'max_sustained_wind_speed'
     perturbation_type = PerturbationType.GAUSSIAN
+
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
@@ -419,6 +420,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
 class CrossTrack(VortexPerturbedVariable):
     name = 'cross_track'
     perturbation_type = PerturbationType.GAUSSIAN
+
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 8: Adjusted cross-track errors [nm] for 2015-2019
     def __init__(self):
@@ -577,6 +579,7 @@ class CrossTrack(VortexPerturbedVariable):
 class AlongTrack(VortexPerturbedVariable):
     name = 'along_track'
     perturbation_type = PerturbationType.GAUSSIAN
+
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 7: Adjusted along-track errors [nm] for 2015-2019
     def __init__(self):
@@ -673,7 +676,7 @@ class AlongTrack(VortexPerturbedVariable):
             [unique_points[-1] - unique_points[-2]], max_interpolated_points, axis=0
         ) * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1)
         coordinates = numpy.concatenate(
-            [coordinates[0] - previous_diffs, coordinates, coordinates[-1] + after_diffs,]
+            [coordinates[0] - previous_diffs, coordinates, coordinates[-1] + after_diffs]
         )
 
         # adding pseudo-VT times to the ends
@@ -813,6 +816,7 @@ class VortexPerturber:
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
         :param alphas: list of floats meant to represent a point on the standard Gaussian distribution (see random.gauss function) for all variables except for "radius_of_maximum_winds" where should be list of floats in range [0, 1) (see random.random function). These alpha values are used to multiply error for perturbation; leave None for random
+        :returns: written filenames
         """
 
         if number_of_perturbations is not None:
