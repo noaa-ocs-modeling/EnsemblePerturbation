@@ -35,6 +35,7 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 """
 
 from abc import ABC
+from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
 from math import exp, inf, sqrt
@@ -46,7 +47,7 @@ from typing import Union
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
-from pandas import DataFrame, Series
+from pandas import DataFrame
 import pint
 from pint_pandas import PintType
 from pyproj import CRS, Transformer
@@ -62,7 +63,7 @@ E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
 ERROR_INDICES_NO_60H = [0, 12, 24, 36, 48, 72, 96, 120]  # no 60-hr data
-ERROR_INDICES_60HR = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+ERROR_INDICES_60H = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
 
 
 class PerturbationType(Enum):
@@ -227,6 +228,8 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     name = 'max_sustained_wind_speed'
     perturbation_type = PerturbationType.GAUSSIAN
 
+    # Reference - 2019_Psurge_Error_Update_FINAL.docx
+    # Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=25,
@@ -271,89 +274,143 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<15sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [
-                                0.0,
-                                -13.82,
-                                -19.67,
-                                -21.37,
-                                -26.31,
-                                -32.71,
-                                -39.12,
-                                -46.80,
-                                -52.68,
-                            ],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
-                            [0.0, 1.27, 0.22, 1.02, 0.00, -2.59, -5.18, -7.15, -12.91],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
+                        'minimum error [sm]': [
+                            0.0,
+                            -13.82,
+                            -19.67,
+                            -21.37,
+                            -26.31,
+                            -32.71,
+                            -39.12,
+                            -46.80,
+                            -52.68,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            1.27,
+                            0.22,
+                            1.02,
+                            0.00,
+                            -2.59,
+                            -5.18,
+                            -7.15,
+                            -12.91,
+                        ],
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '15-25sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [
-                                0.0,
-                                -10.47,
-                                -14.54,
-                                -20.35,
-                                -23.88,
-                                -21.78,
-                                -19.68,
-                                -24.24,
-                                -28.30,
-                            ],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
-                            [0.0, 4.17, 6.70, 6.13, 6.54, 6.93, 7.32, 9.33, 8.03],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
+                        'minimum error [sm]': [
+                            0.0,
+                            -10.47,
+                            -14.54,
+                            -20.35,
+                            -23.88,
+                            -21.78,
+                            -19.68,
+                            -24.24,
+                            -28.30,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            4.17,
+                            6.70,
+                            6.13,
+                            6.54,
+                            6.93,
+                            7.32,
+                            9.33,
+                            8.03,
+                        ],
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '25-35sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [0.0, -8.57, -13.41, -10.87, -9.26, -9.34, -9.42, -7.41, -7.40],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
-                            [0.0, 8.21, 10.62, 13.93, 15.62, 16.04, 16.46, 16.51, 16.70],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
+                        'minimum error [sm]': [
+                            0.0,
+                            -8.57,
+                            -13.41,
+                            -10.87,
+                            -9.26,
+                            -9.34,
+                            -9.42,
+                            -7.41,
+                            -7.40,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            8.21,
+                            10.62,
+                            13.93,
+                            15.62,
+                            16.04,
+                            16.46,
+                            16.51,
+                            16.70,
+                        ],
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '35-45sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [0.0, -10.66, -7.64, -5.68, -3.25, -1.72, -0.19, 3.65, 2.59],
-                            index=ERROR_INDICES_60HR,
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
-                            [0.0, 14.77, 17.85, 22.07, 27.60, 27.08, 26.56, 26.80, 28.30],
-                            index=ERROR_INDICES_60HR,
-                            dtype=PintType(units.us_statute_mile),
-                        ),
+                        'minimum error [sm]': [
+                            0.0,
+                            -10.66,
+                            -7.64,
+                            -5.68,
+                            -3.25,
+                            -1.72,
+                            -0.19,
+                            3.65,
+                            2.59,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            14.77,
+                            17.85,
+                            22.07,
+                            27.60,
+                            27.08,
+                            26.56,
+                            26.80,
+                            28.30,
+                        ],
                     },
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
                 '>45sm': DataFrame(
                     {
-                        'minimum error [nm]': Series(
-                            [0.0, -15.36, -10.37, 3.14, 12.10, 12.21, 12.33, 6.66, 7.19],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
-                        'maximum error [nm]': Series(
-                            [0.0, 21.43, 29.96, 37.22, 39.27, 39.10, 38.93, 34.40, 35.93],
-                            dtype=PintType(units.us_statute_mile),
-                        ),
+                        'minimum error [sm]': [
+                            0.0,
+                            -15.36,
+                            -10.37,
+                            3.14,
+                            12.10,
+                            12.21,
+                            12.33,
+                            6.66,
+                            7.19,
+                        ],
+                        'maximum error [sm]': [
+                            0.0,
+                            21.43,
+                            29.96,
+                            37.22,
+                            39.27,
+                            39.10,
+                            38.93,
+                            34.40,
+                            35.93,
+                        ],
                     },
-                    index=ERROR_INDICES_60HR,
+                    dtype=PintType(units.us_statute_mile),
+                    index=ERROR_INDICES_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -364,30 +421,54 @@ class CrossTrack(VortexPerturbedVariable):
     name = 'cross_track'
     perturbation_type = PerturbationType.GAUSSIAN
 
+    # Reference - 2019_Psurge_Error_Update_FINAL.docx
+    # Table 8: Adjusted cross-track errors [nm] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=-inf,
             upper_bound=+inf,
             historical_forecast_errors={
                 '<50kt': DataFrame(
-                    {'mean error [nm]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    {
+                        'mean error [nm]': [
+                            4.98,
+                            16.16,
+                            23.10,
+                            28.95,
+                            38.03,
+                            56.88,
+                            92.95,
+                            119.67,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '50-95kt': DataFrame(
-                    {'mean error [nm]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    {
+                        'mean error [nm]': [
+                            2.89,
+                            11.58,
+                            16.83,
+                            21.10,
+                            27.76,
+                            47.51,
+                            68.61,
+                            103.45,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
                         'mean error [nm]': [
-                            2.80,
-                            7.94,
-                            11.53,
-                            13.27,
-                            12.66,
-                            13.41,
-                            13.46,
-                            13.55,
+                            1.85,
+                            7.79,
+                            12.68,
+                            17.92,
+                            25.01,
+                            40.48,
+                            60.69,
+                            79.98,
                         ]
                     },
                     index=ERROR_INDICES_NO_60H,
@@ -412,23 +493,25 @@ class CrossTrack(VortexPerturbedVariable):
         # Get the coordinates of the track
         track_coords = vortex_dataframe[['longitude', 'latitude']].values.tolist()
 
-        # get the utm projection for the reference coordinate
-        utm_crs = utm_crs_from_longitude(numpy.mean(track_coords[0]))
+        # set the EPSG of the track coordinates
         wgs84 = CRS.from_epsg(4326)
-        transformer = Transformer.from_crs(wgs84, utm_crs)
 
         times = (times / timedelta(hours=1)).values * units.hours
 
         # loop over all coordinates
         new_coordinates = []
         for track_coord_index in range(0, len(track_coords)):
+            # get the utm projection for the reference coordinate
+            utm_crs = utm_crs_from_longitude(track_coords[track_coord_index][0])
+            transformer = Transformer.from_crs(wgs84, utm_crs)
+
             # get the current cross_track_error
             cross_track_error = values[track_coord_index].to(units.meter)
 
             # get the location of the original reference coordinate
             x_ref, y_ref = (
                 transformer.transform(
-                    track_coords[track_coord_index][0], track_coords[track_coord_index][1],
+                    track_coords[track_coord_index][1], track_coords[track_coord_index][0],
                 )
                 * units.meter
             )
@@ -444,7 +527,7 @@ class CrossTrack(VortexPerturbedVariable):
 
             # get previous projected coordinate
             x_p, y_p = (
-                transformer.transform(track_coords[idx_p][0], track_coords[idx_p][1])
+                transformer.transform(track_coords[idx_p][1], track_coords[idx_p][0])
                 * units.meter
             )
 
@@ -462,7 +545,7 @@ class CrossTrack(VortexPerturbedVariable):
 
             # get previous projected coordinate
             x_n, y_n = (
-                transformer.transform(track_coords[idx_n][0], track_coords[idx_n][1])
+                transformer.transform(track_coords[idx_n][1], track_coords[idx_n][0])
                 * units.meter
             )
 
@@ -484,7 +567,7 @@ class CrossTrack(VortexPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
+        vortex_dataframe['latitude'], vortex_dataframe['longitude'] = zip(*new_coordinates)
         vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
@@ -497,30 +580,54 @@ class AlongTrack(VortexPerturbedVariable):
     name = 'along_track'
     perturbation_type = PerturbationType.GAUSSIAN
 
+    # Reference - 2019_Psurge_Error_Update_FINAL.docx
+    # Table 7: Adjusted along-track errors [nm] for 2015-2019
     def __init__(self):
         super().__init__(
             lower_bound=-inf,
             upper_bound=+inf,
             historical_forecast_errors={
                 '<50kt': DataFrame(
-                    {'mean error [nm]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    {
+                        'mean error [nm]': [
+                            6.33,
+                            17.77,
+                            26.66,
+                            37.75,
+                            51.07,
+                            69.22,
+                            108.59,
+                            125.01,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '50-95kt': DataFrame(
-                    {'mean error [nm]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    {
+                        'mean error [nm]': [
+                            3.68,
+                            12.74,
+                            19.43,
+                            27.51,
+                            37.28,
+                            57.82,
+                            80.15,
+                            108.07,
+                        ]
+                    },
                     index=ERROR_INDICES_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
                         'mean error [nm]': [
-                            2.80,
-                            7.94,
-                            11.53,
-                            13.27,
-                            12.66,
-                            13.41,
-                            13.46,
-                            13.55,
+                            2.35,
+                            8.57,
+                            14.64,
+                            23.36,
+                            33.59,
+                            49.26,
+                            70.90,
+                            83.55,
                         ]
                     },
                     index=ERROR_INDICES_NO_60H,
@@ -547,10 +654,8 @@ class AlongTrack(VortexPerturbedVariable):
         # Get the coordinates of the track
         coordinates = vortex_dataframe[['longitude', 'latitude']].values
 
-        # get the utm projection for the reference coordinate
-        utm_crs = utm_crs_from_longitude(numpy.mean(coordinates[:, 0]))
+        # set the EPSG of the track coordinates
         wgs84 = CRS.from_epsg(4326)
-        transformer = Transformer.from_crs(wgs84, utm_crs)
 
         hours = (times / timedelta(hours=1)).values
 
@@ -564,13 +669,14 @@ class AlongTrack(VortexPerturbedVariable):
             numpy.repeat(
                 [unique_points[1] - unique_points[0]], max_interpolated_points, axis=0
             )
-            * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1)
+            * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1),
+            axis=0,
         )
         after_diffs = numpy.repeat(
             [unique_points[-1] - unique_points[-2]], max_interpolated_points, axis=0
         ) * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1)
         coordinates = numpy.concatenate(
-            [coordinates[0] - previous_diffs, coordinates, coordinates[-1] + after_diffs,]
+            [coordinates[0] - previous_diffs, coordinates, coordinates[-1] + after_diffs]
         )
 
         # adding pseudo-VT times to the ends
@@ -585,15 +691,18 @@ class AlongTrack(VortexPerturbedVariable):
 
         # loop over all coordinates
         new_coordinates = []
-        for index in range(len(values)):
-            along_error = values[index - 1].to(units.meter)
+        # indices are the locations of extrapolated track
+        for index in range(max_interpolated_points, len(hours) - max_interpolated_points):
+            # get the utm projection for the reference coordinate
+            utm_crs = utm_crs_from_longitude(coordinates[index][0])
+            transformer = Transformer.from_crs(wgs84, utm_crs)
+
+            along_error = values[index - max_interpolated_points].to(units.meter)
             along_sign = int(sign(along_error))
 
             projected_points = []
             track_index = index
             while len(projected_points) < max_interpolated_points:
-                if track_index < 0 or track_index > len(coordinates) - 1:
-                    break  # reached end of line
                 if (
                     track_index == index
                     or hours[track_index] != hours[track_index - along_sign]
@@ -601,12 +710,12 @@ class AlongTrack(VortexPerturbedVariable):
                     # get the x,y utm coordinate for this line string
                     projected_points.append(
                         transformer.transform(
-                            coordinates[track_index][0], coordinates[track_index][1],
+                            coordinates[track_index][1], coordinates[track_index][0],
                         )
                     )
                 track_index = track_index + along_sign
 
-                # make the temporary line segment
+            # make the temporary line segment
             line_segment = LineString(projected_points)
 
             # interpolate a distance "along_error" along the line
@@ -622,7 +731,7 @@ class AlongTrack(VortexPerturbedVariable):
             )
 
         degree = PintType(units.degree)
-        vortex_dataframe['longitude'], vortex_dataframe['latitude'] = zip(*new_coordinates)
+        vortex_dataframe['latitude'], vortex_dataframe['longitude'] = zip(*new_coordinates)
         vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
             degree, copy=False
         )
@@ -700,17 +809,26 @@ class VortexPerturber:
         number_of_perturbations: int,
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
-        alpha: float = None,
+        alphas: [float] = None,
     ) -> [Path]:
         """
         :param number_of_perturbations: number of perturbations to create
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
-        :param alpha: value between [0, 1) with which to multiply error for perturbation; leave None for random
+        :param alphas: list of floats meant to represent a point on the standard Gaussian distribution (see random.gauss function) for all variables except for "radius_of_maximum_winds" where should be list of floats in range [0, 1) (see random.random function). These alpha values are used to multiply error for perturbation; leave None for random
+        :returns: written filenames
         """
 
         if number_of_perturbations is not None:
             number_of_perturbations = int(number_of_perturbations)
+
+        if isinstance(alphas, float):
+            alphas = [alphas]
+
+        if alphas is None:
+            alphas = [None] * number_of_perturbations
+        elif len(alphas) != number_of_perturbations:
+            raise ValueError(f'alphas list must have {number_of_perturbations} items')
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
@@ -720,6 +838,8 @@ class VortexPerturber:
             directory = Path.cwd()
         elif not isinstance(directory, Path):
             directory = Path(directory)
+        if not directory.exists():
+            directory.mkdir(parents=True, exist_ok=True)
 
         # write out original fort.22
         self.forcing.write(directory / 'original.22', overwrite=True)
@@ -785,6 +905,8 @@ class VortexPerturber:
                     copy=False,
                 )
 
+                # setting the alpha to the value from the input list
+                alpha = alphas[perturbation_index - 1]
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:
@@ -802,7 +924,6 @@ class VortexPerturber:
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     if alpha is None:
                         alpha = random()
-
                     print(f'Random number in [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                     if variable.unit is not None and variable.unit != units.dimensionless:
@@ -825,11 +946,12 @@ class VortexPerturber:
                         perturbed_data[column] = perturbed_data[column].pint.magnitude
 
                 # reset the dataframe
-                self.forcing.dataframe = perturbed_data
+                perturbed_forcing = copy(self.forcing)
+                perturbed_forcing.dataframe = perturbed_data
 
                 # write out the modified fort.22
                 output_filename = directory / f'{variable.name}_{perturbation_index}.22'
-                self.forcing.write(
+                perturbed_forcing.write(
                     output_filename, overwrite=True,
                 )
                 output_filenames.append(output_filename)
@@ -922,7 +1044,10 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, 
       - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
     """
 
-    if x1 == x2:
+    if x1 == x2 and y1 == y2:
+        dx = 0
+        dy = 0
+    elif x1 == x2:
         dx = d
         dy = 0
     elif y1 == y2:
