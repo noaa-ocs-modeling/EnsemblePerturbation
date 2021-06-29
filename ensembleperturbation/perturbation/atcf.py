@@ -838,6 +838,8 @@ class VortexPerturber:
             directory = Path.cwd()
         elif not isinstance(directory, Path):
             directory = Path(directory)
+        if not directory.exists():
+            directory.mkdir(parents=True, exist_ok=True)
 
         # write out original fort.22
         self.forcing.write(directory / 'original.22', overwrite=True)
