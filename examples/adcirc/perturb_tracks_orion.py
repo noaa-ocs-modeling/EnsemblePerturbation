@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 from datetime import datetime, timedelta
+import os
 from pathlib import Path
 
 import click
@@ -166,6 +167,7 @@ if __name__ == '__main__':
     configuration.write_directory(OUTPUT_DIRECTORY, overwrite=True)
 
     if click.confirm('generate configuration?', default=True):
+        os.chdir(OUTPUT_DIRECTORY)
         generate_adcirc_configuration(OUTPUT_DIRECTORY, overwrite=True)
 
     print('done')
