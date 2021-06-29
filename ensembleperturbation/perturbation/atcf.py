@@ -666,7 +666,8 @@ class AlongTrack(VortexPerturbedVariable):
             numpy.repeat(
                 [unique_points[1] - unique_points[0]], max_interpolated_points, axis=0
             )
-            * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1)
+            * numpy.expand_dims(numpy.arange(1, max_interpolated_points + 1), axis=1),
+            axis=0,
         )
         after_diffs = numpy.repeat(
             [unique_points[-1] - unique_points[-2]], max_interpolated_points, axis=0
