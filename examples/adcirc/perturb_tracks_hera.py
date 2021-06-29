@@ -24,18 +24,12 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('perturb.adcirc')
 
-SHARED_DIRECTORY = Path('/scratch2/COASTAL/coastal/save/shared')
-OUTPUT_DIRECTORY = (
-    SHARED_DIRECTORY
-    / 'working'
-    / 'zach'
-    / 'adcirc'
-    / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
-)
-TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
-
+OUTPUT_DIRECTORY = Path(__file__) / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
 if not OUTPUT_DIRECTORY.exists():
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
+SHARED_DIRECTORY = Path('/scratch2/COASTAL/coastal/save/shared')
+TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
 if not TRACK_DIRECTORY.exists():
     TRACK_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
