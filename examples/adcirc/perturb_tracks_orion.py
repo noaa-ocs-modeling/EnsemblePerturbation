@@ -10,6 +10,7 @@ from coupledmodeldriver.generate import (
     generate_adcirc_configuration,
     NEMSADCIRCRunConfiguration,
 )
+import numpy
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -92,21 +93,28 @@ if __name__ == '__main__':
         ),
     ]
 
-    variables = [
-        MaximumSustainedWindSpeed,
-        RadiusOfMaximumWinds,
-        AlongTrack,
-        CrossTrack,
-    ]
-
     perturber = VortexPerturber(
         storm=STORM,
         start_date=MODELED_START_TIME,
         end_date=MODELED_START_TIME + MODELED_DURATION,
     )
 
+    number_of_perturbations = 3
+
+    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
     track_filenames = perturber.write(
-        number_of_perturbations=3, variables=variables, directory=TRACK_DIRECTORY, alpha=0.5,
+        number_of_perturbations=number_of_perturbations,
+        variables=gauss_variables,
+        directory=TRACK_DIRECTORY,
+        alphas=numpy.linspace(0.25, 0.75, number_of_perturbations),
+    )
+
+    range_variables = [RadiusOfMaximumWinds]
+    track_filenames += perturber.write(
+        number_of_perturbations=number_of_perturbations,
+        variables=range_variables,
+        directory=TRACK_DIRECTORY,
+        alphas=numpy.linspace(-1, 1, number_of_perturbations),
     )
 
     perturbations = {
