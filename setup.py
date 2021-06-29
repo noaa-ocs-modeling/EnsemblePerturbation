@@ -79,9 +79,10 @@ setup(
     python_requires='>=3.6',
     setup_requires=['dunamai', 'setuptools>=41.2'],
     install_requires=[
-        'adcircpy>=1.0.32',
+        'appdirs',
         'bs4',
-        'coupledmodeldriver',
+        'click',
+        'coupledmodeldriver>=1.2.25',
         'fiona',
         'geopandas',
         'matplotlib',
@@ -89,9 +90,11 @@ setup(
         'netcdf4',
         'numpy',
         'pandas',
+        'pint',
+        'pint-pandas',
         'pyproj>=2.6',
+        'python-dateutil',
         'requests',
-        'requests_futures',
         'shapely',
     ],
     extras_require={
@@ -99,9 +102,6 @@ setup(
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={
-        'console_scripts': [
-            'initialize_adcirc=client.initialize_adcirc:main',
-            'generate_adcirc=client.generate_adcirc:main',
-        ],
+        'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main',],
     },
 )

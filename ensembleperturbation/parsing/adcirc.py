@@ -11,7 +11,9 @@ from pandas import DataFrame
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
-from ensembleperturbation.plotting import LOGGER
+from ensembleperturbation.utilities import get_logger
+
+LOGGER = get_logger('parse.adcirc')
 
 ADCIRC_OUTPUTS = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)

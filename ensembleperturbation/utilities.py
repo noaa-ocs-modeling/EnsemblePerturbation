@@ -4,8 +4,13 @@ from pathlib import Path
 import sys
 
 import numpy
+import pint
+from pint_pandas import PintType
 from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point
+
+units = pint.UnitRegistry()
+PintType.ureg = units
 
 
 def repository_root(path: PathLike = None) -> Path:
