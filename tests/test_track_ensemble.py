@@ -38,7 +38,7 @@ def test_besttrack_ensemble():
         alphas=[0.25, 0.75],
     )
 
-    # check_reference_directory(output_directory, reference_directory)
+    check_reference_directory(output_directory, reference_directory)
 
 
 def test_vortex_types():
