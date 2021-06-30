@@ -24,7 +24,7 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('perturb.adcirc')
 
-OUTPUT_DIRECTORY = Path(__file__) / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
+OUTPUT_DIRECTORY = Path(__file__).parent / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
 if not OUTPUT_DIRECTORY.exists():
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
