@@ -520,7 +520,14 @@ class VortexForcing:
     def __str__(self):
         record_number = self.__generate_record_numbers()
         lines = []
-        for i, (_, row) in enumerate(self.data.iterrows()):
+
+        dataframe = self.data
+
+        for column in dataframe.select_dtypes(include=['float']):
+            if column not in ['latitude', 'longitude']:
+                dataframe[column] = dataframe[column].round(0).astype('Int64', copy=False)
+
+        for i, (_, row) in enumerate(dataframe.iterrows()):
             line = []
 
             line.extend(
@@ -649,10 +656,9 @@ class VortexForcing:
                 speed = speed.to(units.nautical_mile / units.hour)
                 bearing = inverse_azimuth % 360 * units.degree
 
-                data['speed'][unique_datetime_index] = int(numpy.around(speed.magnitude, 0))
-                data['direction'][unique_datetime_index] = int(
-                    numpy.around(bearing.magnitude, 0)
-                )
+                data['speed'][unique_datetime_index] = speed.magnitude
+                data['direction'][unique_datetime_index] = bearing.magnitude
+
         return data
 
     @classmethod
