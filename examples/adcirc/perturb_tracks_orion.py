@@ -76,7 +76,7 @@ MODULEFILE = (
     / 'modulefiles'
     / 'envmodules_intel.orion'
 )
-JOB_DURATION = timedelta(hours=6)
+JOB_DURATION = timedelta(minutes=30)
 
 if __name__ == '__main__':
     forcing_configurations = [
