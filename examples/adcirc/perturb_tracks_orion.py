@@ -74,7 +74,7 @@ MODULEFILE = (
     / 'repositories'
     / 'ADC-WW3-NWM-NEMS'
     / 'modulefiles'
-    / 'envmodules_intel.hera'
+    / 'envmodules_intel.orion'
 )
 JOB_DURATION = timedelta(hours=6)
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     )
 
     perturbations = {
-        f'besttrack_{index}': {'besttrack': {'fort22_filename': track_filename}}
+        f'besttrack_{index}': {'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, OUTPUT_DIRECTORY))}}
         for index, track_filename in enumerate(track_filenames)
     }
 
