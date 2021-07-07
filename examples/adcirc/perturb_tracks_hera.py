@@ -94,7 +94,7 @@ if __name__ == '__main__':
         end_date=MODELED_START_TIME + MODELED_DURATION,
     )
 
-    number_of_perturbations = 3
+    number_of_perturbations = 2
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
 
