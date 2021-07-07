@@ -96,8 +96,10 @@ if __name__ == '__main__':
 
     number_of_perturbations = 3
 
+    track_filenames = [TRACK_DIRECTORY / 'original.22']
+
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
-    track_filenames = perturber.write(
+    track_filenames += perturber.write(
         number_of_perturbations=number_of_perturbations,
         variables=gauss_variables,
         directory=TRACK_DIRECTORY,
