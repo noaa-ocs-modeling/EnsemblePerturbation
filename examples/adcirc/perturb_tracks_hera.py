@@ -94,28 +94,32 @@ if __name__ == '__main__':
         end_date=MODELED_START_TIME + MODELED_DURATION,
     )
 
-    number_of_perturbations = 2
+    variable_perturbations = {
+        CrossTrack: {'perturbations': 10, 'min': 0.25, 'max': 0.75},
+        AlongTrack: {'perturbations': 5, 'min': 0.25, 'max': 0.75},
+        RadiusOfMaximumWinds: {'perturbations': 3, 'min': 0.25, 'max': 0.75},
+        MaximumSustainedWindSpeed: {'perturbations': 4, 'min': -1, 'max': 1},
+    }
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
-
-    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
-    track_filenames += perturber.write(
-        number_of_perturbations=number_of_perturbations,
-        variables=gauss_variables,
-        directory=TRACK_DIRECTORY,
-        alphas=numpy.linspace(0.25, 0.75, number_of_perturbations),
-    )
-
-    range_variables = [RadiusOfMaximumWinds]
-    track_filenames += perturber.write(
-        number_of_perturbations=number_of_perturbations,
-        variables=range_variables,
-        directory=TRACK_DIRECTORY,
-        alphas=numpy.linspace(-1, 1, number_of_perturbations),
-    )
+    for variable, variable_perturbation in variable_perturbations.items():
+        track_filenames += perturber.write(
+            number_of_perturbations=variable_perturbation['perturbations'],
+            variables=variable,
+            directory=TRACK_DIRECTORY,
+            alphas=numpy.linspace(
+                variable_perturbation['min'],
+                variable_perturbation['max'],
+                variable_perturbation['perturbations'],
+            ),
+        )
 
     perturbations = {
-        f'besttrack_{index}': {'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, OUTPUT_DIRECTORY))}}
+        f'besttrack_{index}': {
+            'besttrack': {
+                'fort22_filename': Path(os.path.relpath(track_filename, OUTPUT_DIRECTORY))
+            }
+        }
         for index, track_filename in enumerate(track_filenames)
     }
 
