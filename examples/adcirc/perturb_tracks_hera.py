@@ -105,7 +105,7 @@ if __name__ == '__main__':
     for variable, variable_perturbation in variable_perturbations.items():
         track_filenames += perturber.write(
             number_of_perturbations=variable_perturbation['perturbations'],
-            variables=variable,
+            variables=[variable],
             directory=TRACK_DIRECTORY,
             alphas=numpy.linspace(
                 variable_perturbation['min'],
