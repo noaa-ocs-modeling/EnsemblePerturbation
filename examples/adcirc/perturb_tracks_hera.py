@@ -32,6 +32,7 @@ SHARED_DIRECTORY = Path('/scratch2/COASTAL/coastal/save/shared')
 TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
 if not TRACK_DIRECTORY.exists():
     TRACK_DIRECTORY.mkdir(parents=True, exist_ok=True)
+ORIGINAL_TRACK_FILENAME = TRACK_DIRECTORY / 'fort.22'
 
 # start and end times for model
 STORM = 'al062018'
@@ -61,38 +62,61 @@ NEMS_SEQUENCE = [
 PLATFORM = Platform.HERA
 ADCIRC_PROCESSORS = 15 * PLATFORM.value['processors_per_node']
 NEMS_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'NEMS' / 'exe' / 'NEMS.x'
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'NEMS' / 'exe' / 'NEMS.x'
 )
 ADCIRC_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'padcirc'
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'ADCIRC' / 'work' / 'padcirc'
 )
 ADCPREP_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'adcprep'
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'ADCIRC' / 'work' / 'adcprep'
+)
+ASWIP_EXECUTABLE = (
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'ADCIRC' / 'work' / 'aswip'
 )
 MODULEFILE = (
     SHARED_DIRECTORY
     / 'repositories'
-    / 'ADC-WW3-NWM-NEMS'
+    / 'CoastalApp_SCHISM'
     / 'modulefiles'
     / 'envmodules_intel.hera'
 )
 JOB_DURATION = timedelta(hours=6)
 
 if __name__ == '__main__':
-    forcing_configurations = [
-        TidalForcingJSON(resource=TPXO_FILENAME),
-        BestTrackForcingJSON(
-            storm_id=STORM,
+    forcing_configurations = [TidalForcingJSON(resource=TPXO_FILENAME)]
+
+    if ORIGINAL_TRACK_FILENAME.exists():
+        from adcircpy.forcing import BestTrackForcing
+
+        forcing_configurations.append(
+            BestTrackForcingJSON.from_adcircpy(
+                BestTrackForcing.from_fort22(
+                    ORIGINAL_TRACK_FILENAME,
+                    start_date=MODELED_START_TIME,
+                    end_date=MODELED_START_TIME + MODELED_DURATION,
+                )
+            )
+        )
+
+        perturber = VortexPerturber.from_file(
+            ORIGINAL_TRACK_FILENAME,
             start_date=MODELED_START_TIME,
             end_date=MODELED_START_TIME + MODELED_DURATION,
-        ),
-    ]
+        )
+    else:
+        forcing_configurations.append(
+            BestTrackForcingJSON(
+                storm_id=STORM,
+                start_date=MODELED_START_TIME,
+                end_date=MODELED_START_TIME + MODELED_DURATION,
+            )
+        )
 
-    perturber = VortexPerturber(
-        storm=STORM,
-        start_date=MODELED_START_TIME,
-        end_date=MODELED_START_TIME + MODELED_DURATION,
-    )
+        perturber = VortexPerturber(
+            storm=STORM,
+            start_date=MODELED_START_TIME,
+            end_date=MODELED_START_TIME + MODELED_DURATION,
+        )
 
     variable_perturbations = {
         CrossTrack: {'perturbations': 10, 'min': 0.25, 'max': 0.75},
@@ -143,6 +167,7 @@ if __name__ == '__main__':
             slurm_email_address=None,
             nems_executable=ADCIRC_EXECUTABLE,
             adcprep_executable=ADCPREP_EXECUTABLE,
+            aswip_executable=ASWIP_EXECUTABLE,
             source_filename=MODULEFILE,
         )
     else:
@@ -161,6 +186,7 @@ if __name__ == '__main__':
             slurm_email_address=None,
             adcirc_executable=ADCIRC_EXECUTABLE,
             adcprep_executable=ADCPREP_EXECUTABLE,
+            aswip_executable=ASWIP_EXECUTABLE,
             source_filename=MODULEFILE,
         )
 

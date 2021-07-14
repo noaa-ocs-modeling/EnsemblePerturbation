@@ -984,7 +984,7 @@ class VortexPerturber:
 
     @classmethod
     def from_file(
-        cls, filename: str, start_date: datetime = None, end_date: datetime = None,
+        cls, filename: PathLike, start_date: datetime = None, end_date: datetime = None,
     ):
         """
         build storm perturber from an existing `fort.22` or ATCF file
