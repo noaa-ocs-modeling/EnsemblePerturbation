@@ -789,7 +789,6 @@ class VortexPerturber:
 
     @property
     def forcing(self) -> VortexForcing:
-
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
@@ -982,6 +981,32 @@ class VortexPerturber:
         DelP = Vmax ** 2 * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name] - DelP
         return pc
+
+    @classmethod
+    def from_file(
+        cls, filename: str, start_date: datetime = None, end_date: datetime = None,
+    ):
+        """
+        build storm perturber from an existing `fort.22` or ATCF file
+
+        :param filename: file path to `fort.22` / ATCF file
+        :param start_date: start time of ensemble
+        :param end_date: end time of ensemble
+        """
+
+        if not isinstance(filename, Path):
+            filename = Path(filename)
+
+        if filename.suffix == '.22':
+            vortex = VortexForcing.from_fort22(
+                filename, start_date=start_date, end_date=end_date
+            )
+        else:
+            vortex = VortexForcing.from_atcf_file(
+                filename, start_date=start_date, end_date=end_date
+            )
+
+        return cls(vortex.dataframe, start_date=start_date, end_date=end_date)
 
 
 def storm_intensity_class(max_sustained_wind_speed: float) -> str:
