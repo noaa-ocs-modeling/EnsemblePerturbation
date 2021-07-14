@@ -88,6 +88,10 @@ class VortexForcing:
 
     @property
     def storm_id(self) -> str:
+        if self.__storm_id is None:
+            self.__storm_id = (
+                f'{self.__dataframe["name"][0]}{self.__dataframe["datetime"][0]:%Y}'
+            )
         return self.__storm_id
 
     @storm_id.setter

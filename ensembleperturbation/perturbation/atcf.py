@@ -795,7 +795,22 @@ class VortexPerturber:
             'end_date': self.end_date,
         }
 
-        if configuration != self.__previous_configuration:
+        is_equal = False
+        if self.__previous_configuration is not None:
+            for key in configuration:
+                if type(configuration[key]) is not type(self.__previous_configuration[key]):
+                    break
+                elif isinstance(configuration[key], DataFrame) and isinstance(
+                    self.__previous_configuration[key], DataFrame
+                ):
+                    if not configuration[key].equals(self.__previous_configuration[key]):
+                        break
+                elif configuration[key] == self.__previous_configuration[key]:
+                    break
+            else:
+                is_equal = True
+
+        if not is_equal:
             self.__forcing = VortexForcing(**configuration)
             self.__previous_configuration = configuration
 
