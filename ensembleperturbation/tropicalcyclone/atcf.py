@@ -68,7 +68,12 @@ class VortexForcing:
         self.requested_record_type = requested_record_type
 
         if isinstance(storm, DataFrame):
-            self.__dataframe = storm
+            self.dataframe = storm
+            self.__previous_configuration = {
+                'storm_id': self.storm_id,
+                'mode': self.mode,
+                'file_deck': self.file_deck,
+            }
         elif isinstance(storm, io.BytesIO):
             self.__atcf = storm
         elif isinstance(storm, (str, PathLike, pathlib.Path)):
@@ -103,7 +108,7 @@ class VortexForcing:
 
     @file_deck.setter
     def file_deck(self, file_deck: FileDeck):
-        if not isinstance(file_deck, FileDeck):
+        if file_deck is not None and not isinstance(file_deck, FileDeck):
             file_deck = convert_value(file_deck, FileDeck)
         self.__file_deck = file_deck
 
@@ -113,7 +118,7 @@ class VortexForcing:
 
     @mode.setter
     def mode(self, mode: Mode):
-        if not isinstance(mode, Mode):
+        if mode is not None and not isinstance(mode, Mode):
             if not isinstance(mode, Mode):
                 mode = convert_value(mode, Mode)
         self.__mode = mode
@@ -330,16 +335,14 @@ class VortexForcing:
             if len(records) == 0:
                 raise ValueError(f'no records found with type(s) "{allowed_record_types}"')
 
-            self.__dataframe = self.__compute_velocity(
-                DataFrame.from_records(data=records, columns=columns)
-            )
+            self.dataframe = DataFrame.from_records(data=records, columns=columns)
             self.__previous_configuration = configuration
 
         return self.__dataframe
 
     @dataframe.setter
     def dataframe(self, dataframe: DataFrame):
-        self.__dataframe = dataframe
+        self.__dataframe = self.__compute_velocity(dataframe)
 
     @property
     def start_date(self) -> datetime:
@@ -659,33 +662,36 @@ class VortexForcing:
                 data['speed'][unique_datetime_index] = speed.magnitude
                 data['direction'][unique_datetime_index] = bearing.magnitude
 
+                data['speed'] = data['speed'].astype('float', copy=False)
+                data['direction'] = data['direction'].astype('float', copy=False)
+
         return data
 
     @classmethod
     def from_fort22(
         cls, fort22: PathLike, start_date: datetime = None, end_date: datetime = None,
     ) -> 'VortexForcing':
-
-        data = read_atcf(fort22)
-
-        storm_id = f'{data["name"][0]}{data["datetime"][0]:%Y}'
-
-        if start_date is None:
-            start_date = min(data['datetime'])
-        if end_date is None:
-            end_date = max(data['datetime'])
-
-        instance = cls(storm=storm_id, start_date=start_date, end_date=end_date)
-
-        instance.__dataframe = data
-
-        return instance
+        return cls(
+            storm=read_atcf(fort22),
+            start_date=start_date,
+            end_date=end_date,
+            file_deck=None,
+            mode=None,
+            requested_record_type=None,
+        )
 
     @classmethod
     def from_atcf_file(
         cls, atcf: PathLike, start_date: datetime = None, end_date: datetime = None,
     ) -> 'VortexForcing':
-        return cls(storm=atcf, start_date=start_date, end_date=end_date)
+        return cls(
+            storm=atcf,
+            start_date=start_date,
+            end_date=end_date,
+            file_deck=None,
+            mode=None,
+            requested_record_type=None,
+        )
 
 
 def convert_value(value: Any, to_type: type, round_digits: int = None) -> Any:
