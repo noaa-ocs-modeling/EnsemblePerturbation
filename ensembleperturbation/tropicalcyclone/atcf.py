@@ -634,33 +634,33 @@ class VortexForcing:
             for unique_datetime_index in unique_datetime_indices:
                 if unique_datetime_indices[-1] + 1 < len(data['datetime']):
                     dt = (
-                        data['datetime'][unique_datetime_indices[-1] + 1]
-                        - data['datetime'][unique_datetime_index]
+                        data['datetime'].iloc[unique_datetime_indices[-1] + 1]
+                        - data['datetime'].iloc[unique_datetime_index]
                     )
                     forward_azimuth, inverse_azimuth, distance = geodetic.inv(
-                        data['longitude'][unique_datetime_indices[-1] + 1],
-                        data['latitude'][unique_datetime_index],
-                        data['longitude'][unique_datetime_index],
-                        data['latitude'][unique_datetime_index],
+                        data['longitude'].iloc[unique_datetime_indices[-1] + 1],
+                        data['latitude'].iloc[unique_datetime_index],
+                        data['longitude'].iloc[unique_datetime_index],
+                        data['latitude'].iloc[unique_datetime_index],
                     )
                 else:
                     dt = (
-                        data['datetime'][unique_datetime_index]
-                        - data['datetime'][unique_datetime_indices[0] - 1]
+                        data['datetime'].iloc[unique_datetime_index]
+                        - data['datetime'].iloc[unique_datetime_indices[0] - 1]
                     )
                     forward_azimuth, inverse_azimuth, distance = geodetic.inv(
-                        data['longitude'][unique_datetime_indices[0] - 1],
-                        data['latitude'][unique_datetime_index],
-                        data['longitude'][unique_datetime_index],
-                        data['latitude'][unique_datetime_index],
+                        data['longitude'].iloc[unique_datetime_indices[0] - 1],
+                        data['latitude'].iloc[unique_datetime_index],
+                        data['longitude'].iloc[unique_datetime_index],
+                        data['latitude'].iloc[unique_datetime_index],
                     )
 
                 speed = distance / (dt / timedelta(seconds=1)) * units.meter / units.second
                 speed = speed.to(units.nautical_mile / units.hour)
                 bearing = inverse_azimuth % 360 * units.degree
 
-                data['speed'][unique_datetime_index] = speed.magnitude
-                data['direction'][unique_datetime_index] = bearing.magnitude
+                data['speed'].iloc[unique_datetime_index] = speed.magnitude
+                data['direction'].iloc[unique_datetime_index] = bearing.magnitude
 
                 data['speed'] = data['speed'].astype('float', copy=False)
                 data['direction'] = data['direction'].astype('float', copy=False)
