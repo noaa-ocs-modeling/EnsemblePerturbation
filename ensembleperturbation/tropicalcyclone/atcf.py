@@ -644,7 +644,7 @@ class VortexForcing:
                     )
                     forward_azimuth, inverse_azimuth, distance = geodetic.inv(
                         data['longitude'].iloc[unique_datetime_indices[-1] + 1],
-                        data['latitude'].iloc[unique_datetime_index],
+                        data['latitude'].iloc[unique_datetime_indices[-1] + 1],
                         data['longitude'].iloc[unique_datetime_index],
                         data['latitude'].iloc[unique_datetime_index],
                     )
@@ -655,7 +655,7 @@ class VortexForcing:
                     )
                     forward_azimuth, inverse_azimuth, distance = geodetic.inv(
                         data['longitude'].iloc[unique_datetime_indices[0] - 1],
-                        data['latitude'].iloc[unique_datetime_index],
+                        data['latitude'].iloc[unique_datetime_indices[0] - 1],
                         data['longitude'].iloc[unique_datetime_index],
                         data['latitude'].iloc[unique_datetime_index],
                     )
