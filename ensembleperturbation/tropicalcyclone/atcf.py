@@ -18,6 +18,7 @@ from matplotlib.axes import Axes
 from matplotlib.transforms import Bbox
 import numpy as numpy
 from pandas import DataFrame, read_csv
+from pint import Quantity
 from pyproj import CRS, Geod, Transformer
 from shapely import ops
 from shapely.geometry import Point, Polygon
@@ -157,7 +158,7 @@ class VortexForcing:
         else:
             return self.dataframe[
                 start_date_mask & (self.dataframe['datetime'] <= self.__file_end_date)
-            ]
+                ]
 
     @property
     def atcf(self) -> open:
@@ -710,6 +711,8 @@ def convert_value(value: Any, to_type: type, round_digits: int = None) -> Any:
                     f'unrecognized entry "{value}"; must be one of {list(to_type)}'
                 )
     elif value is not None and value != "":
+        if isinstance(value, Quantity):
+            value = value.magnitude
         if round_digits is not None and issubclass(to_type, (int, float)):
             if isinstance(value, str):
                 value = float(value)
