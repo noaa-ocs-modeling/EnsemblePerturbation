@@ -854,7 +854,8 @@ class VortexPerturber:
             self.__forcing = VortexForcing(**configuration)
             self.__previous_configuration = configuration
 
-        self.__storm = self.__forcing.storm_id
+        if self.__forcing.storm_id is not None:
+            self.__storm = self.__forcing.storm_id
 
         return self.__forcing
 
