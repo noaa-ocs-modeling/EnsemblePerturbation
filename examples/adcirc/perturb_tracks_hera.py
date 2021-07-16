@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+from random import gauss
 
 from adcircpy.forcing.winds.best_track import FileDeck
 import click
@@ -121,23 +122,19 @@ if __name__ == '__main__':
         )
 
     variable_perturbations = {
-        CrossTrack: {'perturbations': 10, 'min': 0.25, 'max': 0.75},
-        AlongTrack: {'perturbations': 5, 'min': 0.25, 'max': 0.75},
-        RadiusOfMaximumWinds: {'perturbations': 3, 'min': 0.25, 'max': 0.75},
-        MaximumSustainedWindSpeed: {'perturbations': 4, 'min': -1, 'max': 1},
+        CrossTrack: [gauss(0.5, 0.25) for _ in range(10)],
+        AlongTrack: [gauss(0.5, 0.25) for _ in range(5)],
+        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3),
+        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4)],
     }
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
-    for variable, variable_perturbation in variable_perturbations.items():
+    for variable, alphas in variable_perturbations.items():
         track_filenames += perturber.write(
-            number_of_perturbations=variable_perturbation['perturbations'],
+            number_of_perturbations=len(alphas),
             variables=[variable],
             directory=TRACK_DIRECTORY,
-            alphas=numpy.linspace(
-                variable_perturbation['min'],
-                variable_perturbation['max'],
-                variable_perturbation['perturbations'],
-            ),
+            alphas=alphas,
         )
 
     perturbations = {
