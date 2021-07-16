@@ -44,6 +44,7 @@ from pathlib import Path
 from random import gauss, random
 from typing import Union
 
+from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -54,7 +55,6 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
-from ensembleperturbation.tropicalcyclone.atcf import VortexForcing
 from ensembleperturbation.utilities import units
 
 AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
@@ -742,7 +742,13 @@ class AlongTrack(VortexPerturbedVariable):
 
 class VortexPerturber:
     def __init__(
-        self, storm: str, start_date: datetime = None, end_date: datetime = None,
+        self,
+        storm: str,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        file_deck: FileDeck = None,
+        mode: Mode = None,
+        record_type: str = None,
     ):
         """
         build storm perturber
@@ -750,14 +756,25 @@ class VortexPerturber:
         :param storm: NHC storm code, for instance `al062018`
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
+        :param file_deck: letter of file deck, one of `a`, `b`
+        :param mode: either `realtime` / `aid_public` or `historical` / `archive`
+        :param record_type: record type (i.e. `BEST`, `OFCL`)
         """
+
+        self.__storm = None
+        self.__start_date = None
+        self.__end_date = None
+        self.__file_deck = None
+        self.__mode = None
+        self.__forcing = None
+        self.__previous_configuration = None
 
         self.storm = storm
         self.start_date = start_date
         self.end_date = end_date
-
-        self.__forcing = None
-        self.__previous_configuration = None
+        self.file_deck = file_deck
+        self.mode = mode
+        self.record_type = record_type
 
     @property
     def storm(self) -> str:
@@ -788,11 +805,34 @@ class VortexPerturber:
         self.__end_date = end_date
 
     @property
+    def file_deck(self) -> FileDeck:
+        return self.__file_deck
+
+    @file_deck.setter
+    def file_deck(self, file_deck: FileDeck):
+        if file_deck is not None and not isinstance(file_deck, datetime):
+            file_deck = convert_value(file_deck, FileDeck)
+        self.__file_deck = file_deck
+
+    @property
+    def mode(self) -> Mode:
+        return self.__mode
+
+    @mode.setter
+    def mode(self, mode: Mode):
+        if mode is not None and not isinstance(mode, datetime):
+            mode = convert_value(mode, Mode)
+        self.__mode = mode
+
+    @property
     def forcing(self) -> VortexForcing:
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
             'end_date': self.end_date,
+            'file_deck': self.file_deck,
+            'mode': self.mode,
+            'record_type': self.record_type,
         }
 
         is_equal = False
@@ -814,7 +854,8 @@ class VortexPerturber:
             self.__forcing = VortexForcing(**configuration)
             self.__previous_configuration = configuration
 
-        self.__storm = self.__forcing.storm_id
+        if self.__forcing.storm_id is not None:
+            self.__storm = self.__forcing.storm_id
 
         return self.__forcing
 

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from random import gauss
 
+from adcircpy.forcing.winds.best_track import FileDeck
 import click
 from coupledmodeldriver import Platform
 from coupledmodeldriver.configure import BestTrackForcingJSON, TidalForcingJSON
@@ -87,15 +88,11 @@ if __name__ == '__main__':
     forcing_configurations = [TidalForcingJSON(resource=TPXO_FILENAME)]
 
     if ORIGINAL_TRACK_FILENAME.exists():
-        from adcircpy.forcing import BestTrackForcing
-
         forcing_configurations.append(
-            BestTrackForcingJSON.from_adcircpy(
-                BestTrackForcing.from_fort22(
-                    ORIGINAL_TRACK_FILENAME,
-                    start_date=MODELED_START_TIME,
-                    end_date=MODELED_START_TIME + MODELED_DURATION,
-                )
+            BestTrackForcingJSON.from_fort22(
+                ORIGINAL_TRACK_FILENAME,
+                start_date=MODELED_START_TIME,
+                end_date=MODELED_START_TIME + MODELED_DURATION,
             )
         )
 
@@ -117,13 +114,16 @@ if __name__ == '__main__':
             storm=STORM,
             start_date=MODELED_START_TIME,
             end_date=MODELED_START_TIME + MODELED_DURATION,
+            file_deck=FileDeck.b,
         )
 
+    perturbation_multiplier = 3
+
     variable_perturbations = {
-        CrossTrack: [gauss(0.5, 0.25) for _ in range(10)],
-        AlongTrack: [gauss(0.5, 0.25) for _ in range(5)],
-        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3),
-        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4)],
+        CrossTrack: [gauss(0.5, 0.25) for _ in range(10 * perturbation_multiplier)],
+        AlongTrack: [gauss(0.5, 0.25) for _ in range(5 * perturbation_multiplier)],
+        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3 * perturbation_multiplier),
+        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4 * perturbation_multiplier)],
     }
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
