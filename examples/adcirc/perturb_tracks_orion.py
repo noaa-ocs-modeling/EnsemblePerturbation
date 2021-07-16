@@ -117,11 +117,13 @@ if __name__ == '__main__':
             file_deck=FileDeck.b,
         )
 
+    perturbation_multiplier = 3
+
     variable_perturbations = {
-        CrossTrack: [gauss(0.5, 0.25) for _ in range(10)],
-        AlongTrack: [gauss(0.5, 0.25) for _ in range(5)],
-        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3),
-        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4)],
+        CrossTrack: [gauss(0.5, 0.25) for _ in range(10 * perturbation_multiplier)],
+        AlongTrack: [gauss(0.5, 0.25) for _ in range(5 * perturbation_multiplier)],
+        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3 * perturbation_multiplier),
+        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4 * perturbation_multiplier)],
     }
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
