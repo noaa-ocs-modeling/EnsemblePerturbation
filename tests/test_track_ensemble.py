@@ -1,3 +1,4 @@
+from adcircpy.forcing.winds.best_track import FileDeck, VortexForcing
 from dateutil.parser import parse as parse_date
 import pytest
 import pytest_socket
@@ -9,7 +10,6 @@ from ensembleperturbation.perturbation.atcf import (
     RadiusOfMaximumWinds,
     VortexPerturber,
 )
-from ensembleperturbation.tropicalcyclone.atcf import VortexForcing
 from tests import check_reference_directory, DATA_DIRECTORY
 
 
@@ -20,7 +20,9 @@ def test_besttrack_ensemble():
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
+    perturber = VortexPerturber(
+        storm='al062018', start_date='20180911', end_date=None, file_deck=FileDeck.b,
+    )
 
     # list of variables where perturbation is Gaussian
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
@@ -70,7 +72,7 @@ def test_vortex_types():
                 start_date=values['start_date'],
                 end_date=values['end_date'],
                 file_deck=file_deck,
-                requested_record_type=record_type,
+                record_type=record_type,
             )
 
             cyclone.write(

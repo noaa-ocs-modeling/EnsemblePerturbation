@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import os
 from pathlib import Path
 
+from adcircpy.forcing.winds.best_track import FileDeck
 import click
 from coupledmodeldriver import Platform
 from coupledmodeldriver.configure import BestTrackForcingJSON, TidalForcingJSON
@@ -116,6 +117,7 @@ if __name__ == '__main__':
             storm=STORM,
             start_date=MODELED_START_TIME,
             end_date=MODELED_START_TIME + MODELED_DURATION,
+            file_deck=FileDeck.b,
         )
 
     variable_perturbations = {
