@@ -88,15 +88,11 @@ if __name__ == '__main__':
     forcing_configurations = [TidalForcingJSON(resource=TPXO_FILENAME)]
 
     if ORIGINAL_TRACK_FILENAME.exists():
-        from adcircpy.forcing import BestTrackForcing
-
         forcing_configurations.append(
-            BestTrackForcingJSON.from_adcircpy(
-                BestTrackForcing.from_fort22(
-                    ORIGINAL_TRACK_FILENAME,
-                    start_date=MODELED_START_TIME,
-                    end_date=MODELED_START_TIME + MODELED_DURATION,
-                )
+            BestTrackForcingJSON.from_fort22(
+                ORIGINAL_TRACK_FILENAME,
+                start_date=MODELED_START_TIME,
+                end_date=MODELED_START_TIME + MODELED_DURATION,
             )
         )
 
