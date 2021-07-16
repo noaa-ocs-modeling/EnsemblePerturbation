@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+from random import gauss
 
 import click
 from coupledmodeldriver import Platform
@@ -11,8 +12,10 @@ from coupledmodeldriver.generate import (
     generate_adcirc_configuration,
     NEMSADCIRCRunConfiguration,
 )
+import numpy
 
-from ensembleperturbation.perturbation.atcf import VortexPerturber
+from ensembleperturbation.perturbation.atcf import AlongTrack, CrossTrack, MaximumSustainedWindSpeed, RadiusOfMaximumWinds, \
+    VortexPerturber
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('perturb.adcirc')
@@ -109,6 +112,22 @@ if __name__ == '__main__':
             storm=STORM,
             start_date=MODELED_START_TIME,
             end_date=MODELED_START_TIME + MODELED_DURATION,
+        )
+
+    variable_perturbations = {
+        CrossTrack: [gauss(0.5, 0.25) for _ in range(10)],
+        AlongTrack: [gauss(0.5, 0.25) for _ in range(5)],
+        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3),
+        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4)],
+    }
+
+    track_filenames = [TRACK_DIRECTORY / 'original.22']
+    for variable, alphas in variable_perturbations.items():
+        track_filenames += perturber.write(
+            number_of_perturbations=len(alphas),
+            variables=[variable],
+            directory=TRACK_DIRECTORY,
+            alphas=alphas,
         )
 
     perturbations = {
