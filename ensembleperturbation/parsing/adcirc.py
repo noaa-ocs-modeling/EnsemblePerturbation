@@ -1,4 +1,4 @@
-from os import PathLike
+from os import PathLike, getcwd
 from pathlib import Path
 from typing import Union
 
@@ -219,20 +219,36 @@ def parse_adcirc_output(
     return output_data
 
 
-def parse_adcirc_outputs(directory: str) -> {str: dict}:
+def parse_adcirc_outputs(
+    directory: PathLike = None, file_data_variables: [str] = None
+) -> {str: dict}:
     """
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
+    :param file_data_variables: output files to parsing
     :return: dictionary of file tree containing parsed data
     """
 
+    if directory is None:
+        directory = getcwd()
+
     if not isinstance(directory, Path):
         directory = Path(directory)
+    if file_data_variables is None:
+        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+    else:
+        file_data_variables = {
+            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename in file_data_variables
+        }
 
     output_datasets = {}
     for filename in directory.glob('**/*.nc'):
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
+        if parts[-1] not in file_data_variables:
+            continue
+        print(filename)
         tree = output_datasets
         for part_index in range(len(parts)):
             part = parts[part_index]
