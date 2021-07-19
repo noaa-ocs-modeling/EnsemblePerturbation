@@ -1,4 +1,7 @@
+from adcircpy.forcing.winds.best_track import FileDeck, VortexForcing
 from dateutil.parser import parse as parse_date
+import pytest
+import pytest_socket
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -7,7 +10,6 @@ from ensembleperturbation.perturbation.atcf import (
     RadiusOfMaximumWinds,
     VortexPerturber,
 )
-from ensembleperturbation.tropicalcyclone.atcf import VortexForcing
 from tests import check_reference_directory, DATA_DIRECTORY
 
 
@@ -18,7 +20,9 @@ def test_besttrack_ensemble():
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
+    perturber = VortexPerturber(
+        storm='al062018', start_date='20180911', end_date=None, file_deck=FileDeck.b,
+    )
 
     # list of variables where perturbation is Gaussian
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
@@ -68,7 +72,7 @@ def test_vortex_types():
                 start_date=values['start_date'],
                 end_date=values['end_date'],
                 file_deck=file_deck,
-                requested_record_type=record_type,
+                record_type=record_type,
             )
 
             cyclone.write(
@@ -129,3 +133,21 @@ def test_original_file():
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
+
+
+@pytest.mark.disable_socket
+def test_no_internet():
+    input_directory = DATA_DIRECTORY / 'input' / 'test_no_internet'
+    output_directory = DATA_DIRECTORY / 'output' / 'test_no_internet'
+    reference_directory = DATA_DIRECTORY / 'reference' / 'test_no_internet'
+
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(pytest_socket.SocketBlockedError):
+        VortexForcing(storm='al062018', start_date='20180911', end_date=None)
+
+    vortex = VortexForcing.from_fort22(input_directory / 'fort.22')
+    vortex.write(output_directory / 'fort.22', overwrite=True)
+
+    check_reference_directory(output_directory, reference_directory)

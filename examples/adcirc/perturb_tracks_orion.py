@@ -2,7 +2,9 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+from random import gauss
 
+from adcircpy.forcing.winds.best_track import FileDeck
 import click
 from coupledmodeldriver import Platform
 from coupledmodeldriver.configure import BestTrackForcingJSON, TidalForcingJSON
@@ -24,7 +26,7 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('perturb.adcirc')
 
-OUTPUT_DIRECTORY = Path(__file__) / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
+OUTPUT_DIRECTORY = Path.cwd() / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
 if not OUTPUT_DIRECTORY.exists():
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
@@ -32,6 +34,7 @@ SHARED_DIRECTORY = Path('/work/noaa/nosofs/share')
 TRACK_DIRECTORY = OUTPUT_DIRECTORY / 'track_files'
 if not TRACK_DIRECTORY.exists():
     TRACK_DIRECTORY.mkdir(parents=True, exist_ok=True)
+ORIGINAL_TRACK_FILENAME = TRACK_DIRECTORY / 'fort.22'
 
 # start and end times for model
 STORM = 'al062018'
@@ -61,59 +64,83 @@ NEMS_SEQUENCE = [
 PLATFORM = Platform.ORION
 ADCIRC_PROCESSORS = 15 * PLATFORM.value['processors_per_node']
 NEMS_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'NEMS' / 'exe' / 'NEMS.x'
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'NEMS' / 'exe' / 'NEMS.x'
 )
 ADCIRC_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'padcirc'
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'ADCIRC' / 'work' / 'padcirc'
 )
 ADCPREP_EXECUTABLE = (
-    SHARED_DIRECTORY / 'repositories' / 'ADC-WW3-NWM-NEMS' / 'ADCIRC' / 'work' / 'adcprep'
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'ADCIRC' / 'work' / 'adcprep'
+)
+ASWIP_EXECUTABLE = (
+    SHARED_DIRECTORY / 'repositories' / 'CoastalApp_SCHISM' / 'ADCIRC' / 'work' / 'aswip'
 )
 MODULEFILE = (
     SHARED_DIRECTORY
     / 'repositories'
-    / 'ADC-WW3-NWM-NEMS'
+    / 'CoastalApp_SCHISM'
     / 'modulefiles'
-    / 'envmodules_intel.hera'
+    / 'envmodules_intel.orion'
 )
-JOB_DURATION = timedelta(hours=6)
+JOB_DURATION = timedelta(minutes=30)
 
 if __name__ == '__main__':
-    forcing_configurations = [
-        TidalForcingJSON(resource=TPXO_FILENAME),
-        BestTrackForcingJSON(
-            storm_id=STORM,
+    forcing_configurations = [TidalForcingJSON(resource=TPXO_FILENAME)]
+
+    if ORIGINAL_TRACK_FILENAME.exists():
+        forcing_configurations.append(
+            BestTrackForcingJSON.from_fort22(
+                ORIGINAL_TRACK_FILENAME,
+                start_date=MODELED_START_TIME,
+                end_date=MODELED_START_TIME + MODELED_DURATION,
+            )
+        )
+
+        perturber = VortexPerturber.from_file(
+            ORIGINAL_TRACK_FILENAME,
             start_date=MODELED_START_TIME,
             end_date=MODELED_START_TIME + MODELED_DURATION,
-        ),
-    ]
+        )
+    else:
+        forcing_configurations.append(
+            BestTrackForcingJSON(
+                storm_id=STORM,
+                start_date=MODELED_START_TIME,
+                end_date=MODELED_START_TIME + MODELED_DURATION,
+            )
+        )
 
-    perturber = VortexPerturber(
-        storm=STORM,
-        start_date=MODELED_START_TIME,
-        end_date=MODELED_START_TIME + MODELED_DURATION,
-    )
+        perturber = VortexPerturber(
+            storm=STORM,
+            start_date=MODELED_START_TIME,
+            end_date=MODELED_START_TIME + MODELED_DURATION,
+            file_deck=FileDeck.b,
+        )
 
-    number_of_perturbations = 3
+    perturbation_multiplier = 3
 
-    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
-    track_filenames = perturber.write(
-        number_of_perturbations=number_of_perturbations,
-        variables=gauss_variables,
-        directory=TRACK_DIRECTORY,
-        alphas=numpy.linspace(0.25, 0.75, number_of_perturbations),
-    )
+    variable_perturbations = {
+        CrossTrack: [gauss(0.5, 0.25) for _ in range(10 * perturbation_multiplier)],
+        AlongTrack: [gauss(0.5, 0.25) for _ in range(5 * perturbation_multiplier)],
+        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3 * perturbation_multiplier),
+        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4 * perturbation_multiplier)],
+    }
 
-    range_variables = [RadiusOfMaximumWinds]
-    track_filenames += perturber.write(
-        number_of_perturbations=number_of_perturbations,
-        variables=range_variables,
-        directory=TRACK_DIRECTORY,
-        alphas=numpy.linspace(-1, 1, number_of_perturbations),
-    )
+    track_filenames = [TRACK_DIRECTORY / 'original.22']
+    for variable, alphas in variable_perturbations.items():
+        track_filenames += perturber.write(
+            number_of_perturbations=len(alphas),
+            variables=[variable],
+            directory=TRACK_DIRECTORY,
+            alphas=alphas,
+        )
 
     perturbations = {
-        f'besttrack_{index}': {'besttrack': {'fort22_filename': track_filename}}
+        f'besttrack_{index}': {
+            'besttrack': {
+                'fort22_filename': Path(os.path.relpath(track_filename, OUTPUT_DIRECTORY))
+            }
+        }
         for index, track_filename in enumerate(track_filenames)
     }
 
@@ -137,6 +164,7 @@ if __name__ == '__main__':
             slurm_email_address=None,
             nems_executable=ADCIRC_EXECUTABLE,
             adcprep_executable=ADCPREP_EXECUTABLE,
+            aswip_executable=ASWIP_EXECUTABLE,
             source_filename=MODULEFILE,
         )
     else:
@@ -155,6 +183,7 @@ if __name__ == '__main__':
             slurm_email_address=None,
             adcirc_executable=ADCIRC_EXECUTABLE,
             adcprep_executable=ADCPREP_EXECUTABLE,
+            aswip_executable=ASWIP_EXECUTABLE,
             source_filename=MODULEFILE,
         )
 
