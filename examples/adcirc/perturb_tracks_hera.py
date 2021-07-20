@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
-from random import gauss
 
 from adcircpy.forcing.winds.best_track import FileDeck
 import click
@@ -13,7 +12,6 @@ from coupledmodeldriver.generate import (
     generate_adcirc_configuration,
     NEMSADCIRCRunConfiguration,
 )
-import numpy
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -117,26 +115,20 @@ if __name__ == '__main__':
             file_deck=FileDeck.b,
         )
 
-    perturbation_multiplier = 3
-
-    variable_perturbations = {
-        CrossTrack: [gauss(0.5, 0.25) for _ in range(10 * perturbation_multiplier)],
-        AlongTrack: [gauss(0.5, 0.25) for _ in range(5 * perturbation_multiplier)],
-        RadiusOfMaximumWinds: numpy.linspace(0.25, 0.75, 3 * perturbation_multiplier),
-        MaximumSustainedWindSpeed: [gauss(0, 1) for _ in range(4 * perturbation_multiplier)],
-    }
+    variables = [
+        CrossTrack,
+        AlongTrack,
+        RadiusOfMaximumWinds,
+        MaximumSustainedWindSpeed,
+    ]
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
-    for variable, alphas in variable_perturbations.items():
-        track_filenames += perturber.write(
-            number_of_perturbations=len(alphas),
-            variables=[variable],
-            directory=TRACK_DIRECTORY,
-            alphas=alphas,
-        )
+    track_filenames += perturber.write(
+        number_of_perturbations=40, variables=[variables], directory=TRACK_DIRECTORY,
+    )
 
     perturbations = {
-        f'besttrack_{index}': {
+        track_filename.name: {
             'besttrack': {
                 'fort22_filename': Path(os.path.relpath(track_filename, OUTPUT_DIRECTORY))
             }
