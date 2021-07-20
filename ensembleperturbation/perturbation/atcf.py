@@ -1029,7 +1029,10 @@ class VortexPerturber:
                         perturbed_data[column] = perturbed_data[column].pint.magnitude
 
                 # write out the modified `fort.22`
-                output_filename = directory / f'{variable.name}_{alpha}_{variable.perturbation_type.value}.22'
+                output_filename = (
+                    directory
+                    / f'{variable.name}_{alpha}_{variable.perturbation_type.value}.22'
+                )
                 perturbed_forcing = copy(self.forcing)
                 perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
                 perturbed_forcing.write(output_filename, overwrite=True)
