@@ -1,4 +1,4 @@
-from os import PathLike
+from os import getcwd, PathLike
 from pathlib import Path
 from typing import Union
 
@@ -29,10 +29,21 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
     # Hot Start Output (fort.67, fort.68)
     'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
     'fort.68.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
+    # Sea-level Pressure Time Series at All Nodes in the Model Grid (fort.73)
+    'fort.73.nc': ['pressure'],
+    # Surface Wind Velocity Time Series at All Nodes in the Model Grid (
+    # fort.74)
+    'fort.74.nc': ['windx', 'windy'],
     # Maximum Elevation at All Nodes in the Model Grid (maxele.63)
     'maxele.63.nc': ['zeta_max', 'time_of_zeta_max'],
-    # Maximum Velocity at All Nodes in the Model Grid (maxvel.63)
+    # Maximum Speed at All Nodes in the Model Grid (maxvel.63)
     'maxvel.63.nc': ['vel_max', 'time_of_vel_max'],
+    # Minimum Sea-level Pressure at All Nodes in the Model Grid (minpr.63)
+    'minpr.63.nc': ['pressure_min', 'time_of_pressure_min'],
+    # Maximum Surface Wind Speed at All Nodes in the Model Grid (maxwvel.63)
+    'maxwvel.63.nc': ['wind_max', 'time_of_wind_max'],
+    # Maximum Radiation Surface Stress at All Nodes in the Model Grid (maxrs.63)
+    'maxrs.63.nc': ['radstress_max', 'time_of_radstress_max'],
 }
 
 NODATA = -99999.0
@@ -200,27 +211,44 @@ def parse_adcirc_output(
     output_data = {}
     for output_filename in directory.glob('*.nc'):
         basename = output_filename.parts[-1]
-        output_data[basename] = parse_adcirc_netcdf(
-            output_filename, file_data_variables[basename]
-        )
+        if basename in file_data_variables:
+            output_data[basename] = parse_adcirc_netcdf(
+                output_filename, file_data_variables[basename]
+            )
 
     return output_data
 
 
-def parse_adcirc_outputs(directory: str) -> {str: dict}:
+def parse_adcirc_outputs(
+    directory: PathLike = None, file_data_variables: [str] = None
+) -> {str: dict}:
     """
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
+    :param file_data_variables: output files to parsing
     :return: dictionary of file tree containing parsed data
     """
 
+    if directory is None:
+        directory = getcwd()
+
     if not isinstance(directory, Path):
         directory = Path(directory)
+    if file_data_variables is None:
+        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+    else:
+        file_data_variables = {
+            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename in file_data_variables
+        }
 
     output_datasets = {}
     for filename in directory.glob('**/*.nc'):
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
+        if parts[-1] not in file_data_variables:
+            continue
+        print(filename)
         tree = output_datasets
         for part_index in range(len(parts)):
             part = parts[part_index]

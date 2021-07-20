@@ -24,6 +24,16 @@ def check_reference_directory(
         else:
             test_filename = test_directory / reference_filename.name
 
+            if reference_filename.suffix == '.h5':
+                reference_filesize = Path(reference_filename).stat().st_size
+                test_filesize = Path(test_filename).stat().st_size
+
+                diff = test_filesize - reference_filesize
+                message = f'"{test_filesize}" != "{reference_filesize}"\n{diff}'
+
+                assert reference_filesize == test_filesize, message
+                continue
+
             with open(test_filename) as test_file, open(reference_filename) as reference_file:
                 test_lines = list(test_file.readlines())
                 reference_lines = list(reference_file.readlines())

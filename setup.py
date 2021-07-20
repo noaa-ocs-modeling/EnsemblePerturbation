@@ -99,10 +99,8 @@ setup(
         'shapely',
     ],
     extras_require={
-        'testing': ['pytest', 'pytest-cov', 'pytest-mock', 'pytest-xdist', 'wget'],
+        'testing': ['pytest', 'pytest-cov', 'pytest-mock', 'pytest-xdist', 'tables', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
-    entry_points={
-        'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main',],
-    },
+    entry_points={'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main'],},
 )
