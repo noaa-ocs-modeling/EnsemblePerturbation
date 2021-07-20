@@ -1068,7 +1068,7 @@ class VortexPerturber:
             perturbed_forcing.write(output_filename, overwrite=True)
             output_filenames.append(output_filename)
             with open(directory / f'{perturbation_name}.json', 'w') as output_json:
-                json.dump(perturbation_alphas, output_json)
+                json.dump(perturbation_alphas, output_json, indent=2)
 
         return output_filenames
 
