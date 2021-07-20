@@ -99,7 +99,7 @@ setup(
         'shapely',
     ],
     extras_require={
-        'testing': ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'wget'],
+        'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={
