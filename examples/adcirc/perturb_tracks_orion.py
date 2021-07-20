@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     track_filenames = [TRACK_DIRECTORY / 'original.22']
     track_filenames += perturber.write(
-        number_of_perturbations=40, variables=[variables], directory=TRACK_DIRECTORY,
+        number_of_perturbations=40, variables=variables, directory=TRACK_DIRECTORY,
     )
 
     perturbations = {
