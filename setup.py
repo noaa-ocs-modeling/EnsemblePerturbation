@@ -79,11 +79,11 @@ setup(
     python_requires='>=3.6',
     setup_requires=['dunamai', 'setuptools>=41.2'],
     install_requires=[
-        'adcircpy>=1.0.38',
+        'adcircpy>=1.0.39',
         'appdirs',
         'bs4',
         'click',
-        'coupledmodeldriver>=1.4.2',
+        'coupledmodeldriver>=1.4.3',
         'fiona',
         'geopandas',
         'matplotlib',
