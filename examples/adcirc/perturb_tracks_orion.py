@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
-from random import gauss
 
 from adcircpy.forcing.winds.best_track import FileDeck
 import click
@@ -13,7 +12,6 @@ from coupledmodeldriver.generate import (
     generate_adcirc_configuration,
     NEMSADCIRCRunConfiguration,
 )
-import numpy
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -24,7 +22,7 @@ from ensembleperturbation.perturbation.atcf import (
 )
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('perturb.adcirc')
+LOGGER = get_logger('perturb_tracks_orion')
 
 OUTPUT_DIRECTORY = Path.cwd() / f'run_{datetime.now():%Y%m%d}_perturbed_track_example'
 if not OUTPUT_DIRECTORY.exists():

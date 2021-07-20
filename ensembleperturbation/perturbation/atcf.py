@@ -47,7 +47,8 @@ from pathlib import Path
 from random import gauss, random
 from typing import Mapping, Union
 
-from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
+from adcircpy.forcing.winds.best_track import FileDeck, Mode, \
+    VortexForcing, convert_value
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -58,7 +59,9 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
-from ensembleperturbation.utilities import units
+from ensembleperturbation.utilities import get_logger, units
+
+LOGGER = get_logger('perturbation.atcf')
 
 AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
@@ -213,9 +216,9 @@ class VortexPerturbedVariable(ABC):
 
         all_values = vortex_dataframe[self.name].values + values
         vortex_dataframe[self.name] = [
-            min(self.upper_bound, max(value, self.lower_bound)).magnitude
-            for value in all_values
-        ] * self.unit
+                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
+                                          for value in all_values
+                                      ] * self.unit
 
         return vortex_dataframe
 
@@ -957,6 +960,8 @@ class VortexPerturber:
         # for each variable, perturb the values and write each to a new `fort.22`
         output_filenames = []
         for perturbation_number in range(last_index, number_of_perturbations + last_index):
+            LOGGER.info(f'building perturbation {perturbation_number - last_index + 1} of {number_of_perturbations}')
+
             perturbed_data = original_data.copy(deep=True)
 
             # setting the alpha to the value from the input list
@@ -1008,7 +1013,7 @@ class VortexPerturber:
                         alpha = gauss(0, 1) / 0.7979
                         perturbation_alphas[variable.name] = alpha
 
-                    print(f'gaussian alpha = {alpha}')
+                    LOGGER.debug(f'gaussian alpha = {alpha}')
                     perturbation = base_errors[0] * alpha
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
@@ -1025,7 +1030,7 @@ class VortexPerturber:
                         alpha = random()
                         perturbation_alphas[variable.name] = alpha
 
-                    print(f'linear alpha [0,1) = {alpha}')
+                    LOGGER.debug(f'linear alpha [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
