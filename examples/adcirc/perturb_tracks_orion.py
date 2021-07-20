@@ -128,7 +128,7 @@ if __name__ == '__main__':
     )
 
     perturbations = {
-        track_filename.name: {
+        track_filename.stem: {
             'besttrack': {
                 'fort22_filename': Path(os.path.relpath(track_filename, OUTPUT_DIRECTORY))
             }
