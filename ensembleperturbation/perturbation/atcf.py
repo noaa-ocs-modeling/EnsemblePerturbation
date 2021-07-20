@@ -1008,7 +1008,7 @@ class VortexPerturber:
                         alpha = gauss(0, 1) / 0.7979
                         perturbation_alphas[variable.name] = alpha
 
-                    print(f'Random gaussian variable = {alpha}')
+                    print(f'gaussian alpha = {alpha}')
                     perturbation = base_errors[0] * alpha
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
@@ -1025,7 +1025,7 @@ class VortexPerturber:
                         alpha = random()
                         perturbation_alphas[variable.name] = alpha
 
-                    print(f'Random number in [0,1) = {alpha}')
+                    print(f'linear alpha [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
