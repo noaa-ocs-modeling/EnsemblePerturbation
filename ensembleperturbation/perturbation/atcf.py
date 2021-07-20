@@ -999,6 +999,7 @@ class VortexPerturber:
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     if alpha is None:
                         alpha = random()
+
                     print(f'Random number in [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                     if variable.unit is not None and variable.unit != units.dimensionless:
@@ -1028,7 +1029,10 @@ class VortexPerturber:
                         perturbed_data[column] = perturbed_data[column].pint.magnitude
 
                 # write out the modified `fort.22`
-                output_filename = directory / f'{variable.name}_{perturbation_index}.22'
+                output_filename = (
+                    directory
+                    / f'{variable.name}_{alpha}_{variable.perturbation_type.value}.22'
+                )
                 perturbed_forcing = copy(self.forcing)
                 perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
                 perturbed_forcing.write(output_filename, overwrite=True)
