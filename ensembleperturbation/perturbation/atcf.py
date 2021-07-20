@@ -38,11 +38,14 @@ from abc import ABC
 from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
+from glob import glob
+import json
 from math import exp, inf, sqrt
+import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, random
-from typing import Union
+from typing import Mapping, Union
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
@@ -584,12 +587,7 @@ class CrossTrack(VortexPerturbedVariable):
                 )
             )
 
-        degree = PintType(units.degree)
         vortex_dataframe['latitude'], vortex_dataframe['longitude'] = zip(*new_coordinates)
-        vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
-            degree, copy=False
-        )
-        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(degree, copy=False)
 
         return vortex_dataframe
 
@@ -757,12 +755,7 @@ class AlongTrack(VortexPerturbedVariable):
                 )
             )
 
-        degree = PintType(units.degree)
         vortex_dataframe['latitude'], vortex_dataframe['longitude'] = zip(*new_coordinates)
-        vortex_dataframe['longitude'] = vortex_dataframe['longitude'].astype(
-            degree, copy=False
-        )
-        vortex_dataframe['latitude'] = vortex_dataframe['latitude'].astype(degree, copy=False)
 
         return vortex_dataframe
 
@@ -892,12 +885,14 @@ class VortexPerturber:
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
         alphas: [float] = None,
+        overwrite: bool = False,
     ) -> [Path]:
         """
         :param number_of_perturbations: number of perturbations to create
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
         :param alphas: list of floats meant to represent a point on the standard Gaussian distribution (see random.gauss function) for all variables except for "radius_of_maximum_winds" where should be list of floats in range [0, 1) (see random.random function). These alpha values are used to multiply error for perturbation; leave None for random
+        :param overwrite: overwrite existing files
         :returns: written filenames
         """
 
@@ -922,6 +917,10 @@ class VortexPerturber:
             directory = Path(directory)
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
+
+        if overwrite:
+            for filename in directory.iterdir():
+                os.remove(filename)
 
         # write out original fort.22
         self.forcing.write(directory / 'original.22', overwrite=True)
@@ -948,50 +947,75 @@ class VortexPerturber:
             copy=False,
         )
 
+        existing_filenames = glob(str(directory / 'vortex_*_variable_perturbation_*.22'))
+        if len(existing_filenames) > 0:
+            existing_filenames = sorted(existing_filenames)
+            last_index = int(existing_filenames[-1][-4]) + 1
+        else:
+            last_index = 1
+
         # for each variable, perturb the values and write each to a new `fort.22`
         output_filenames = []
-        for variable in variables:
-            print(f'writing perturbations for "{variable.name}"')
-            # Make the random pertubations based on the historical forecast errors
-            # Interpolate from the given VT to the storm_VT
-            if isinstance(variable, RadiusOfMaximumWinds):
-                storm_classification = storm_size
-            else:
-                storm_classification = storm_strength
+        for perturbation_number in range(last_index, number_of_perturbations + last_index):
+            perturbed_data = original_data.copy(deep=True)
 
-            historical_forecast_errors = variable.historical_forecast_errors[
-                storm_classification
-            ]
-            for column in historical_forecast_errors:
-                if isinstance(historical_forecast_errors[column].dtype, PintType):
-                    historical_forecast_errors[column] = historical_forecast_errors[
-                        column
-                    ].pint.magnitude
+            # setting the alpha to the value from the input list
+            perturbation_alphas = alphas[perturbation_number - last_index]
 
-            xp = historical_forecast_errors.index
-            fp = historical_forecast_errors.values
-            base_errors = [
-                interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
-                for ncol in range(len(fp[0]))
-            ]
+            if perturbation_alphas is None:
+                perturbation_alphas = {variable.name: None for variable in variables}
+            elif not isinstance(perturbation_alphas, Mapping):
+                perturbation_alphas = {
+                    variable.name: perturbation_alphas for variable in variables
+                }
 
-            for perturbation_index in range(1, number_of_perturbations + 1):
-                # setting the alpha to the value from the input list
-                alpha = alphas[perturbation_index - 1]
+            perturbation_alphas = {
+                variable.name
+                if isinstance(variable, type) and issubclass(variable, VortexPerturbedVariable)
+                else variable: alpha
+                for variable, alpha in perturbation_alphas.items()
+            }
+
+            for variable in variables:
+                alpha = perturbation_alphas[variable.name]
+
+                # Make the random pertubations based on the historical forecast errors
+                # Interpolate from the given VT to the storm_VT
+                if isinstance(variable, RadiusOfMaximumWinds):
+                    storm_classification = storm_size
+                else:
+                    storm_classification = storm_strength
+
+                historical_forecast_errors = variable.historical_forecast_errors[
+                    storm_classification
+                ]
+                for column in historical_forecast_errors:
+                    if isinstance(historical_forecast_errors[column].dtype, PintType):
+                        historical_forecast_errors[column] = historical_forecast_errors[
+                            column
+                        ].pint.magnitude
+
+                xp = historical_forecast_errors.index
+                fp = historical_forecast_errors.values
+                base_errors = [
+                    interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
+                    for ncol in range(len(fp[0]))
+                ]
 
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:
                         alpha = gauss(0, 1) / 0.7979
+                        perturbation_alphas[variable.name] = alpha
 
-                    print(f'Random gaussian variable = {alpha}')
+                    print(f'gaussian alpha = {alpha}')
                     perturbation = base_errors[0] * alpha
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
 
                     # add the error to the variable with bounds to some physical constraints
                     perturbed_data = variable.perturb(
-                        original_data,
+                        perturbed_data,
                         values=perturbation,
                         times=self.validation_times,
                         inplace=True,
@@ -999,15 +1023,16 @@ class VortexPerturber:
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     if alpha is None:
                         alpha = random()
+                        perturbation_alphas[variable.name] = alpha
 
-                    print(f'Random number in [0,1) = {alpha}')
+                    print(f'linear alpha [0,1) = {alpha}')
                     perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbation *= variable.unit
 
                     # subtract the error from the variable with physical constraint bounds
                     perturbed_data = variable.perturb(
-                        original_data,
+                        perturbed_data,
                         values=perturbation,
                         times=self.validation_times,
                         inplace=True,
@@ -1023,20 +1048,22 @@ class VortexPerturber:
                         perturbed_data
                     )
 
-                # remove units from data frame
-                for column in perturbed_data:
-                    if isinstance(perturbed_data[column].dtype, PintType):
-                        perturbed_data[column] = perturbed_data[column].pint.magnitude
+            # remove units from data frame
+            for column in perturbed_data:
+                if isinstance(perturbed_data[column].dtype, PintType):
+                    perturbed_data[column] = perturbed_data[column].pint.magnitude
 
-                # write out the modified `fort.22`
-                output_filename = (
-                    directory
-                    / f'{variable.name}_{alpha}_{variable.perturbation_type.value}.22'
-                )
-                perturbed_forcing = copy(self.forcing)
-                perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
-                perturbed_forcing.write(output_filename, overwrite=True)
-                output_filenames.append(output_filename)
+            # write out the modified `fort.22`
+            perturbation_name = (
+                f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}'
+            )
+            output_filename = directory / f'{perturbation_name}.22'
+            perturbed_forcing = copy(self.forcing)
+            perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
+            perturbed_forcing.write(output_filename, overwrite=True)
+            output_filenames.append(output_filename)
+            with open(directory / f'{perturbation_name}.json', 'w') as output_json:
+                json.dump(perturbation_alphas, output_json)
 
         return output_filenames
 
