@@ -79,7 +79,7 @@ setup(
     python_requires='>=3.6',
     setup_requires=['dunamai', 'setuptools>=41.2'],
     install_requires=[
-        'adcircpy>=1.0.37',
+        'adcircpy>=1.0.38',
         'appdirs',
         'bs4',
         'click',
@@ -99,7 +99,7 @@ setup(
         'shapely',
     ],
     extras_require={
-        'testing': ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'wget'],
+        'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={

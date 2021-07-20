@@ -1,7 +1,4 @@
-from adcircpy.forcing.winds.best_track import FileDeck, VortexForcing
-from dateutil.parser import parse as parse_date
-import pytest
-import pytest_socket
+from adcircpy.forcing.winds.best_track import FileDeck
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -41,43 +38,6 @@ def test_besttrack_ensemble():
         directory=output_directory,
         alphas=[0.25, 0.75],
     )
-
-    check_reference_directory(output_directory, reference_directory)
-
-
-def test_vortex_types():
-    output_directory = DATA_DIRECTORY / 'output' / 'test_vortex_types'
-    reference_directory = DATA_DIRECTORY / 'reference' / 'test_vortex_types'
-
-    if not output_directory.exists():
-        output_directory.mkdir(parents=True, exist_ok=True)
-
-    file_decks = {
-        'a': {
-            'start_date': parse_date('2018-09-11 06:00'),
-            'end_date': None,
-            'record_types': ['OFCL', 'HWRF', 'HMON', 'CARQ'],
-        },
-        'b': {
-            'start_date': parse_date('2018-09-11 06:00'),
-            'end_date': parse_date('2018-09-18 06:00'),
-            'record_types': ['BEST'],
-        },
-    }
-
-    for file_deck, values in file_decks.items():
-        for record_type in values['record_types']:
-            cyclone = VortexForcing(
-                'al062018',
-                start_date=values['start_date'],
-                end_date=values['end_date'],
-                file_deck=file_deck,
-                record_type=record_type,
-            )
-
-            cyclone.write(
-                output_directory / f'{file_deck}-deck_{record_type}.txt', overwrite=True
-            )
 
     check_reference_directory(output_directory, reference_directory)
 
@@ -133,21 +93,3 @@ def test_original_file():
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
-
-
-@pytest.mark.disable_socket
-def test_no_internet():
-    input_directory = DATA_DIRECTORY / 'input' / 'test_no_internet'
-    output_directory = DATA_DIRECTORY / 'output' / 'test_no_internet'
-    reference_directory = DATA_DIRECTORY / 'reference' / 'test_no_internet'
-
-    if not output_directory.exists():
-        output_directory.mkdir(parents=True, exist_ok=True)
-
-    with pytest.raises(pytest_socket.SocketBlockedError):
-        VortexForcing(storm='al062018', start_date='20180911', end_date=None)
-
-    vortex = VortexForcing.from_fort22(input_directory / 'fort.22')
-    vortex.write(output_directory / 'fort.22', overwrite=True)
-
-    check_reference_directory(output_directory, reference_directory)

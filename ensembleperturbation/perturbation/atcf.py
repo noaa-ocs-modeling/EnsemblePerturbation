@@ -188,7 +188,11 @@ class VortexPerturbedVariable(ABC):
         self.__default = default
 
     def perturb(
-        self, vortex_dataframe: DataFrame, values: [float], times: [datetime],
+        self,
+        vortex_dataframe: DataFrame,
+        values: [float],
+        times: [datetime],
+        inplace: bool = False,
     ) -> DataFrame:
         """
         perturb the variable within physical bounds
@@ -196,8 +200,13 @@ class VortexPerturbedVariable(ABC):
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: values for each forecast time (VT)
         :param times: forecast times (VT)
+        :param inplace: modify dataframe in-place
         :return: updated ATCF dataframe with perturbed values
         """
+
+        if not inplace:
+            # make a deepcopy to preserve the original dataframe
+            vortex_dataframe = vortex_dataframe.copy(deep=True)
 
         all_values = vortex_dataframe[self.name].values + values
         vortex_dataframe[self.name] = [
@@ -478,7 +487,11 @@ class CrossTrack(VortexPerturbedVariable):
         )
 
     def perturb(
-        self, vortex_dataframe: DataFrame, values: [float], times: [datetime],
+        self,
+        vortex_dataframe: DataFrame,
+        values: [float],
+        times: [datetime],
+        inplace: bool = False,
     ) -> DataFrame:
         """
         offset_track(df_,VT,cross_track_errors)
@@ -487,8 +500,13 @@ class CrossTrack(VortexPerturbedVariable):
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: cross-track errors [nm] for each forecast time (VT)
         :param times: forecast times (VT)
+        :param inplace: modify dataframe in-place
         :return: updated ATCF dataframe with different longitude latitude locations based on perpendicular offsets set by the cross_track_errors
         """
+
+        if not inplace:
+            # make a deepcopy to preserve the original dataframe
+            vortex_dataframe = vortex_dataframe.copy(deep=True)
 
         # Get the coordinates of the track
         track_coords = vortex_dataframe[['longitude', 'latitude']].values.tolist()
@@ -637,7 +655,11 @@ class AlongTrack(VortexPerturbedVariable):
         )
 
     def perturb(
-        self, vortex_dataframe: DataFrame, values: [float], times: [datetime],
+        self,
+        vortex_dataframe: DataFrame,
+        values: [float],
+        times: [datetime],
+        inplace: bool = False,
     ) -> DataFrame:
         """
         interpolate_along_track(df_,VT,along_track_errros)
@@ -646,8 +668,13 @@ class AlongTrack(VortexPerturbedVariable):
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: along-track errors for each forecast time (VT)
         :param times: forecast timed (VT)
+        :param inplace: modify dataframe in-place
         :return: updated ATCF dataframe with different longitude latitude locations based on interpolated errors along track
         """
+
+        if not inplace:
+            # make a deepcopy to preserve the original dataframe
+            vortex_dataframe = vortex_dataframe.copy(deep=True)
 
         max_interpolated_points = 5  # maximum number of pts along line for each interpolation
 
@@ -949,19 +976,9 @@ class VortexPerturber:
             ]
 
             for perturbation_index in range(1, number_of_perturbations + 1):
-                # make a deepcopy to preserve the original dataframe
-                perturbed_data = original_data.copy(deep=True)
-                perturbed_data = perturbed_data.astype(
-                    {
-                        variable.name: PintType(variable.unit)
-                        for variable in variables
-                        if variable.name in original_data
-                    },
-                    copy=False,
-                )
-
                 # setting the alpha to the value from the input list
                 alpha = alphas[perturbation_index - 1]
+
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:
@@ -974,7 +991,10 @@ class VortexPerturber:
 
                     # add the error to the variable with bounds to some physical constraints
                     perturbed_data = variable.perturb(
-                        perturbed_data, values=perturbation, times=self.validation_times,
+                        original_data,
+                        values=perturbation,
+                        times=self.validation_times,
+                        inplace=True,
                     )
                 elif variable.perturbation_type == PerturbationType.LINEAR:
                     if alpha is None:
@@ -987,7 +1007,14 @@ class VortexPerturber:
 
                     # subtract the error from the variable with physical constraint bounds
                     perturbed_data = variable.perturb(
-                        perturbed_data, values=perturbation, times=self.validation_times,
+                        original_data,
+                        values=perturbation,
+                        times=self.validation_times,
+                        inplace=True,
+                    )
+                else:
+                    raise NotImplementedError(
+                        f'perturbation type "{variable.perturbation_type}" is not recognized'
                     )
 
                 if isinstance(variable, MaximumSustainedWindSpeed):
@@ -1001,15 +1028,11 @@ class VortexPerturber:
                     if isinstance(perturbed_data[column].dtype, PintType):
                         perturbed_data[column] = perturbed_data[column].pint.magnitude
 
-                # reset the dataframe
-                perturbed_forcing = copy(self.forcing)
-                perturbed_forcing.dataframe = perturbed_data
-
-                # write out the modified fort.22
+                # write out the modified `fort.22`
                 output_filename = directory / f'{variable.name}_{alpha}_{variable.perturbation_type.value}.22'
-                perturbed_forcing.write(
-                    output_filename, overwrite=True,
-                )
+                perturbed_forcing = copy(self.forcing)
+                perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
+                perturbed_forcing.write(output_filename, overwrite=True)
                 output_filenames.append(output_filename)
 
         return output_filenames
