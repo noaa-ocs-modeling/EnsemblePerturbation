@@ -18,7 +18,7 @@ def test_parse_adcirc_output():
 
 
 def test_assemble_adcirc_output():
-    input_directory = DATA_DIRECTORY / 'input' / 'test_assemble_adcirc_output'
+    input_directory = DATA_DIRECTORY / 'input'
     output_directory = DATA_DIRECTORY / 'output' / 'test_assemble_adcirc_output'
     reference_directory = DATA_DIRECTORY / 'reference' / 'test_assemble_adcirc_output'
     output_filetypes = {
