@@ -1,4 +1,4 @@
-from os import PathLike, getcwd
+from os import getcwd, PathLike
 from pathlib import Path
 from typing import Union
 
@@ -212,9 +212,9 @@ def parse_adcirc_output(
     for output_filename in directory.glob('*.nc'):
         basename = output_filename.parts[-1]
         if basename in file_data_variables:
-           output_data[basename] = parse_adcirc_netcdf(
-              output_filename, file_data_variables[basename]
-        )
+            output_data[basename] = parse_adcirc_netcdf(
+                output_filename, file_data_variables[basename]
+            )
 
     return output_data
 
