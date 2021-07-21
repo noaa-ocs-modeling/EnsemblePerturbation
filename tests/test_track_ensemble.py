@@ -49,7 +49,7 @@ def test_monovariate_besttrack_ensemble():
     check_reference_directory(output_directory, reference_directory)
 
 
-def test_multivariate_besttrack_ensemble(mocker):
+def test_multivariate_besttrack_ensemble():
     output_directory = DATA_DIRECTORY / 'output' / 'test_multivariate_besttrack_ensemble'
     reference_directory = DATA_DIRECTORY / 'reference' / 'test_multivariate_besttrack_ensemble'
 
