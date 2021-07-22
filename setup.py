@@ -83,7 +83,7 @@ setup(
         'appdirs',
         'bs4',
         'click',
-        'coupledmodeldriver>=1.4.3',
+        'coupledmodeldriver>=1.4.5',
         'fiona',
         'geopandas',
         'matplotlib',
