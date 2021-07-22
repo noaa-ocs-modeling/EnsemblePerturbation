@@ -35,6 +35,7 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 """
 
 from abc import ABC
+import asyncio
 from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
@@ -807,6 +808,7 @@ class VortexPerturber:
         self.file_deck = file_deck
         self.mode = mode
         self.record_type = record_type
+        self.__event_loop = asyncio.get_event_loop()
 
     @property
     def storm(self) -> str:
@@ -972,7 +974,6 @@ class VortexPerturber:
             last_index = 1
 
         # for each variable, perturb the values and write each to a new `fort.22`
-        output_filenames = []
         for perturbation_number in range(last_index, number_of_perturbations + last_index):
             LOGGER.info(
                 f'building perturbation {perturbation_number - last_index + 1} of {number_of_perturbations}'
@@ -997,96 +998,121 @@ class VortexPerturber:
                 for variable, alpha in perturbation_alphas.items()
             }
 
-            for variable in variables:
-                alpha = perturbation_alphas[variable.name]
-
-                # Make the random pertubations based on the historical forecast errors
-                # Interpolate from the given VT to the storm_VT
-                if isinstance(variable, RadiusOfMaximumWinds):
-                    storm_classification = storm_size
-                else:
-                    storm_classification = storm_strength
-
-                historical_forecast_errors = variable.historical_forecast_errors[
-                    storm_classification
-                ]
-                for column in historical_forecast_errors:
-                    if isinstance(historical_forecast_errors[column].dtype, PintType):
-                        historical_forecast_errors[column] = historical_forecast_errors[
-                            column
-                        ].pint.magnitude
-
-                xp = historical_forecast_errors.index
-                fp = historical_forecast_errors.values
-                base_errors = [
-                    interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
-                    for ncol in range(len(fp[0]))
-                ]
-
-                # get the random perturbation sample
-                if variable.perturbation_type == PerturbationType.GAUSSIAN:
-                    if alpha is None:
-                        alpha = gauss(0, 1) / 0.7979
-                        perturbation_alphas[variable.name] = alpha
-
-                    LOGGER.debug(f'gaussian alpha = {alpha}')
-                    perturbation = base_errors[0] * alpha
-                    if variable.unit is not None and variable.unit != units.dimensionless:
-                        perturbation *= variable.unit
-
-                    # add the error to the variable with bounds to some physical constraints
-                    perturbed_data = variable.perturb(
-                        perturbed_data,
-                        values=perturbation,
-                        times=self.validation_times,
-                        inplace=True,
-                    )
-                elif variable.perturbation_type == PerturbationType.LINEAR:
-                    if alpha is None:
-                        alpha = random()
-                        perturbation_alphas[variable.name] = alpha
-
-                    LOGGER.debug(f'linear alpha [0,1) = {alpha}')
-                    perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
-                    if variable.unit is not None and variable.unit != units.dimensionless:
-                        perturbation *= variable.unit
-
-                    # subtract the error from the variable with physical constraint bounds
-                    perturbed_data = variable.perturb(
-                        perturbed_data,
-                        values=perturbation,
-                        times=self.validation_times,
-                        inplace=True,
-                    )
-                else:
-                    raise NotImplementedError(
-                        f'perturbation type "{variable.perturbation_type}" is not recognized'
-                    )
-
-                if isinstance(variable, MaximumSustainedWindSpeed):
-                    # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
-                    perturbed_data[CentralPressure.name] = self.compute_pc_from_Vmax(
-                        perturbed_data
-                    )
-
-            # remove units from data frame
-            for column in perturbed_data:
-                if isinstance(perturbed_data[column].dtype, PintType):
-                    perturbed_data[column] = perturbed_data[column].pint.magnitude
-
-            # write out the modified `fort.22`
-            perturbation_name = (
-                f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}'
+            self.__event_loop.create_task(
+                self.perturb_track(
+                    directory=directory,
+                    perturbation_number=perturbation_number,
+                    perturbed_data=perturbed_data,
+                    perturbation_alphas=perturbation_alphas,
+                    variables=variables,
+                    storm_size=storm_size,
+                    storm_strength=storm_strength,
+                )
             )
-            output_filename = directory / f'{perturbation_name}.22'
-            perturbed_forcing = copy(self.forcing)
-            perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
-            perturbed_forcing.write(output_filename, overwrite=True)
-            output_filenames.append(output_filename)
-            with open(directory / f'{perturbation_name}.json', 'w') as output_json:
-                json.dump(perturbation_alphas, output_json, indent=2)
 
-        return output_filenames
+        return self.__event_loop.run_until_complete(
+            asyncio.gather(*asyncio.all_tasks(self.__event_loop))
+        )
+
+    async def perturb_track(
+        self,
+        directory: PathLike,
+        perturbation_number: int,
+        perturbed_data: DataFrame,
+        perturbation_alphas: {str: float},
+        variables: [VortexPerturbedVariable],
+        storm_size: str,
+        storm_strength: str,
+    ) -> Path:
+        for variable in variables:
+            alpha = perturbation_alphas[variable.name]
+
+            # Make the random pertubations based on the historical forecast errors
+            # Interpolate from the given VT to the storm_VT
+            if isinstance(variable, RadiusOfMaximumWinds):
+                storm_classification = storm_size
+            else:
+                storm_classification = storm_strength
+
+            historical_forecast_errors = variable.historical_forecast_errors[
+                storm_classification
+            ]
+            for column in historical_forecast_errors:
+                if isinstance(historical_forecast_errors[column].dtype, PintType):
+                    historical_forecast_errors[column] = historical_forecast_errors[
+                        column
+                    ].pint.magnitude
+
+            xp = historical_forecast_errors.index
+            fp = historical_forecast_errors.values
+            base_errors = [
+                interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
+                for ncol in range(len(fp[0]))
+            ]
+
+            # get the random perturbation sample
+            if variable.perturbation_type == PerturbationType.GAUSSIAN:
+                if alpha is None:
+                    alpha = gauss(0, 1) / 0.7979
+                    perturbation_alphas[variable.name] = alpha
+
+                LOGGER.debug(f'gaussian alpha = {alpha}')
+                perturbation = base_errors[0] * alpha
+                if variable.unit is not None and variable.unit != units.dimensionless:
+                    perturbation *= variable.unit
+
+                # add the error to the variable with bounds to some physical constraints
+                perturbed_data = variable.perturb(
+                    perturbed_data,
+                    values=perturbation,
+                    times=self.validation_times,
+                    inplace=True,
+                )
+            elif variable.perturbation_type == PerturbationType.LINEAR:
+                if alpha is None:
+                    alpha = random()
+                    perturbation_alphas[variable.name] = alpha
+
+                LOGGER.debug(f'linear alpha [0,1) = {alpha}')
+                perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
+                if variable.unit is not None and variable.unit != units.dimensionless:
+                    perturbation *= variable.unit
+
+                # subtract the error from the variable with physical constraint bounds
+                perturbed_data = variable.perturb(
+                    perturbed_data,
+                    values=perturbation,
+                    times=self.validation_times,
+                    inplace=True,
+                )
+            else:
+                raise NotImplementedError(
+                    f'perturbation type "{variable.perturbation_type}" is not recognized'
+                )
+
+            if isinstance(variable, MaximumSustainedWindSpeed):
+                # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
+                perturbed_data[CentralPressure.name] = self.compute_pc_from_Vmax(
+                    perturbed_data
+                )
+
+        # remove units from data frame
+        for column in perturbed_data:
+            if isinstance(perturbed_data[column].dtype, PintType):
+                perturbed_data[column] = perturbed_data[column].pint.magnitude
+
+        # write out the modified `fort.22`
+        perturbation_name = (
+            f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}'
+        )
+        output_filename = directory / f'{perturbation_name}.22'
+        perturbed_forcing = copy(self.forcing)
+        perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
+        perturbed_forcing.write(output_filename, overwrite=True)
+        with open(directory / f'{perturbation_name}.json', 'w') as output_json:
+            json.dump(perturbation_alphas, output_json, indent=2)
+
+        return output_filename
 
     @property
     def validation_times(self) -> [timedelta]:
