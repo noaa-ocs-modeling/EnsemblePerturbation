@@ -66,7 +66,7 @@ def main():
 
     track_filenames = [track_directory / 'original.22']
     track_filenames += perturber.write(
-        number_of_perturbations=arguments['perturbations'],
+        perturbations=arguments['perturbations'],
         variables=arguments['variables'],
         directory=track_directory,
         overwrite=arguments['overwrite'],

@@ -46,7 +46,7 @@ import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, random
-from typing import Mapping, Union
+from typing import Dict, List, Mapping, Union
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
@@ -895,31 +895,21 @@ class VortexPerturber:
 
     def write(
         self,
-        number_of_perturbations: int,
+        perturbations: Union[int, List[float], List[Dict[str, float]]],
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
-        alphas: [float] = None,
         overwrite: bool = False,
     ) -> [Path]:
         """
-        :param number_of_perturbations: number of perturbations to create
+        :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian or distribution or a linear range
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
-        :param alphas: list of floats meant to represent a point on the standard Gaussian distribution (see random.gauss function) for all variables except for "radius_of_maximum_winds" where should be list of floats in range [0, 1) (see random.random function). These alpha values are used to multiply error for perturbation; leave None for random
         :param overwrite: overwrite existing files
         :returns: written filenames
         """
 
-        if number_of_perturbations is not None:
-            number_of_perturbations = int(number_of_perturbations)
-
-        if isinstance(alphas, float):
-            alphas = [alphas]
-
-        if alphas is None:
-            alphas = [None] * number_of_perturbations
-        elif len(alphas) != number_of_perturbations:
-            raise ValueError(f'alphas list must have {number_of_perturbations} items')
+        if isinstance(perturbations, int):
+            perturbations = [None] * perturbations
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
@@ -974,36 +964,36 @@ class VortexPerturber:
             last_index = 1
 
         # for each variable, perturb the values and write each to a new `fort.22`
-        for perturbation_number in range(last_index, number_of_perturbations + last_index):
+        for perturbation_number in range(last_index, len(perturbations) + last_index):
             LOGGER.info(
-                f'building perturbation {perturbation_number - last_index + 1} of {number_of_perturbations}'
+                f'building perturbation {perturbation_number - last_index + 1} of {len(perturbations)}'
             )
 
-            perturbed_data = original_data.copy(deep=True)
-
             # setting the alpha to the value from the input list
-            perturbation_alphas = alphas[perturbation_number - last_index]
+            perturbation = perturbations[perturbation_number - last_index]
 
-            if perturbation_alphas is None:
-                perturbation_alphas = {variable.name: None for variable in variables}
-            elif not isinstance(perturbation_alphas, Mapping):
-                perturbation_alphas = {
-                    variable.name: perturbation_alphas for variable in variables
-                }
+            if perturbation is None:
+                perturbation = {variable.name: None for variable in variables}
+            elif not isinstance(perturbation, Mapping):
+                perturbation = {variable.name: perturbation for variable in variables}
 
-            perturbation_alphas = {
+            perturbation = {
                 variable.name
                 if isinstance(variable, type) and issubclass(variable, VortexPerturbedVariable)
                 else variable: alpha
-                for variable, alpha in perturbation_alphas.items()
+                for variable, alpha in perturbation.items()
             }
 
+            output_filename = (
+                directory
+                / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}'
+            )
+
             self.__event_loop.create_task(
-                self.perturb_track(
-                    directory=directory,
-                    perturbation_number=perturbation_number,
-                    perturbed_data=perturbed_data,
-                    perturbation_alphas=perturbation_alphas,
+                self.write_perturbed_track(
+                    filename=output_filename,
+                    dataframe=original_data,
+                    perturbation=perturbation,
                     variables=variables,
                     storm_size=storm_size,
                     storm_strength=storm_strength,
@@ -1014,18 +1004,22 @@ class VortexPerturber:
             asyncio.gather(*asyncio.all_tasks(self.__event_loop))
         )
 
-    async def perturb_track(
+    async def write_perturbed_track(
         self,
-        directory: PathLike,
-        perturbation_number: int,
-        perturbed_data: DataFrame,
-        perturbation_alphas: {str: float},
+        filename: PathLike,
+        dataframe: DataFrame,
+        perturbation: {str: float},
         variables: [VortexPerturbedVariable],
         storm_size: str,
         storm_strength: str,
     ) -> Path:
+        if not isinstance(filename, Path):
+            filename = Path(filename)
+
+        dataframe = dataframe.copy(deep=True)
+
         for variable in variables:
-            alpha = perturbation_alphas[variable.name]
+            alpha = perturbation[variable.name]
 
             # Make the random pertubations based on the historical forecast errors
             # Interpolate from the given VT to the storm_VT
@@ -1054,34 +1048,34 @@ class VortexPerturber:
             if variable.perturbation_type == PerturbationType.GAUSSIAN:
                 if alpha is None:
                     alpha = gauss(0, 1) / 0.7979
-                    perturbation_alphas[variable.name] = alpha
+                    perturbation[variable.name] = alpha
 
                 LOGGER.debug(f'gaussian alpha = {alpha}')
-                perturbation = base_errors[0] * alpha
+                perturbed_values = base_errors[0] * alpha
                 if variable.unit is not None and variable.unit != units.dimensionless:
-                    perturbation *= variable.unit
+                    perturbed_values *= variable.unit
 
                 # add the error to the variable with bounds to some physical constraints
-                perturbed_data = variable.perturb(
-                    perturbed_data,
-                    values=perturbation,
+                dataframe = variable.perturb(
+                    dataframe,
+                    values=perturbed_values,
                     times=self.validation_times,
                     inplace=True,
                 )
             elif variable.perturbation_type == PerturbationType.LINEAR:
                 if alpha is None:
                     alpha = random()
-                    perturbation_alphas[variable.name] = alpha
+                    perturbation[variable.name] = alpha
 
                 LOGGER.debug(f'linear alpha [0,1) = {alpha}')
-                perturbation = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
+                perturbed_values = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
                 if variable.unit is not None and variable.unit != units.dimensionless:
-                    perturbation *= variable.unit
+                    perturbed_values *= variable.unit
 
                 # subtract the error from the variable with physical constraint bounds
-                perturbed_data = variable.perturb(
-                    perturbed_data,
-                    values=perturbation,
+                dataframe = variable.perturb(
+                    dataframe,
+                    values=perturbed_values,
                     times=self.validation_times,
                     inplace=True,
                 )
@@ -1092,27 +1086,21 @@ class VortexPerturber:
 
             if isinstance(variable, MaximumSustainedWindSpeed):
                 # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
-                perturbed_data[CentralPressure.name] = self.compute_pc_from_Vmax(
-                    perturbed_data
-                )
+                dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
         # remove units from data frame
-        for column in perturbed_data:
-            if isinstance(perturbed_data[column].dtype, PintType):
-                perturbed_data[column] = perturbed_data[column].pint.magnitude
+        for column in dataframe:
+            if isinstance(dataframe[column].dtype, PintType):
+                dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        perturbation_name = (
-            f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}'
-        )
-        output_filename = directory / f'{perturbation_name}.22'
         perturbed_forcing = copy(self.forcing)
-        perturbed_forcing.dataframe.loc[perturbed_data.index] = perturbed_data
-        perturbed_forcing.write(output_filename, overwrite=True)
-        with open(directory / f'{perturbation_name}.json', 'w') as output_json:
-            json.dump(perturbation_alphas, output_json, indent=2)
+        perturbed_forcing.dataframe.loc[dataframe.index] = dataframe
+        perturbed_forcing.write(filename, overwrite=True)
+        with open(filename.parent / f'{filename.stem}.json', 'w') as output_json:
+            json.dump(perturbation, output_json, indent=2)
 
-        return output_filename
+        return filename
 
     @property
     def validation_times(self) -> [timedelta]:

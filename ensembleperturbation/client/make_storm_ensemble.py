@@ -52,7 +52,7 @@ def main():
     )
 
     perturber.write(
-        number_of_perturbations=arguments.number_of_perturbations,
+        perturbations=arguments.number_of_perturbations,
         variables=variables,
         directory=arguments.directory,
     )
