@@ -104,8 +104,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'make_storm_ensemble=client.make_storm_ensemble:main',
-            'perturb_tracks=client.perturb_tracks:main',
+            'make_storm_ensemble=ensembleperturbation.client.make_storm_ensemble:main',
+            'perturb_tracks=ensembleperturbation.client.perturb_tracks:main',
         ],
     },
 )
