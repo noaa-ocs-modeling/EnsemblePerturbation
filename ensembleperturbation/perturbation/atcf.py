@@ -47,8 +47,7 @@ from pathlib import Path
 from random import gauss, random
 from typing import Mapping, Union
 
-from adcircpy.forcing.winds.best_track import FileDeck, Mode, \
-    VortexForcing, convert_value
+from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -216,9 +215,9 @@ class VortexPerturbedVariable(ABC):
 
         all_values = vortex_dataframe[self.name].values + values
         vortex_dataframe[self.name] = [
-                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
-                                          for value in all_values
-                                      ] * self.unit
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            for value in all_values
+        ] * self.unit
 
         return vortex_dataframe
 
@@ -763,6 +762,16 @@ class AlongTrack(VortexPerturbedVariable):
         return vortex_dataframe
 
 
+VARIABLES = [
+    CentralPressure,
+    BackgroundPressure,
+    MaximumSustainedWindSpeed,
+    RadiusOfMaximumWinds,
+    CrossTrack,
+    AlongTrack,
+]
+
+
 class VortexPerturber:
     def __init__(
         self,
@@ -913,6 +922,11 @@ class VortexPerturber:
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
                 variables[index] = variable()
+            elif isinstance(variable, str):
+                for existing_variable in VARIABLES:
+                    if variable == existing_variable.name:
+                        variables[index] = existing_variable()
+                        break
 
         if directory is None:
             directory = Path.cwd()
@@ -960,7 +974,9 @@ class VortexPerturber:
         # for each variable, perturb the values and write each to a new `fort.22`
         output_filenames = []
         for perturbation_number in range(last_index, number_of_perturbations + last_index):
-            LOGGER.info(f'building perturbation {perturbation_number - last_index + 1} of {number_of_perturbations}')
+            LOGGER.info(
+                f'building perturbation {perturbation_number - last_index + 1} of {number_of_perturbations}'
+            )
 
             perturbed_data = original_data.copy(deep=True)
 

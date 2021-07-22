@@ -102,5 +102,10 @@ setup(
         'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'tables', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
-    entry_points={'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main'],},
+    entry_points={
+        'console_scripts': [
+            'make_storm_ensemble=client.make_storm_ensemble:main',
+            'perturb_tracks=client.perturb_tracks:main',
+        ],
+    },
 )
