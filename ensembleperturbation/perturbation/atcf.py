@@ -986,7 +986,7 @@ class VortexPerturber:
 
             output_filename = (
                 directory
-                / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}'
+                / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}.22'
             )
 
             self.__event_loop.create_task(
