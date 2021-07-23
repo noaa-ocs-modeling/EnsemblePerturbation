@@ -30,20 +30,14 @@ def test_monovariate_besttrack_ensemble():
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
     for gauss_variable in gauss_variables:
         perturber.write(
-            number_of_perturbations=2,
-            variables=[gauss_variable],
-            directory=output_directory,
-            alphas=[-1.0, 1.0],
+            perturbations=[-1.0, 1.0], variables=[gauss_variable], directory=output_directory,
         )
 
     # list of variables where perturbation is bounded in the range [0,1)
     range_variables = [RadiusOfMaximumWinds]
     for range_variable in range_variables:
         perturber.write(
-            number_of_perturbations=2,
-            variables=[range_variable],
-            directory=output_directory,
-            alphas=[0.25, 0.75],
+            perturbations=[0.25, 0.75], variables=[range_variable], directory=output_directory,
         )
 
     check_reference_directory(output_directory, reference_directory)
@@ -63,14 +57,13 @@ def test_multivariate_besttrack_ensemble():
     # list of variables where perturbation is Gaussian
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
     perturber.write(
-        number_of_perturbations=3,
-        variables=gauss_variables,
-        directory=output_directory,
-        alphas=[
+        perturbations=[
             -1.0,
             {MaximumSustainedWindSpeed: -0.25, CrossTrack: 0.25, 'along_track': 0.75},
             0.75,
         ],
+        variables=gauss_variables,
+        directory=output_directory,
         overwrite=True,
     )
 
@@ -94,37 +87,25 @@ def test_original_file():
     perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
 
     perturber.write(
-        number_of_perturbations=2,
-        variables=gauss_variables,
-        directory=run_1_directory,
-        alphas=[-1.0, 1.0],
+        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory,
     )
 
     assert open(run_1_directory / 'original.22').read() == original_data
 
     perturber.write(
-        number_of_perturbations=2,
-        variables=gauss_variables,
-        directory=run_1_directory,
-        alphas=[-1.0, 1.0],
+        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory,
     )
 
     assert open(run_1_directory / 'original.22').read() == original_data
 
     perturber.write(
-        number_of_perturbations=2,
-        variables=gauss_variables,
-        directory=run_2_directory,
-        alphas=[-1.0, 1.0],
+        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory,
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
 
     perturber.write(
-        number_of_perturbations=2,
-        variables=range_variables,
-        directory=run_2_directory,
-        alphas=[0.25, 0.75],
+        perturbations=[0.25, 0.75], variables=range_variables, directory=run_2_directory,
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data

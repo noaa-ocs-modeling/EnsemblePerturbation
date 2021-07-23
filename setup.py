@@ -83,7 +83,7 @@ setup(
         'appdirs',
         'bs4',
         'click',
-        'coupledmodeldriver>=1.4.3',
+        'coupledmodeldriver>=1.4.5',
         'fiona',
         'geopandas',
         'matplotlib',
@@ -102,5 +102,10 @@ setup(
         'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'tables', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
-    entry_points={'console_scripts': ['make_storm_ensemble=client.make_storm_ensemble:main'],},
+    entry_points={
+        'console_scripts': [
+            'make_storm_ensemble=ensembleperturbation.client.make_storm_ensemble:main',
+            'perturb_tracks=ensembleperturbation.client.perturb_tracks:main',
+        ],
+    },
 )
