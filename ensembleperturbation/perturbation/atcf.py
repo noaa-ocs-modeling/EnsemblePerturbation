@@ -963,6 +963,8 @@ class VortexPerturber:
         else:
             last_index = 1
 
+        LOGGER.info(f'writing {len(perturbations)} perturbations')
+
         # for each variable, perturb the values and write each to a new `fort.22`
         for perturbation_number in range(last_index, len(perturbations) + last_index):
             # setting the alpha to the value from the input list
@@ -994,10 +996,6 @@ class VortexPerturber:
                     storm_size=storm_size,
                     storm_strength=storm_strength,
                 )
-            )
-
-            LOGGER.info(
-                f'building perturbation {perturbation_number - last_index + 1} of {len(perturbations)}'
             )
 
         return self.__event_loop.run_until_complete(
