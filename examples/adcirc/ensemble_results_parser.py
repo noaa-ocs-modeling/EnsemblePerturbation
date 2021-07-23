@@ -22,7 +22,7 @@ def parse_input(input_directory):
     # reading the JSON data using json.load()
     # create the dictionary KEYS
     dict_vortex = {}
-    for filename in input_directory.glob('**/vortex.json'):
+    for filename in input_directory.glob('**/vortex*.json'):
         with open(filename) as vortex_file:
             dict_temp = load(vortex_file)
             dict_vortex.update(dict_temp)
@@ -31,7 +31,7 @@ def parse_input(input_directory):
 
     # Fill in the dictionary for each perturbation
     indices = []
-    for filename in input_directory.glob('**/vortex.json'):
+    for filename in input_directory.glob('**/vortex*.json'):
         # get the perturbation index
         indices.append(filename.parts[-2])
         with open(filename) as vortex_file:
