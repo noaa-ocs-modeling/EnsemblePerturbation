@@ -965,10 +965,6 @@ class VortexPerturber:
 
         # for each variable, perturb the values and write each to a new `fort.22`
         for perturbation_number in range(last_index, len(perturbations) + last_index):
-            LOGGER.info(
-                f'building perturbation {perturbation_number - last_index + 1} of {len(perturbations)}'
-            )
-
             # setting the alpha to the value from the input list
             perturbation = perturbations[perturbation_number - last_index]
 
@@ -998,6 +994,10 @@ class VortexPerturber:
                     storm_size=storm_size,
                     storm_strength=storm_strength,
                 )
+            )
+
+            LOGGER.info(
+                f'building perturbation {perturbation_number - last_index + 1} of {len(perturbations)}'
             )
 
         return self.__event_loop.run_until_complete(
@@ -1099,6 +1099,8 @@ class VortexPerturber:
         perturbed_forcing.write(filename, overwrite=True)
         with open(filename.parent / f'{filename.stem}.json', 'w') as output_json:
             json.dump(perturbation, output_json, indent=2)
+
+        LOGGER.info(f'wrote {len(variables)}-variable perturbation to "{filename}"')
 
         return filename
 
