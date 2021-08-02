@@ -1098,7 +1098,9 @@ class VortexPerturber:
         with open(filename.parent / f'{filename.stem}.json', 'w') as output_json:
             json.dump(perturbation, output_json, indent=2)
 
-        LOGGER.info(f'wrote {len(variables)}-variable perturbation to "{os.path.relpath(filename, Path.cwd())}"')
+        LOGGER.info(
+            f'wrote {len(variables)}-variable perturbation to "{os.path.relpath(filename, Path.cwd())}"'
+        )
 
         return filename
 

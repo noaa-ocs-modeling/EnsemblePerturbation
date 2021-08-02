@@ -1,61 +1,72 @@
-#!/usr/bin/env python
-import importlib
+from collections.abc import Mapping
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
 from setuptools import config, find_packages, setup
 
-BUILT_PACKAGES = {'fiona': ['gdal'], 'numpy': [], 'pyproj': ['gdal'], 'shapely': ['gdal']}
-is_conda = (Path(sys.prefix) / 'conda-meta').exists()
+DEPENDENCIES = {
+    'adcircpy>=1.0.39': ['gdal', 'fiona'],
+    'appdirs': [],
+    'bs4': [],
+    'click': [],
+    'coupledmodeldriver>=1.4.6': [],
+    'fiona': ['gdal'],
+    'geopandas': [],
+    'matplotlib': [],
+    'nemspy>=0.6.16': [],
+    'netcdf4': [],
+    'numpy': [],
+    'pandas': [],
+    'pint': [],
+    'pint-pandas': [],
+    'pyproj>=2.6': [],
+    'python-dateutil': [],
+    'requests': [],
+    'shapely': [],
+}
 
-if is_conda:
-    conda_packages = []
-    for conda_package in BUILT_PACKAGES:
-        try:
-            importlib.import_module(conda_package)
-        except:
-            conda_packages.append(conda_package)
-    if len(conda_packages) > 0:
-        subprocess.check_call(['conda', 'install', '-y', *conda_packages])
 
-if os.name == 'nt':
-    for required_package, pipwin_dependencies in BUILT_PACKAGES.items():
-        try:
-            importlib.import_module(required_package)
-        except:
-            try:
-                import pipwin
-            except:
-                subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pipwin'])
+def installed_packages() -> [str]:
+    return [
+        re.split('#egg=', re.split('==| @ ', package.decode())[0])[-1].lower()
+        for package in subprocess.run(
+            f'{sys.executable} -m pip freeze', shell=True, capture_output=True,
+        ).stdout.splitlines()
+    ]
 
-            failed_pipwin_packages = []
-            for pipwin_package in pipwin_dependencies + [required_package]:
-                try:
-                    subprocess.check_call(
-                        [sys.executable, '-m', 'pipwin', 'install', pipwin_package.lower()]
-                    )
-                except subprocess.CalledProcessError:
-                    failed_pipwin_packages.append(pipwin_package)
 
-            if len(failed_pipwin_packages) > 0:
-                raise RuntimeError(
-                    f'failed to download or install non-conda Windows build(s) of {" and ".join(failed_pipwin_packages)}; you can either\n'
-                    '1) install within an Anaconda environment, or\n'
-                    f'2) `pip install <file>.whl`, with `<file>.whl` downloaded from {" and ".join("https://www.lfd.uci.edu/~gohlke/pythonlibs/#" + value.lower() for value in failed_pipwin_packages)} for your Python version'
-                )
+def missing_packages(required_packages: {str: [str]}) -> {str: [str]}:
+    if isinstance(required_packages, Mapping):
+        missing_dependencies = missing_packages(list(required_packages))
+        output = {}
+        for dependency, subdependencies in required_packages.items():
+            missing_subdependencies = missing_packages(subdependencies)
+            if dependency in missing_dependencies or len(missing_subdependencies) > 0:
+                output[dependency] = missing_subdependencies
+        return output
+    else:
+        return [
+            required_package
+            for required_package in required_packages
+            if re.split('<|<=|==|>=|>', required_package)[0].lower()
+            not in installed_packages()
+        ]
+
 
 try:
-    try:
-        from dunamai import Version
-    except ImportError:
-        import subprocess
-        import sys
+    if 'dunamai' not in installed_packages():
+        subprocess.run(
+            f'{sys.executable} -m pip install dunamai',
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'dunamai'])
-        from dunamai import Version
+    from dunamai import Version
 
     version = Version.from_any_vcs().serialize()
 except RuntimeError as error:
@@ -63,6 +74,85 @@ except RuntimeError as error:
     version = '0.0.0'
 
 logging.info(f'using version {version}')
+
+MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
+
+if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
+    conda_packages = []
+    for dependency in list(MISSING_DEPENDENCIES):
+        try:
+            process = subprocess.run(
+                f'conda search {dependency}', check=True, shell=True, capture_output=True,
+            )
+            if 'No match found for:' not in process.stdout.decode():
+                conda_packages.append(dependency)
+        except subprocess.CalledProcessError:
+            continue
+
+    try:
+        subprocess.run(
+            f'conda install -y {" ".join(conda_packages)}',
+            check=True,
+            shell=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        for dependency in conda_packages:
+            try:
+                subprocess.run(
+                    f'conda install -y {dependency}',
+                    check=True,
+                    shell=True,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                continue
+
+    MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
+
+if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
+    if 'pipwin' not in installed_packages():
+        subprocess.run(
+            f'{sys.executable} -m pip install pipwin',
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    subprocess.run(f'{sys.executable} -m pipwin refresh', shell=True)
+
+    for dependency, subdependencies in MISSING_DEPENDENCIES.items():
+        failed_pipwin_packages = []
+        for _ in range(1 + len(subdependencies)):
+            for package_name in subdependencies + [dependency]:
+                if dependency in missing_packages(
+                    DEPENDENCIES
+                ) or package_name in missing_packages(subdependencies):
+                    try:
+                        subprocess.run(
+                            f'{sys.executable} -m pipwin install {package_name.lower()}',
+                            check=True,
+                            shell=True,
+                            stderr=subprocess.DEVNULL,
+                        )
+                        if package_name in failed_pipwin_packages:
+                            failed_pipwin_packages.remove(package_name)
+                    except subprocess.CalledProcessError:
+                        try:
+                            subprocess.run(
+                                f'{sys.executable} -m pip install {package_name.lower()}',
+                                check=True,
+                                shell=True,
+                                stderr=subprocess.DEVNULL,
+                            )
+                        except subprocess.CalledProcessError:
+                            failed_pipwin_packages.append(package_name)
+
+            # since we don't know the dependencies here, repeat this process n number of times
+            # (worst case is `O(n)`, where the first package is dependant on all the others)
+            if len(failed_pipwin_packages) == 0:
+                break
+
+    MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
 metadata = config.read_configuration('setup.cfg')['metadata']
 
@@ -78,26 +168,7 @@ setup(
     packages=find_packages(),
     python_requires='>=3.6',
     setup_requires=['dunamai', 'setuptools>=41.2'],
-    install_requires=[
-        'adcircpy>=1.0.39',
-        'appdirs',
-        'bs4',
-        'click',
-        'coupledmodeldriver>=1.4.5',
-        'fiona',
-        'geopandas',
-        'matplotlib',
-        'nemspy>=0.6.16',
-        'netcdf4',
-        'numpy',
-        'pandas',
-        'pint',
-        'pint-pandas',
-        'pyproj>=2.6',
-        'python-dateutil',
-        'requests',
-        'shapely',
-    ],
+    install_requires=list(DEPENDENCIES),
     extras_require={
         'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'tables', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
