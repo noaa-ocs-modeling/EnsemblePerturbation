@@ -28,7 +28,9 @@ jobs:
         run: pip install wheel
       - name: Run setup.py on Windows
         if: contains(matrix.os, 'windows')
-        run: python setup.py install
+        run: |
+          python setup.py install
+          pipwin install tables
       - name: Install dependencies
         run: |
           pip install wheel
