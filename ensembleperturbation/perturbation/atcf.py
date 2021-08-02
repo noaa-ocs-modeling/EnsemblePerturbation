@@ -725,7 +725,7 @@ class AlongTrack(VortexPerturbedVariable):
             utm_crs = utm_crs_from_longitude(coordinates[index][0])
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
-            along_error = -1.0*values[index - max_interpolated_points].to(units.meter)
+            along_error = -1.0 * values[index - max_interpolated_points].to(units.meter)
             along_sign = int(sign(along_error))
 
             projected_points = []
@@ -1062,12 +1062,13 @@ class VortexPerturber:
                 )
             elif variable.perturbation_type == PerturbationType.UNIFORM:
                 if alpha is None:
-                    alpha = uniform(-1,1)
+                    alpha = uniform(-1, 1)
                     perturbation[variable.name] = alpha
 
                 LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
-                perturbed_values = 0.5*(base_errors[0] * (1 - alpha) +
-                                        base_errors[1] * (1 + alpha) )
+                perturbed_values = 0.5 * (
+                    base_errors[0] * (1 - alpha) + base_errors[1] * (1 + alpha)
+                )
                 if variable.unit is not None and variable.unit != units.dimensionless:
                     perturbed_values *= variable.unit
 
@@ -1099,7 +1100,9 @@ class VortexPerturber:
         with open(filename.parent / f'{filename.stem}.json', 'w') as output_json:
             json.dump(perturbation, output_json, indent=2)
 
-        LOGGER.info(f'wrote {len(variables)}-variable perturbation to "{os.path.relpath(filename, Path.cwd())}"')
+        LOGGER.info(
+            f'wrote {len(variables)}-variable perturbation to "{os.path.relpath(filename, Path.cwd())}"'
+        )
 
         return filename
 
