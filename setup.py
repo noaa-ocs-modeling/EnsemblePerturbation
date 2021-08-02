@@ -34,7 +34,7 @@ def installed_packages() -> [str]:
     return [
         re.split('#egg=', re.split('==| @ ', package.decode())[0])[-1].lower()
         for package in subprocess.run(
-            f'{sys.executable} -m pip freeze', capture_output=True
+            f'{sys.executable} -m pip freeze', shell=True, capture_output=True,
         ).stdout.splitlines()
     ]
 
@@ -61,6 +61,7 @@ try:
     if 'dunamai' not in installed_packages():
         subprocess.run(
             f'{sys.executable} -m pip install dunamai',
+            shell=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -81,7 +82,7 @@ if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
     for dependency in list(MISSING_DEPENDENCIES):
         try:
             process = subprocess.run(
-                f'conda search {dependency}', shell=True, check=True, capture_output=True,
+                f'conda search {dependency}', check=True, shell=True, capture_output=True,
             )
             if 'No match found for:' not in process.stdout.decode():
                 conda_packages.append(dependency)
@@ -113,10 +114,11 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
     if 'pipwin' not in installed_packages():
         subprocess.run(
             f'{sys.executable} -m pip install pipwin',
+            shell=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-    subprocess.run(f'{sys.executable} -m pipwin refresh',)
+    subprocess.run(f'{sys.executable} -m pipwin refresh', shell=True)
 
     for dependency, subdependencies in MISSING_DEPENDENCIES.items():
         failed_pipwin_packages = []
@@ -129,6 +131,7 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
                         subprocess.run(
                             f'{sys.executable} -m pipwin install {package_name.lower()}',
                             check=True,
+                            shell=True,
                             stderr=subprocess.DEVNULL,
                         )
                         if package_name in failed_pipwin_packages:
@@ -138,6 +141,7 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
                             subprocess.run(
                                 f'{sys.executable} -m pip install {package_name.lower()}',
                                 check=True,
+                                shell=True,
                                 stderr=subprocess.DEVNULL,
                             )
                         except subprocess.CalledProcessError:
