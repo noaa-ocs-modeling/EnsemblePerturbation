@@ -88,9 +88,6 @@ if os.name == 'nt' and len(missing_dependencies) > 0:
 
 try:
     if 'dunamai' not in installed_packages():
-        import subprocess
-        import sys
-
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'dunamai'])
 
     from dunamai import Version
