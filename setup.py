@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import logging
 import os
 from pathlib import Path
@@ -38,38 +39,50 @@ def installed_packages() -> [str]:
     ]
 
 
-def missing_packages(dependencies: {str: [str]}) -> {str: [str]}:
-    return {
-        dependency: subdependencies
-        for dependency, subdependencies in dependencies.items()
-        if re.split('<|<=|==|>=|>', dependency)[0].lower() not in installed_packages()
-    }
+def missing_packages(required_packages: {str: [str]}) -> {str: [str]}:
+    if isinstance(required_packages, Mapping):
+        missing_dependencies = missing_packages(list(required_packages))
+        output = {}
+        for dependency, subdependencies in required_packages.items():
+            missing_subdependencies = missing_packages(subdependencies)
+            if dependency in missing_dependencies or len(missing_subdependencies) > 0:
+                output[dependency] = missing_subdependencies
+        return output
+    else:
+        return [
+            required_package
+            for required_package in required_packages
+            if re.split('<|<=|==|>=|>', required_package)[0].lower()
+            not in installed_packages()
+        ]
 
 
-missing_dependencies = missing_packages(DEPENDENCIES)
+MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
-if (Path(sys.prefix) / 'conda-meta').exists() and len(missing_dependencies) > 0:
+if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
     try:
-        subprocess.check_call(['conda', 'install', '-y', list(missing_dependencies)])
+        subprocess.check_call(['conda', 'install', '-y', list(MISSING_DEPENDENCIES)])
     except:
-        for dependency in list(missing_dependencies):
+        for dependency in list(MISSING_DEPENDENCIES):
             try:
                 subprocess.check_call(['conda', 'install', '-y', dependency])
             except:
                 continue
 
-    missing_dependencies = missing_packages(DEPENDENCIES)
+    MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
-if os.name == 'nt' and len(missing_dependencies) > 0:
+if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
     if 'pipwin' not in installed_packages():
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pipwin'])
     subprocess.check_call([sys.executable, '-m', 'pipwin', 'refresh'])
 
-    for dependency, subdependencies in missing_dependencies.items():
+    for dependency, subdependencies in MISSING_DEPENDENCIES.items():
         failed_pipwin_packages = []
         for _ in range(1 + len(subdependencies)):
             for package_name in subdependencies + [dependency]:
-                if package_name in missing_packages(DEPENDENCIES):
+                if dependency in missing_packages(
+                    DEPENDENCIES
+                ) or package_name in missing_packages(subdependencies):
                     try:
                         subprocess.check_call(
                             [sys.executable, '-m', 'pipwin', 'install', package_name.lower()]
@@ -77,14 +90,19 @@ if os.name == 'nt' and len(missing_dependencies) > 0:
                         if package_name in failed_pipwin_packages:
                             failed_pipwin_packages.remove(package_name)
                     except subprocess.CalledProcessError:
-                        failed_pipwin_packages.append(package_name)
+                        try:
+                            subprocess.check_call(
+                                [sys.executable, '-m', 'pip', 'install', package_name.lower()]
+                            )
+                        except subprocess.CalledProcessError:
+                            failed_pipwin_packages.append(package_name)
 
             # since we don't know the dependencies here, repeat this process n number of times
             # (worst case is `O(n)`, where the first package is dependant on all the others)
             if len(failed_pipwin_packages) == 0:
                 break
 
-    missing_dependencies = missing_packages(DEPENDENCIES)
+    MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
 try:
     if 'dunamai' not in installed_packages():
