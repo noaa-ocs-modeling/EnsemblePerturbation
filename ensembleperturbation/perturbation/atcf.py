@@ -45,7 +45,7 @@ from math import exp, inf, sqrt
 import os
 from os import PathLike
 from pathlib import Path
-from random import gauss, random
+from random import gauss, uniform
 from typing import Dict, List, Mapping, Union
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
@@ -74,7 +74,7 @@ ERROR_INDICES_60H = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for 
 
 class PerturbationType(Enum):
     GAUSSIAN = 'gaussian'
-    LINEAR = 'linear'
+    UNIFORM = 'uniform'
 
 
 class VortexPerturbedVariable(ABC):
@@ -214,7 +214,7 @@ class VortexPerturbedVariable(ABC):
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
-        all_values = vortex_dataframe[self.name].values + values
+        all_values = vortex_dataframe[self.name].values - values
         vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             for value in all_values
@@ -280,7 +280,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
     name = 'radius_of_maximum_winds'
-    perturbation_type = PerturbationType.LINEAR
+    perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
         super().__init__(
@@ -584,8 +584,8 @@ class CrossTrack(VortexPerturbedVariable):
             # compute the next point and retrieve back the lat-lon geographic coordinate
             new_coordinates.append(
                 transformer.transform(
-                    (x_ref + alpha * dx).magnitude,
-                    (y_ref + alpha * dy).magnitude,
+                    (x_ref - alpha * dx).magnitude,
+                    (y_ref - alpha * dy).magnitude,
                     direction=TransformDirection.INVERSE,
                 )
             )
@@ -725,7 +725,7 @@ class AlongTrack(VortexPerturbedVariable):
             utm_crs = utm_crs_from_longitude(coordinates[index][0])
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
-            along_error = values[index - max_interpolated_points].to(units.meter)
+            along_error = -1.0 * values[index - max_interpolated_points].to(units.meter)
             along_sign = int(sign(along_error))
 
             projected_points = []
@@ -901,7 +901,7 @@ class VortexPerturber:
         overwrite: bool = False,
     ) -> [Path]:
         """
-        :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian or distribution or a linear range
+        :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
         :param overwrite: overwrite existing files
@@ -1045,11 +1045,11 @@ class VortexPerturber:
             # get the random perturbation sample
             if variable.perturbation_type == PerturbationType.GAUSSIAN:
                 if alpha is None:
-                    alpha = gauss(0, 1) / 0.7979
+                    alpha = gauss(0, 1)
                     perturbation[variable.name] = alpha
 
                 LOGGER.debug(f'gaussian alpha = {alpha}')
-                perturbed_values = base_errors[0] * alpha
+                perturbed_values = base_errors[0] * alpha / 0.7979
                 if variable.unit is not None and variable.unit != units.dimensionless:
                     perturbed_values *= variable.unit
 
@@ -1060,13 +1060,15 @@ class VortexPerturber:
                     times=self.validation_times,
                     inplace=True,
                 )
-            elif variable.perturbation_type == PerturbationType.LINEAR:
+            elif variable.perturbation_type == PerturbationType.UNIFORM:
                 if alpha is None:
-                    alpha = random()
+                    alpha = uniform(-1, 1)
                     perturbation[variable.name] = alpha
 
-                LOGGER.debug(f'linear alpha [0,1) = {alpha}')
-                perturbed_values = -(base_errors[0] * (1.0 - alpha) + base_errors[1] * alpha)
+                LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
+                perturbed_values = 0.5 * (
+                    base_errors[0] * (1 - alpha) + base_errors[1] * (1 + alpha)
+                )
                 if variable.unit is not None and variable.unit != units.dimensionless:
                     perturbed_values *= variable.unit
 

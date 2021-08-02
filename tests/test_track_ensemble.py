@@ -1,7 +1,6 @@
 import os
 
 from adcircpy.forcing.winds.best_track import FileDeck
-
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
@@ -9,7 +8,7 @@ from ensembleperturbation.perturbation.atcf import (
     RadiusOfMaximumWinds,
     VortexPerturber,
 )
-from tests import check_reference_directory, DATA_DIRECTORY
+from tests import DATA_DIRECTORY, check_reference_directory
 
 
 def test_monovariate_besttrack_ensemble():
@@ -26,18 +25,11 @@ def test_monovariate_besttrack_ensemble():
     for filename in output_directory.iterdir():
         os.remove(filename)
 
-    # list of variables where perturbation is Gaussian
-    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
-    for gauss_variable in gauss_variables:
+    # list of variables to perturb
+    variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack, RadiusOfMaximumWinds]
+    for variable in variables:
         perturber.write(
-            perturbations=[-1.0, 1.0], variables=[gauss_variable], directory=output_directory,
-        )
-
-    # list of variables where perturbation is bounded in the range [0,1)
-    range_variables = [RadiusOfMaximumWinds]
-    for range_variable in range_variables:
-        perturber.write(
-            perturbations=[0.25, 0.75], variables=[range_variable], directory=output_directory,
+            perturbations=[-1.0, 1.0], variables=[variable], directory=output_directory,
         )
 
     check_reference_directory(output_directory, reference_directory)
@@ -55,14 +47,14 @@ def test_multivariate_besttrack_ensemble():
     )
 
     # list of variables where perturbation is Gaussian
-    gauss_variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack]
+    variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack, RadiusOfMaximumWinds]
     perturber.write(
         perturbations=[
             -1.0,
-            {MaximumSustainedWindSpeed: -0.25, CrossTrack: 0.25, 'along_track': 0.75},
+            {MaximumSustainedWindSpeed: -0.25, CrossTrack: 0.25, 'along_track': 0.75, 'radius_of_maximum_winds': -1},
             0.75,
         ],
-        variables=gauss_variables,
+        variables=variables,
         directory=output_directory,
         overwrite=True,
     )
@@ -105,7 +97,7 @@ def test_original_file():
     assert open(run_2_directory / 'original.22').read() == original_data
 
     perturber.write(
-        perturbations=[0.25, 0.75], variables=range_variables, directory=run_2_directory,
+        perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory,
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
