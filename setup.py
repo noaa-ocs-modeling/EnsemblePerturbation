@@ -17,7 +17,6 @@ DEPENDENCIES = {
     'fiona': ['gdal'],
     'geopandas': [],
     'matplotlib': [],
-    'nemspy>=0.6.16': [],
     'netcdf4': [],
     'numpy': [],
     'pandas': [],
