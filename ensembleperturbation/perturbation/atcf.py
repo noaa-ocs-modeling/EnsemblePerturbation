@@ -39,7 +39,6 @@ import asyncio
 from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
-from glob import glob
 import json
 from math import exp, inf, sqrt
 import os
@@ -927,10 +926,6 @@ class VortexPerturber:
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
 
-        if overwrite:
-            for filename in directory.iterdir():
-                os.remove(filename)
-
         # write out original fort.22
         self.forcing.write(directory / 'original.22', overwrite=True)
 
@@ -956,47 +951,43 @@ class VortexPerturber:
             copy=False,
         )
 
-        existing_filenames = glob(str(directory / 'vortex_*_variable_perturbation_*.22'))
-        if len(existing_filenames) > 0:
-            existing_filenames = sorted(existing_filenames)
-            last_index = int(existing_filenames[-1][-4]) + 1
-        else:
-            last_index = 1
-
         LOGGER.info(f'writing {len(perturbations)} perturbations')
 
         # for each variable, perturb the values and write each to a new `fort.22`
-        for perturbation_number in range(last_index, len(perturbations) + last_index):
-            # setting the alpha to the value from the input list
-            perturbation = perturbations[perturbation_number - last_index]
+        output_filenames = [
+            directory
+            / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}.22'
+            for perturbation_number in range(1, len(perturbations) + 1)
+        ]
 
-            if perturbation is None:
-                perturbation = {variable.name: None for variable in variables}
-            elif not isinstance(perturbation, Mapping):
-                perturbation = {variable.name: perturbation for variable in variables}
+        for perturbation_index, output_filename in enumerate(output_filenames):
+            if not output_filename.exists() or overwrite:
+                # setting the alpha to the value from the input list
+                perturbation = perturbations[perturbation_index]
 
-            perturbation = {
-                variable.name
-                if isinstance(variable, type) and issubclass(variable, VortexPerturbedVariable)
-                else variable: alpha
-                for variable, alpha in perturbation.items()
-            }
+                if perturbation is None:
+                    perturbation = {variable.name: None for variable in variables}
+                elif not isinstance(perturbation, Mapping):
+                    perturbation = {variable.name: perturbation for variable in variables}
 
-            output_filename = (
-                directory
-                / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}.22'
-            )
+                perturbation = {
+                    variable.name
+                    if isinstance(variable, type)
+                    and issubclass(variable, VortexPerturbedVariable)
+                    else variable: alpha
+                    for variable, alpha in perturbation.items()
+                }
 
-            self.__event_loop.create_task(
-                self.write_perturbed_track(
-                    filename=output_filename,
-                    dataframe=original_data,
-                    perturbation=perturbation,
-                    variables=variables,
-                    storm_size=storm_size,
-                    storm_strength=storm_strength,
+                self.__event_loop.create_task(
+                    self.write_perturbed_track(
+                        filename=output_filename,
+                        dataframe=original_data,
+                        perturbation=perturbation,
+                        variables=variables,
+                        storm_size=storm_size,
+                        storm_strength=storm_strength,
+                    )
                 )
-            )
 
         return self.__event_loop.run_until_complete(
             asyncio.gather(*asyncio.all_tasks(self.__event_loop))

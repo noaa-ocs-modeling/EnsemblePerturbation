@@ -1,6 +1,7 @@
 import os
 
 from adcircpy.forcing.winds.best_track import FileDeck
+
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
@@ -8,7 +9,7 @@ from ensembleperturbation.perturbation.atcf import (
     RadiusOfMaximumWinds,
     VortexPerturber,
 )
-from tests import DATA_DIRECTORY, check_reference_directory
+from tests import check_reference_directory, DATA_DIRECTORY
 
 
 def test_monovariate_besttrack_ensemble():
@@ -51,7 +52,12 @@ def test_multivariate_besttrack_ensemble():
     perturber.write(
         perturbations=[
             -1.0,
-            {MaximumSustainedWindSpeed: -0.25, CrossTrack: 0.25, 'along_track': 0.75, 'radius_of_maximum_winds': -1},
+            {
+                MaximumSustainedWindSpeed: -0.25,
+                CrossTrack: 0.25,
+                'along_track': 0.75,
+                'radius_of_maximum_winds': -1,
+            },
             0.75,
         ],
         variables=variables,
