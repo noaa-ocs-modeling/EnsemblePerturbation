@@ -989,9 +989,11 @@ class VortexPerturber:
                     )
                 )
 
-        return self.__event_loop.run_until_complete(
+        self.__event_loop.run_until_complete(
             asyncio.gather(*asyncio.all_tasks(self.__event_loop))
         )
+
+        return output_filenames
 
     async def write_perturbed_track(
         self,
