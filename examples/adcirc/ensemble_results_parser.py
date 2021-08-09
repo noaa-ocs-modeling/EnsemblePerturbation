@@ -104,10 +104,16 @@ def parse_output(
                 if maximum_depth is not None:
                     subset &= variable_dataframe['depth'] < maximum_depth
                 if bounds is not None:
-                    subset &= (variable_dataframe['x'] > bounds[0]) & (variable_dataframe['x'] < bounds[2])
-                    subset &= (variable_dataframe['y'] > bounds[1]) & (variable_dataframe['y'] < bounds[3])
+                    subset &= (variable_dataframe['x'] > bounds[0]) & (
+                        variable_dataframe['x'] < bounds[2]
+                    )
+                    subset &= (variable_dataframe['y'] > bounds[1]) & (
+                        variable_dataframe['y'] < bounds[3]
+                    )
                 dataframe = variable_dataframe[['x', 'y', 'depth']][subset]
-            dataframe.insert(2, perturbation, variable_dataframe[output_filetypes[variable]][subset], True)
+            dataframe.insert(
+                2, perturbation, variable_dataframe[output_filetypes[variable]][subset], True
+            )
 
     if write_to_file:
         dataframe.to_hdf(
