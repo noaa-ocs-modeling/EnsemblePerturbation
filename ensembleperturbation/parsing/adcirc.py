@@ -7,7 +7,7 @@ from geopandas import GeoDataFrame
 from netCDF4 import Dataset
 import numpy
 import pandas
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
