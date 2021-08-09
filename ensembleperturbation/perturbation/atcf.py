@@ -39,6 +39,7 @@ import asyncio
 from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
+from glob import glob
 import json
 from math import exp, inf, sqrt
 import os
@@ -898,12 +899,14 @@ class VortexPerturber:
         variables: [VortexPerturbedVariable],
         directory: PathLike = None,
         overwrite: bool = False,
+        continue_numbering: bool = True,
     ) -> [Path]:
         """
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
         :param overwrite: overwrite existing files
+        :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
         :returns: written filenames
         """
 
@@ -953,11 +956,24 @@ class VortexPerturber:
 
         LOGGER.info(f'writing {len(perturbations)} perturbations')
 
+        if continue_numbering:
+            # TODO: figure out how to continue perturbations by-variable (i.e. keep track of multiple series with different variables but the same total number of variables)
+            existing_filenames = glob(str(directory / f'vortex_*_variable_perturbation_*.22'))
+            if len(existing_filenames) > 0:
+                existing_filenames = sorted(existing_filenames)
+                last_index = int(existing_filenames[-1][-4])
+            else:
+                last_index = 0
+        else:
+            last_index = 0
+
         # for each variable, perturb the values and write each to a new `fort.22`
         output_filenames = [
             directory
             / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}.22'
-            for perturbation_number in range(1, len(perturbations) + 1)
+            for perturbation_number in range(
+                last_index + 1, len(perturbations) + last_index + 1
+            )
         ]
 
         for perturbation_index, output_filename in enumerate(output_filenames):
