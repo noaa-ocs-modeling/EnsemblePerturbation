@@ -263,3 +263,65 @@ def parse_adcirc_outputs(
                     LOGGER.warning(f'{error.__class__.__name__} - {error}')
 
     return output_datasets
+
+
+def combine_outputs(
+    directory: PathLike = None,
+    bounds: (float, float, float, float) = None,
+    maximum_depth: float = None,
+    output_filename: PathLike = None,
+) -> DataFrame:
+    if directory is None:
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
+        directory = Path(directory)
+
+    # define the output file type and variable name interested name
+    output_filetypes = {
+        'maxele.63.nc': 'zeta_max',
+    }
+
+    # parse all the outputs using built-in parser
+    output_data = parse_adcirc_outputs(
+        directory=directory, file_data_variables=output_filetypes.keys(),
+    )
+
+    if len(output_data) == 0:
+        raise FileNotFoundError(f'could not find any output files in "{directory}"')
+
+    # now assemble results into a single dataframe with:
+    # rows -> index of a vertex in the mesh subset
+    # columns -> name of perturbation, ( + x, y (lon, lat) and depth info)
+    # values -> maximum elevation values ( + location and depths)
+    subset = None
+    dataframe = None
+    for pertubation_index, perturbation in enumerate(output_data):
+        for variable in output_data[perturbation]:
+            variable_dataframe = output_data[perturbation][variable]
+            if subset is None:
+                subset = Series(True, index=variable_dataframe.index)
+                if maximum_depth is not None:
+                    subset &= variable_dataframe['depth'] < maximum_depth
+                if bounds is not None:
+                    subset &= (variable_dataframe['x'] > bounds[0]) & (
+                        variable_dataframe['x'] < bounds[2]
+                    )
+                    subset &= (variable_dataframe['y'] > bounds[1]) & (
+                        variable_dataframe['y'] < bounds[3]
+                    )
+                dataframe = variable_dataframe[['x', 'y', 'depth']][subset]
+            dataframe.insert(
+                2, perturbation, variable_dataframe[output_filetypes[variable]][subset], True
+            )
+
+            if output_filename is not None:
+                LOGGER.info(f'writing to "{output_filename}"')
+                dataframe.to_hdf(
+                    output_filename,
+                    key=output_filetypes[variable],
+                    mode='a',
+                    format='table',
+                    data_columns=True,
+                )
+
+    return dataframe

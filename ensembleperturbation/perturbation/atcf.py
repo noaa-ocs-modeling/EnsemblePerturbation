@@ -1258,3 +1258,54 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, 
         dy = pslope * dx
 
     return dx, dy
+
+
+def parse_vortex_perturbations(
+    directory: PathLike = None, output_filename: PathLike = None
+) -> DataFrame:
+    if directory is None:
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
+        directory = Path(directory)
+
+    # reading the JSON data using json.load()
+    perturbations = {}
+    for filename in directory.glob('**/vortex*.json'):
+        with open(filename) as vortex_file:
+            perturbations[filename.stem] = json.load(vortex_file)
+
+    if len(perturbations) == 0:
+        raise FileNotFoundError(
+            f'could not find any perturbation JSON file(s) in "{directory}"'
+        )
+
+    # convert dictionary to dataframe with:
+    # rows -> name of perturbation
+    # columns -> name of each variable that is perturbed
+    # values -> the perturbation parameter for each variable
+    perturbations = {
+        vortex: perturbations[vortex]
+        for vortex, number in sorted(
+            {
+                vortex: int(vortex.split('_')[-1])
+                for vortex, pertubations in perturbations.items()
+            }.items(),
+            key=lambda item: item[1],
+        )
+    }
+
+    perturbations = DataFrame.from_records(
+        list(perturbations.values()), index=list(perturbations)
+    )
+
+    if output_filename is not None:
+        LOGGER.info(f'writing to "{output_filename}"')
+        perturbations.to_hdf(
+            output_filename,
+            key='vortex_perturbation_parameters',
+            mode='w',
+            format='table',
+            data_columns=True,
+        )
+
+    return perturbations
