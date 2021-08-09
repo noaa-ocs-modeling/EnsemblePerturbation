@@ -23,6 +23,7 @@ DEPENDENCIES = {
     'pint': [],
     'pint-pandas': [],
     'pyproj>=2.6': [],
+    'tables': [],
     'python-dateutil': [],
     'requests': [],
     'shapely': [],
@@ -169,7 +170,7 @@ setup(
     setup_requires=['dunamai', 'setuptools>=41.2'],
     install_requires=list(DEPENDENCIES),
     extras_require={
-        'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'tables', 'wget'],
+        'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={

@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas
 
 from ensembleperturbation.parsing.adcirc import parse_adcirc_outputs
+from ensembleperturbation.utilities import get_logger
 
 """
 For a particular set of ensemble runs, 
@@ -16,6 +17,8 @@ and save into a single HDF5 file
 Author: William Pringle
 Date:   July 2021
 """
+
+LOGGER = get_logger('combine_results')
 
 
 def parse_vortex_perturbations(directory: PathLike = None, write_to_file: bool = False):
@@ -55,8 +58,10 @@ def parse_vortex_perturbations(directory: PathLike = None, write_to_file: bool =
     )
 
     if write_to_file:
+        output_filename = directory.name + '.h5'
+        LOGGER.info(f'writing to "{output_filename}"')
         perturbations.to_hdf(
-            directory.stem + '.h5',
+            output_filename,
             key='vortex_perturbation_parameters',
             mode='w',
             format='table',
@@ -115,14 +120,16 @@ def parse_output(
                 2, perturbation, variable_dataframe[output_filetypes[variable]][subset], True
             )
 
-    if write_to_file:
-        dataframe.to_hdf(
-            directory.name + '.h5',
-            key=output_filetypes[variable],
-            mode='a',
-            format='table',
-            data_columns=True,
-        )
+            if write_to_file:
+                output_filename = directory.name + '.h5'
+                LOGGER.info(f'writing to "{output_filename}"')
+                dataframe.to_hdf(
+                    output_filename,
+                    key=output_filetypes[variable],
+                    mode='a',
+                    format='table',
+                    data_columns=True,
+                )
 
     return dataframe
 
@@ -134,7 +141,7 @@ if __name__ == '__main__':
     runs_directory = input_directory / 'runs'
 
     # get the input parameters
-    vortex_perturbations = parse_vortex_perturbations(track_directory, write_to_file=False)
+    vortex_perturbations = parse_vortex_perturbations(track_directory, write_to_file=True)
     print(vortex_perturbations)
 
     # define the subdomain to extract
@@ -143,7 +150,7 @@ if __name__ == '__main__':
 
     # get the output values
     output_dataframe = parse_output(
-        runs_directory, maximum_depth=maximum_depth, bounds=bounds, write_to_file=False
+        runs_directory, maximum_depth=maximum_depth, bounds=bounds, write_to_file=True
     )
     print(output_dataframe)
 
