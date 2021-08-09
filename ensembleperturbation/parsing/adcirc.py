@@ -1,4 +1,4 @@
-from os import getcwd, PathLike
+from os import PathLike
 from pathlib import Path
 from typing import Union
 
@@ -231,10 +231,10 @@ def parse_adcirc_outputs(
     """
 
     if directory is None:
-        directory = getcwd()
-
-    if not isinstance(directory, Path):
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
         directory = Path(directory)
+
     if file_data_variables is None:
         file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
     else:
@@ -248,7 +248,7 @@ def parse_adcirc_outputs(
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
         if parts[-1] not in file_data_variables:
             continue
-        print(filename)
+        LOGGER.debug(f'read file "{filename}"')
         tree = output_datasets
         for part_index in range(len(parts)):
             part = parts[part_index]
