@@ -28,6 +28,8 @@ def test_monovariate_besttrack_ensemble():
 
     # list of variables to perturb
     variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack, RadiusOfMaximumWinds]
+
+    # perturb variables one at a time
     for variable in variables:
         perturber.write(
             perturbations=[-1.0, 1.0], variables=[variable], directory=output_directory,
@@ -47,8 +49,10 @@ def test_multivariate_besttrack_ensemble():
         storm='al062018', start_date='20180911', end_date=None, file_deck=FileDeck.b,
     )
 
-    # list of variables where perturbation is Gaussian
+    # list of variables to perturb
     variables = [MaximumSustainedWindSpeed, CrossTrack, AlongTrack, RadiusOfMaximumWinds]
+
+    # perturb all variables at once
     perturber.write(
         perturbations=[
             -1.0,
