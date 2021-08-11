@@ -13,9 +13,9 @@ from shapely.geometry import Point
 from ensembleperturbation.parsing.utilities import decode_time
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('parsing.adcirc')
+LOGGER = get_logger('parse.adcirc')
 
-ADCIRC_OUTPUT_DATA_VARIABLES = {
+ADCIRC_OUTPUTS = {
     # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
     'fort.61.nc': ['station_name', 'zeta'],
     # Depth-averaged Velocity Time Series at Specified Velocity Recording
@@ -46,6 +46,17 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
     'maxrs.63.nc': ['radstress_max', 'time_of_radstress_max'],
 }
 
+ADCIRC_VARIABLES = DataFrame(
+    {
+        'stations': ['fort.61.nc', 'fort.62.nc', 'fort.62.nc'],
+        'model': ['fort.63.nc', 'fort.64.nc', 'fort.64.nc'],
+        'max': ['maxele.63.nc', 'maxvel.63.nc', 'maxvel.63.nc'],
+        'unit': ['m', 'm/s', 'm/s'],
+        'name': ['zeta', 'u-vel', 'v-vel'],
+    },
+    index=['zeta', 'u', 'v'],
+)
+
 NODATA = -99999.0
 
 
@@ -71,7 +82,7 @@ def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> Geo
             GeoDataFrame(
                 {
                     'time': times,
-                    'zeta': dataset['zeta'][:, station_index],
+                    'zeta': dataset[ADCIRC_VARIABLES.loc['zeta']['name']][:, station_index],
                     'station': station_name,
                 },
                 geometry=[station_point for _ in times],
@@ -103,8 +114,8 @@ def fort62_stations_uv(filename: PathLike, station_names: [str] = None) -> GeoDa
             GeoDataFrame(
                 {
                     'time': times,
-                    'u': dataset['u-vel'][:, station_index],
-                    'v': dataset['v-vel'][:, station_index],
+                    'u': dataset[ADCIRC_VARIABLES.loc['u']['name']][:, station_index],
+                    'v': dataset[ADCIRC_VARIABLES.loc['v']['name']][:, station_index],
                     'station': station_name,
                 },
                 geometry=[station_point for _ in times],
@@ -128,8 +139,8 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
     basename = filename.parts[-1]
 
     if variables is None:
-        if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
-            variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
+        if basename in ADCIRC_OUTPUTS:
+            variables = ADCIRC_OUTPUTS[basename]
         else:
             raise NotImplementedError(f'ADCIRC output file "{basename}" not implemented')
 
@@ -152,9 +163,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
                 'name': [
                     station_name.tobytes().decode().strip().strip("'")
                     for station_name in dataset['station_name']
-                ],
-                'x': coordinates[:, 0],
-                'y': coordinates[:, 1],
+                ]
             },
             geometry=geopandas.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
         )
@@ -201,11 +210,10 @@ def parse_adcirc_output(
         directory = Path(directory)
 
     if file_data_variables is None:
-        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+        file_data_variables = ADCIRC_OUTPUTS
     else:
         file_data_variables = {
-            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
-            for filename in file_data_variables
+            filename: ADCIRC_OUTPUTS[filename] for filename in file_data_variables
         }
 
     output_data = {}

@@ -4,10 +4,10 @@ from pathlib import Path
 
 from matplotlib import pyplot
 
-from ensembleperturbation.parsing.comparison import VelocityComparison
+from ensembleperturbation.outputs.comparison import ObservationStationComparison
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('compare.uv')
+LOGGER = get_logger('reference.uv')
 
 if __name__ == '__main__':
     root_directory = Path(__file__).parent.parent
@@ -15,7 +15,9 @@ if __name__ == '__main__':
     input_directory = root_directory / 'data/input'
     output_directory = root_directory / 'data/output'
 
-    comparison = VelocityComparison(input_directory, output_directory)
+    comparison = ObservationStationComparison(
+        input_directory, output_directory, ['u', 'v', 'zeta']
+    )
 
     comparison.plot_values()
     comparison.plot_errors()
