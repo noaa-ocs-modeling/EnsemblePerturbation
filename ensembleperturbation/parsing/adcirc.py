@@ -221,11 +221,11 @@ def parse_adcirc_output(
     return output_data
 
 
-def async_parse_adcirc_netcdf(filename: Path, part: str, variables: [str] = None):
+def async_parse_adcirc_netcdf(filename: Path, variables: [str] = None):
     LOGGER.info(f'starting reading "{filename.parts[-2:]}"')
     output = parse_adcirc_netcdf(filename=filename, variables=variables)
     LOGGER.info(f'finished reading "{filename.parts[-2:]}"')
-    return output, part
+    return output, filename
 
 
 def parse_adcirc_outputs(
@@ -255,14 +255,21 @@ def parse_adcirc_outputs(
     event_loop = asyncio.get_event_loop()
     process_pool = ProcessPoolExecutor()
 
-    output_datasets = {}
     for filename in directory.glob('**/*.nc'):
+        event_loop.create_task(
+            event_loop.run_in_executor(
+                process_pool, async_parse_adcirc_netcdf, filename
+            )
+        )
+
+    outputs = asyncio.gather(*asyncio.all_tasks(event_loop))
+
+    output_datasets = {}
+    for dataframe, filename in outputs:
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
         if parts[-1] not in file_data_variables:
             continue
-        LOGGER.debug(f'read file "{filename}"')
         tree = output_datasets
-        futures = []
         for part_index in range(len(parts)):
             part = parts[part_index]
             if part_index < len(parts) - 1:
@@ -270,14 +277,7 @@ def parse_adcirc_outputs(
                     tree[part] = {}
                 tree = tree[part]
             else:
-                futures.append(
-                    event_loop.run_in_executor(
-                        process_pool, async_parse_adcirc_netcdf, filename, part
-                    )
-                )
-
-            for result, part in event_loop.run_until_complete(asyncio.gather(*futures)):
-                tree[part] = result
+                tree[part] = dataframe
 
     return output_datasets
 
