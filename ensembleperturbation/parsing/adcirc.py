@@ -280,7 +280,8 @@ def parse_adcirc_outputs(
                 except Exception as error:
                     LOGGER.warning(f'{error.__class__.__name__} - {error}')
 
-            for result, part in asyncio.as_completed(futures):
+            for task in asyncio.as_completed(futures):
+                result, part = asyncio.wait([task])
                 tree[part] = result
 
     return output_datasets
