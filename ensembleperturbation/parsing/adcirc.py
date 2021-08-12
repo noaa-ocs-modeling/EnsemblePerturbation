@@ -1,6 +1,5 @@
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
-import os
 from os import PathLike
 from pathlib import Path
 from typing import Union
@@ -223,9 +222,9 @@ def parse_adcirc_output(
 
 
 def async_parse_adcirc_netcdf(filename: Path, part: str, variables: [str] = None):
-    LOGGER.info(f'starting reading "{filename.name}"')
+    LOGGER.info(f'starting reading "{filename.parts[-2:]}"')
     output = parse_adcirc_netcdf(filename=filename, variables=variables)
-    LOGGER.info(f'finished reading "{filename.name}"')
+    LOGGER.info(f'finished reading "{filename.parts[-2:]}"')
     return output, part
 
 
@@ -263,7 +262,6 @@ def parse_adcirc_outputs(
             continue
         LOGGER.debug(f'read file "{filename}"')
         tree = output_datasets
-        futures = []
         for part_index in range(len(parts)):
             part = parts[part_index]
             if part_index < len(parts) - 1:
@@ -272,15 +270,13 @@ def parse_adcirc_outputs(
                 tree = tree[part]
             else:
                 try:
-                    futures.append(
-                        event_loop.run_in_executor(
-                            process_pool, async_parse_adcirc_netcdf, filename, part
-                        )
-                    )
+                    event_loop.create_task(event_loop.run_in_executor(
+                        process_pool, async_parse_adcirc_netcdf, filename, part
+                    ))
                 except Exception as error:
                     LOGGER.warning(f'{error.__class__.__name__} - {error}')
 
-            for task in asyncio.as_completed(futures):
+            for task in asyncio.as_completed(asyncio.all_tasks(event_loop)):
                 result, part = event_loop.run_until_complete(task)
                 tree[part] = result
 
