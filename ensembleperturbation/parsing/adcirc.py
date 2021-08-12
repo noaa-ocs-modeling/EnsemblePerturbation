@@ -262,6 +262,7 @@ def parse_adcirc_outputs(
             continue
         LOGGER.debug(f'read file "{filename}"')
         tree = output_datasets
+        futures = []
         for part_index in range(len(parts)):
             part = parts[part_index]
             if part_index < len(parts) - 1:
@@ -269,14 +270,13 @@ def parse_adcirc_outputs(
                     tree[part] = {}
                 tree = tree[part]
             else:
-                event_loop.create_task(
+                futures.append(
                     event_loop.run_in_executor(
                         process_pool, async_parse_adcirc_netcdf, filename, part
                     )
                 )
 
-            for task in asyncio.as_completed(asyncio.all_tasks(event_loop)):
-                result, part = event_loop.run_until_complete(task)
+            for result, part in event_loop.run_until_complete(asyncio.gather(futures)):
                 tree[part] = result
 
     return output_datasets
