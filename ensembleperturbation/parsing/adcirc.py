@@ -246,7 +246,7 @@ def parse_adcirc_outputs(
             for filename in file_data_variables
         }
 
-    def async_parse_adcirc_netcdf(filename: PathLike, part: str, variables: [str] = None):
+    async def async_parse_adcirc_netcdf(filename: PathLike, part: str, variables: [str] = None):
         LOGGER.info(f'starting reading "{os.path.relpath(filename, directory)}"')
         output = parse_adcirc_netcdf(filename=filename, variables=variables)
         LOGGER.info(f'finished reading "{os.path.relpath(filename, directory)}"')
@@ -272,7 +272,7 @@ def parse_adcirc_outputs(
                 try:
                     event_loop.create_task(
                         event_loop.run_in_executor(
-                            process_pool, async_parse_adcirc_netcdf(filename, part)
+                            process_pool, async_parse_adcirc_netcdf, filename, part
                         )
                     )
                 except Exception as error:
