@@ -1,19 +1,21 @@
 from argparse import ArgumentParser
+from pathlib import Path
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
 
 
 def main():
     argument_parser = ArgumentParser()
+    argument_parser.add_argument('output-filename', help='output filename (`*.h5`)')
     argument_parser.add_argument(
-        'output-filename', help='output filename (`*.h5`)', required=True
+        'directory',
+        nargs='?',
+        default=Path.cwd(),
+        help='directory containing completed `runs` directory',
     )
+    argument_parser.add_argument('--max-depth', help='maximum depth value to filter by')
     argument_parser.add_argument(
-        'directory', help='directory containing completed `runs` directory'
-    )
-    argument_parser.add_argument('max-depth', help='maximum depth value to filter by')
-    argument_parser.add_argument(
-        'bounds', help='bounding box in format `(minx,miny,maxx,maxy)`'
+        '--bounds', help='bounding box in format `(minx,miny,maxx,maxy)`'
     )
     arguments = argument_parser.parse_args()
 
