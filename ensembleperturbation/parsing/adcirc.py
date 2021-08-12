@@ -269,14 +269,11 @@ def parse_adcirc_outputs(
                     tree[part] = {}
                 tree = tree[part]
             else:
-                try:
-                    event_loop.create_task(
-                        event_loop.run_in_executor(
-                            process_pool, async_parse_adcirc_netcdf, filename, part
-                        )
+                event_loop.create_task(
+                    event_loop.run_in_executor(
+                        process_pool, async_parse_adcirc_netcdf, filename, part
                     )
-                except Exception as error:
-                    LOGGER.warning(f'{error.__class__.__name__} - {error}')
+                )
 
             for task in asyncio.as_completed(asyncio.all_tasks(event_loop)):
                 result, part = event_loop.run_until_complete(task)
