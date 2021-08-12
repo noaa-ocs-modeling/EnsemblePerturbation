@@ -256,9 +256,7 @@ def parse_adcirc_outputs(
     process_pool = ProcessPoolExecutor()
 
     for filename in directory.glob('**/*.nc'):
-        event_loop.run_in_executor(
-            process_pool, async_parse_adcirc_netcdf, filename
-        )
+        event_loop.run_in_executor(process_pool, async_parse_adcirc_netcdf, filename)
 
     outputs = asyncio.gather(*asyncio.all_tasks(event_loop))
 
