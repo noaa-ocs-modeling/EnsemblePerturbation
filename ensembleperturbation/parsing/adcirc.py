@@ -222,6 +222,15 @@ def parse_adcirc_output(
     return output_data
 
 
+async def async_parse_adcirc_netcdf(
+    filename: PathLike, part: str, variables: [str] = None
+):
+    LOGGER.info(f'starting reading "{os.path.relpath(filename, directory)}"')
+    output = parse_adcirc_netcdf(filename=filename, variables=variables)
+    LOGGER.info(f'finished reading "{os.path.relpath(filename, directory)}"')
+    return output, part
+
+
 def parse_adcirc_outputs(
     directory: PathLike = None, file_data_variables: [str] = None
 ) -> {str: dict}:
@@ -245,14 +254,6 @@ def parse_adcirc_outputs(
             filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
             for filename in file_data_variables
         }
-
-    async def async_parse_adcirc_netcdf(
-        filename: PathLike, part: str, variables: [str] = None
-    ):
-        LOGGER.info(f'starting reading "{os.path.relpath(filename, directory)}"')
-        output = parse_adcirc_netcdf(filename=filename, variables=variables)
-        LOGGER.info(f'finished reading "{os.path.relpath(filename, directory)}"')
-        return output, part
 
     event_loop = asyncio.get_event_loop()
     process_pool = ProcessPoolExecutor()
