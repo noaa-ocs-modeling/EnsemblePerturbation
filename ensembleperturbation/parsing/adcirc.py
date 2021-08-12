@@ -282,12 +282,15 @@ def combine_outputs(
     }
 
     # parse all the outputs using built-in parser
+    LOGGER.info(f'parsing {output_filetypes} from "{directory}"')
     output_data = parse_adcirc_outputs(
         directory=directory, file_data_variables=output_filetypes.keys(),
     )
 
     if len(output_data) == 0:
         raise FileNotFoundError(f'could not find any output files in "{directory}"')
+    else:
+        LOGGER.info(f'building dataframe from {len(output_data)} perturbations')
 
     # now assemble results into a single dataframe with:
     # rows -> index of a vertex in the mesh subset
