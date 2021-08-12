@@ -246,7 +246,9 @@ def parse_adcirc_outputs(
             for filename in file_data_variables
         }
 
-    async def async_parse_adcirc_netcdf(filename: PathLike, part: str, variables: [str] = None):
+    async def async_parse_adcirc_netcdf(
+        filename: PathLike, part: str, variables: [str] = None
+    ):
         LOGGER.info(f'starting reading "{os.path.relpath(filename, directory)}"')
         output = parse_adcirc_netcdf(filename=filename, variables=variables)
         LOGGER.info(f'finished reading "{os.path.relpath(filename, directory)}"')
