@@ -276,7 +276,7 @@ def parse_adcirc_outputs(
                     )
                 )
 
-            for result, part in event_loop.run_until_complete(asyncio.gather(futures)):
+            for result, part in event_loop.run_until_complete(*asyncio.gather(futures)):
                 tree[part] = result
 
     return output_datasets
