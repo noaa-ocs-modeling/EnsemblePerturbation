@@ -248,7 +248,10 @@ def parse_adcirc_outputs(
     async def async_parse_adcirc_netcdf(
         filename: PathLike, part: str, variables: [str] = None
     ):
-        return parse_adcirc_netcdf(filename=filename, variables=variables), part
+        LOGGER.info(f'starting reading "{os.path.relpath(filename, directory)}"')
+        output = parse_adcirc_netcdf(filename=filename, variables=variables)
+        LOGGER.info(f'finished reading "{os.path.relpath(filename, directory)}"')
+        return output, part
 
     event_loop = asyncio.get_event_loop()
 
@@ -267,7 +270,6 @@ def parse_adcirc_outputs(
                 tree = tree[part]
             else:
                 try:
-                    LOGGER.info(f'reading "{os.path.relpath(filename, directory)}"')
                     event_loop.create_task(async_parse_adcirc_netcdf(filename, part))
                 except Exception as error:
                     LOGGER.warning(f'{error.__class__.__name__} - {error}')
