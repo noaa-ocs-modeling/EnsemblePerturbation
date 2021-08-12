@@ -6,7 +6,7 @@ from ensembleperturbation.parsing.adcirc import combine_outputs
 
 def main():
     argument_parser = ArgumentParser()
-    argument_parser.add_argument('output-filename', help='output filename (`*.h5`)')
+    argument_parser.add_argument('output', help='output filename (`*.h5`)')
     argument_parser.add_argument(
         'directory',
         nargs='?',
@@ -23,7 +23,7 @@ def main():
         arguments.directory,
         maximum_depth=arguments.max_depth,
         bounds=arguments.bounds,
-        output_filename=arguments.output_filename,
+        output_filename=arguments.output,
     )
 
     return dataframe
