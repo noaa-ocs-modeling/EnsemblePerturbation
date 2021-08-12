@@ -270,9 +270,11 @@ def parse_adcirc_outputs(
                 tree = tree[part]
             else:
                 try:
-                    event_loop.create_task(event_loop.run_in_executor(
-                        process_pool, async_parse_adcirc_netcdf, filename, part
-                    ))
+                    event_loop.create_task(
+                        event_loop.run_in_executor(
+                            process_pool, async_parse_adcirc_netcdf, filename, part
+                        )
+                    )
                 except Exception as error:
                     LOGGER.warning(f'{error.__class__.__name__} - {error}')
 
