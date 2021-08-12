@@ -222,10 +222,10 @@ def parse_adcirc_output(
     return output_data
 
 
-def async_parse_adcirc_netcdf(filename: PathLike, part: str, variables: [str] = None):
-    LOGGER.info(f'starting reading "{os.path.relpath(filename, directory)}"')
+def async_parse_adcirc_netcdf(filename: Path, part: str, variables: [str] = None):
+    LOGGER.info(f'starting reading "{filename.name}"')
     output = parse_adcirc_netcdf(filename=filename, variables=variables)
-    LOGGER.info(f'finished reading "{os.path.relpath(filename, directory)}"')
+    LOGGER.info(f'finished reading "{filename.name}"')
     return output, part
 
 
