@@ -1,3 +1,4 @@
+import asyncio
 from os import PathLike
 from pathlib import Path
 from typing import Union
@@ -243,6 +244,11 @@ def parse_adcirc_outputs(
             for filename in file_data_variables
         }
 
+    async def async_parse_adcirc_netcdf(filename: PathLike, part: str, variables: [str] = None):
+        return parse_adcirc_netcdf(filename=filename, variables=variables), part
+
+    event_loop = asyncio.get_event_loop()
+
     output_datasets = {}
     for filename in directory.glob('**/*.nc'):
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
@@ -258,9 +264,13 @@ def parse_adcirc_outputs(
                 tree = tree[part]
             else:
                 try:
-                    tree[part] = parse_adcirc_netcdf(filename)
+                    event_loop.create_task(async_parse_adcirc_netcdf(filename, part))
                 except Exception as error:
                     LOGGER.warning(f'{error.__class__.__name__} - {error}')
+
+            results = event_loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(event_loop)))
+            for result, part in results:
+                tree[part] = result
 
     return output_datasets
 
