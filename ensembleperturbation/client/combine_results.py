@@ -1,7 +1,11 @@
 from argparse import ArgumentParser
+import logging
 from pathlib import Path
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
+from ensembleperturbation.utilities import get_logger
+
+LOGGER = get_logger('combine_results')
 
 
 def main():
@@ -17,7 +21,13 @@ def main():
     argument_parser.add_argument(
         '--bounds', help='bounding box in format `(minx,miny,maxx,maxy)`'
     )
+    argument_parser.add_argument(
+        '--verbose', action='store_true', help='log more verbose messages'
+    )
     arguments = argument_parser.parse_args()
+
+    if arguments.verbose:
+        get_logger(LOGGER.name, console_level=logging.DEBUG)
 
     dataframe = combine_outputs(
         arguments.directory,
