@@ -5,7 +5,7 @@ from pathlib import Path
 from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('combine_results')
+LOGGER = get_logger('parsing')
 
 
 def main():
