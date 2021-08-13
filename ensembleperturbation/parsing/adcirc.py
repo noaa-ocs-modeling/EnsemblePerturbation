@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
+import os
 from os import PathLike
 from pathlib import Path
 import pickle
@@ -338,6 +339,11 @@ def combine_outputs(
         directory = Path.cwd()
     elif not isinstance(directory, Path):
         directory = Path(directory)
+
+    if not isinstance(output_filename, Path):
+        output_filename = Path(output_filename)
+    if output_filename.exists():
+        os.remove(output_filename)
 
     runs_directory = directory / 'runs'
     if not runs_directory.exists():

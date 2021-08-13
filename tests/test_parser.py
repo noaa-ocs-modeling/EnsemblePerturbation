@@ -1,3 +1,4 @@
+import os
 import re
 
 from ensembleperturbation.parsing.adcirc import combine_outputs, parse_adcirc_outputs
@@ -31,11 +32,13 @@ def test_combine_output():
         'maxvel.63.nc': ['vel_max'],
     }
 
+    output_filename = output_directory / 'outputs.h5'
+
     combine_outputs(
         input_directory,
         file_data_variables=file_data_types,
         maximum_depth=5.0,
-        output_filename=output_directory / 'outputs.h5',
+        output_filename=output_filename,
     )
 
     check_reference_directory(output_directory, reference_directory)
