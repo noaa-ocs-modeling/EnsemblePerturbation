@@ -5,7 +5,7 @@ from os import PathLike
 from pathlib import Path
 import pickle
 from tempfile import TemporaryDirectory
-from typing import Any, Mapping, Union
+from typing import Any, Collection, Mapping, Union
 
 import geopandas
 from geopandas import GeoDataFrame
@@ -253,10 +253,17 @@ def parse_adcirc_outputs(
 
     if file_data_variables is None:
         file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
-    else:
+    elif isinstance(file_data_variables, Collection):
         file_data_variables = {
             filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
             for filename in file_data_variables
+        }
+    elif isinstance(file_data_variables, Mapping):
+        file_data_variables = {
+            filename: variables
+            if variables is not None
+            else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename, variables in file_data_variables.items()
         }
 
     event_loop = asyncio.get_event_loop()
@@ -267,19 +274,20 @@ def parse_adcirc_outputs(
         futures = []
         temporary_directory = Path(temporary_directory)
         for filename in directory.glob('**/*.nc'):
-            if filename.name in ['fort.63.nc', 'fort.64.nc']:
-                dataframes[filename] = parse_adcirc_netcdf(filename)
-            else:
-                futures.append(
-                    event_loop.run_in_executor(
-                        process_pool,
-                        partial(
-                            async_parse_adcirc_netcdf,
-                            filename=filename,
-                            pickle_filename=temporary_directory / filename.name,
-                        ),
+            if filename.name in file_data_variables:
+                if filename.name in ['fort.63.nc', 'fort.64.nc']:
+                    dataframes[filename] = parse_adcirc_netcdf(filename)
+                else:
+                    futures.append(
+                        event_loop.run_in_executor(
+                            process_pool,
+                            partial(
+                                async_parse_adcirc_netcdf,
+                                filename=filename,
+                                pickle_filename=temporary_directory / filename.name,
+                            ),
+                        )
                     )
-                )
 
         if len(futures) > 0:
             pickled_outputs = event_loop.run_until_complete(asyncio.gather(*futures))
@@ -323,6 +331,7 @@ def combine_outputs(
     directory: PathLike = None,
     bounds: (float, float, float, float) = None,
     maximum_depth: float = None,
+    file_data_variables: {str: [str]} = None,
     output_filename: PathLike = None,
 ) -> DataFrame:
     if directory is None:
@@ -330,15 +339,29 @@ def combine_outputs(
     elif not isinstance(directory, Path):
         directory = Path(directory)
 
-    # define the output file type and variable name interested name
-    output_filetypes = {
-        'maxele.63.nc': 'zeta_max',
-    }
+    runs_directory = directory / 'runs'
+    if not runs_directory.exists():
+        raise FileNotFoundError(f'runs directory does not exist at "{runs_directory}"')
+
+    if file_data_variables is None:
+        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+    elif isinstance(file_data_variables, Collection):
+        file_data_variables = {
+            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename in file_data_variables
+        }
+    elif isinstance(file_data_variables, Mapping):
+        file_data_variables = {
+            filename: variables
+            if variables is not None
+            else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename, variables in file_data_variables.items()
+        }
 
     # parse all the outputs using built-in parser
-    LOGGER.info(f'parsing {output_filetypes} from "{directory}"')
+    LOGGER.info(f'parsing {file_data_variables} from "{directory}"')
     output_data = parse_adcirc_outputs(
-        directory=directory, file_data_variables=output_filetypes.keys(),
+        directory=runs_directory, file_data_variables=file_data_variables,
     )
 
     if len(output_data) == 0:
@@ -352,30 +375,42 @@ def combine_outputs(
     # values -> maximum elevation values ( + location and depths)
     subset = None
     dataframe = None
-    for pertubation_index, perturbation in enumerate(output_data):
-        for variable in output_data[perturbation]:
-            variable_dataframe = output_data[perturbation][variable]
-            if subset is None:
-                subset = Series(True, index=variable_dataframe.index)
-                if maximum_depth is not None:
-                    subset &= variable_dataframe['depth'] < maximum_depth
-                if bounds is not None:
-                    subset &= (variable_dataframe['x'] > bounds[0]) & (
-                        variable_dataframe['x'] < bounds[2]
-                    )
-                    subset &= (variable_dataframe['y'] > bounds[1]) & (
-                        variable_dataframe['y'] < bounds[3]
-                    )
-                dataframe = variable_dataframe[['x', 'y', 'depth']][subset]
-            dataframe.insert(
-                2, perturbation, variable_dataframe[output_filetypes[variable]][subset], True
-            )
+    for run_name in output_data:
+        for result_filename in output_data[run_name]:
+            variable_dataframe = output_data[run_name][result_filename]
 
-            if output_filename is not None:
+            if isinstance(variable_dataframe, DataFrame):
+                if subset is None:
+                    subset = Series(True, index=variable_dataframe.index)
+                    variables = ['x', 'y']
+                    if 'depth' in variable_dataframe:
+                        variables.append('depth')
+                        if maximum_depth is not None:
+                            subset &= variable_dataframe['depth'] < maximum_depth
+                    if bounds is not None:
+                        subset &= (variable_dataframe['x'] > bounds[0]) & (
+                            variable_dataframe['x'] < bounds[2]
+                        )
+                        subset &= (variable_dataframe['y'] > bounds[1]) & (
+                            variable_dataframe['y'] < bounds[3]
+                        )
+                    variable_dataframe = variable_dataframe[variables][subset]
+                if dataframe is None:
+                    dataframe = variable_dataframe
+                else:
+                    dataframe = pandas.concat(
+                        [
+                            dataframe,
+                            variable_dataframe[file_data_variables[result_filename]][subset],
+                        ],
+                        axis=1,
+                    )
+
+            if output_filename is not None and dataframe is not None:
                 LOGGER.info(f'writing to "{output_filename}"')
                 dataframe.to_hdf(
                     output_filename,
-                    key=output_filetypes[variable],
+                    key=','.join(file_data_variables[result_filename]),
                     mode='a',
                     format='table',
                     data_columns=True,
