@@ -1,8 +1,11 @@
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from os import PathLike
 from pathlib import Path
-from typing import Union
+import pickle
+from tempfile import TemporaryDirectory
+from typing import Any, Mapping, Union
 
 import geopandas
 from geopandas import GeoDataFrame
@@ -129,6 +132,8 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         filename = Path(filename)
     basename = filename.parts[-1]
 
+    LOGGER.debug(f'opening "{filename.parts[-2:]}"')
+
     if variables is None:
         if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
             variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
@@ -184,48 +189,50 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         )
         data[data == NODATA] = numpy.nan
 
+    LOGGER.debug(f'finished reading "{filename.parts[-2:]}"')
+
     return data
 
 
-def parse_adcirc_output(
-    directory: PathLike, file_data_variables: [str] = None
-) -> {str: Union[dict, DataFrame]}:
-    """
-    Parse ADCIRC output files
+def async_parse_adcirc_netcdf(
+    filename: PathLike, pickle_filename: PathLike, variables: [str] = None
+) -> (Path, Path):
+    if not isinstance(filename, Path):
+        filename = Path(filename)
+    if not isinstance(pickle_filename, Path):
+        pickle_filename = Path(pickle_filename)
 
-    :param directory: path to directory containing ADCIRC output files in
-    NetCDF format
-    :param file_data_variables: output files to parsing
-    :return: dictionary of output data
-    """
+    data = parse_adcirc_netcdf(filename=filename, variables=variables)
 
-    if not isinstance(directory, Path):
-        directory = Path(directory)
+    pickle_filename = pickle_data(data, pickle_filename)
 
-    if file_data_variables is None:
-        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+    return filename, pickle_filename
+
+
+def pickle_data(data: Any, filename: PathLike) -> Path:
+    if not isinstance(filename, Path):
+        filename = Path(filename)
+
+    if isinstance(data, Mapping):
+        filename.mkdir(parents=True, exist_ok=True)
+        for variable, variable_data in data.items():
+            pickle_data(variable_data, filename / variable)
     else:
-        file_data_variables = {
-            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
-            for filename in file_data_variables
-        }
+        if isinstance(data, numpy.ndarray):
+            filename = filename.parent / (filename.name + '.npy')
+            if isinstance(data, numpy.ma.MaskedArray):
+                data.dump(filename)
+            else:
+                numpy.save(filename, data)
+        elif isinstance(data, DataFrame):
+            filename = filename.parent / (filename.name + '.df')
+            data.to_pickle(filename)
+        else:
+            filename = filename.parent / (filename.name + '.pickle')
+            with open(filename, 'wb') as pickle_file:
+                pickle.dump(data, pickle_file)
 
-    output_data = {}
-    for output_filename in directory.glob('*.nc'):
-        basename = output_filename.parts[-1]
-        if basename in file_data_variables:
-            output_data[basename] = parse_adcirc_netcdf(
-                output_filename, file_data_variables[basename]
-            )
-
-    return output_data
-
-
-def async_parse_adcirc_netcdf(filename: Path, variables: [str] = None):
-    LOGGER.info(f'starting reading "{filename.parts[-2:]}"')
-    output = parse_adcirc_netcdf(filename=filename, variables=variables)
-    LOGGER.info(f'finished reading "{filename.parts[-2:]}"')
-    return output, filename
+    return filename
 
 
 def parse_adcirc_outputs(
@@ -235,7 +242,7 @@ def parse_adcirc_outputs(
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
-    :param file_data_variables: output files to parsing
+    :param file_data_variables: output files to parse
     :return: dictionary of file tree containing parsed data
     """
 
@@ -255,17 +262,51 @@ def parse_adcirc_outputs(
     event_loop = asyncio.get_event_loop()
     process_pool = ProcessPoolExecutor()
 
-    for filename in directory.glob('**/*.nc'):
-        event_loop.run_in_executor(process_pool, async_parse_adcirc_netcdf, filename)
+    dataframes = {}
+    with TemporaryDirectory() as temporary_directory:
+        futures = []
+        temporary_directory = Path(temporary_directory)
+        for filename in directory.glob('**/*.nc'):
+            if filename.name in ['fort.63.nc', 'fort.64.nc']:
+                dataframes[filename] = parse_adcirc_netcdf(filename)
+            else:
+                futures.append(
+                    event_loop.run_in_executor(
+                        process_pool,
+                        partial(
+                            async_parse_adcirc_netcdf,
+                            filename=filename,
+                            pickle_filename=temporary_directory / filename.name,
+                        ),
+                    )
+                )
 
-    outputs = asyncio.gather(*asyncio.all_tasks(event_loop))
+        if len(futures) > 0:
+            pickled_outputs = event_loop.run_until_complete(asyncio.gather(*futures))
 
-    output_datasets = {}
-    for dataframe, filename in outputs:
+            for input_filename, pickle_filename in pickled_outputs:
+                if pickle_filename.is_dir():
+                    dataframes[input_filename] = {}
+                    for variable_pickle_filename in pickle_filename.iterdir():
+                        with open(variable_pickle_filename) as pickle_file:
+                            dataframes[input_filename][
+                                variable_pickle_filename.stem
+                            ] = pickle.load(pickle_file)
+                else:
+                    if pickle_filename.suffix == '.npy':
+                        dataframes[input_filename] = numpy.load(pickle_filename)
+                    elif pickle_filename.suffix == '.df':
+                        dataframes[input_filename] = pandas.read_pickle(pickle_filename)
+                    else:
+                        with open(pickle_filename) as pickle_file:
+                            dataframes[input_filename] = pickle.load(pickle_file)
+
+    output_tree = {}
+    for filename, dataframe in dataframes.items():
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
         if parts[-1] not in file_data_variables:
             continue
-        tree = output_datasets
+        tree = output_tree
         for part_index in range(len(parts)):
             part = parts[part_index]
             if part_index < len(parts) - 1:
@@ -275,7 +316,7 @@ def parse_adcirc_outputs(
             else:
                 tree[part] = dataframe
 
-    return output_datasets
+    return output_tree
 
 
 def combine_outputs(

@@ -1,6 +1,6 @@
 import re
 
-from ensembleperturbation.parsing.adcirc import parse_adcirc_output, parse_adcirc_outputs
+from ensembleperturbation.parsing.adcirc import parse_adcirc_outputs
 from tests import check_reference_directory, DATA_DIRECTORY
 
 
@@ -12,7 +12,7 @@ def test_parse_adcirc_output():
         if re.match('\.6(0-9)?\.nc', str(filename))
     ]
 
-    output_data = parse_adcirc_output(input_directory)
+    output_data = parse_adcirc_outputs(input_directory)
     for data_variable in output_filenames:
         assert data_variable in output_data
 
