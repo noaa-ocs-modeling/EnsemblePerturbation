@@ -444,7 +444,7 @@ def combine_outputs(
                         print(variable_dataframe.columns)
                         dataframe = dataframe.merge(
                             variable_dataframe,
-                            on=coordinate_variables + file_variables,
+                            on=coordinate_variables,
                             how='outer',
                         )
                 except KeyError as error:
