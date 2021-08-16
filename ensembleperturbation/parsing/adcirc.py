@@ -175,7 +175,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
             if variable.size > 0:
                 variables[name] = numpy.squeeze(variable)
             else:
-                LOGGER.warning(
+                LOGGER.debug(
                     f'array "{variable.name}" has invalid data shape "{variable.shape}"'
                 )
                 variables[name] = numpy.squeeze(
