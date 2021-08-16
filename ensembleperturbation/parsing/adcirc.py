@@ -439,15 +439,6 @@ def combine_outputs(
                     variable_dataframe = result_data[coordinate_variables + [variable]].copy()
                     variable_dataframe.rename({variable: run_name}, inplace=True)
 
-                    duplicate_indices = variable_dataframe[
-                        variable_dataframe.index.duplicated()
-                    ]
-                    if len(duplicate_indices) > 0:
-                        LOGGER.warning(
-                            f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
-                        )
-                        variable_dataframe.drop_duplicates(inplace=True)
-
                     if variable in variable_dataframes:
                         variable_dataframes[variable] = variable_dataframes[variable].merge(
                             variable_dataframe,
@@ -469,6 +460,22 @@ def combine_outputs(
         )
 
         for variable, variable_dataframe in variable_dataframes.items():
+            duplicate_indices = variable_dataframe.index[variable_dataframe.index.duplicated()]
+            if len(duplicate_indices) > 0:
+                LOGGER.warning(
+                    f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
+                )
+                variable_dataframe.drop(duplicate_indices, inplace=True)
+
+            duplicate_columns = variable_dataframe.columns[
+                variable_dataframe.columns.duplicated()
+            ]
+            if len(duplicate_columns) > 0:
+                LOGGER.warning(
+                    f'{len(duplicate_columns)} duplicate columns found: {duplicate_columns}'
+                )
+                variable_dataframe.drop(duplicate_columns, inplace=True)
+
             LOGGER.info(
                 f'writing {variable} over {len(variable_dataframe)} nodes to "{output_filename}/{variable}"'
             )
