@@ -445,11 +445,13 @@ def combine_outputs(
 
             variables.extend(file_variables)
 
+    LOGGER.info(f'parsed {len(variables)} variables')
+
     if output_filename is not None and dataframe is not None:
         for variable in variables:
             if variable in dataframe:
+                LOGGER.info(f'writing "{output_filename}/{variable}"')
                 variable_dataframe = dataframe[['x', 'y', 'depth', variable]]
-                LOGGER.info(f'writing to "{output_filename}/{variable}"')
                 variable_dataframe.to_hdf(
                     output_filename, key=variable, mode='a', format='table', data_columns=True,
                 )
