@@ -17,7 +17,8 @@ from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
-from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
+from ensembleperturbation.perturbation.atcf import \
+    parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -435,16 +436,14 @@ def combine_outputs(
                 try:
                     variable_dataframe = variable_dataframe[
                         coordinate_variables + file_variables
-                    ]
+                        ]
 
                     if dataframe is None:
                         dataframe = variable_dataframe
                     else:
-                        print(dataframe.columns)
-                        print(variable_dataframe.columns)
                         dataframe = dataframe.merge(
                             variable_dataframe,
-                            on=coordinate_variables,
+                            on=[column for column in dataframe.columns if column in variable_dataframe.columns],
                             how='outer',
                         )
                 except KeyError as error:
@@ -456,7 +455,7 @@ def combine_outputs(
 
             variables.extend(file_variables)
 
-    dataframe.drop_duplicates(cols=variables, inplace=True)
+    dataframe.drop_duplicates(inplace=True)
 
     LOGGER.info(
         f'parsed {len(variables)} variables into dataframe with shape {dataframe.shape}: {variables}'
