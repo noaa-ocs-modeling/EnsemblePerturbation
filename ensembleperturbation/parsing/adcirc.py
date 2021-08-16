@@ -440,13 +440,15 @@ def combine_outputs(
                     if dataframe is None:
                         dataframe = variable_dataframe
                     else:
+                        print(dataframe.columns)
+                        print(variable_dataframe.columns)
                         dataframe = dataframe.merge(
                             variable_dataframe,
                             on=coordinate_variables + file_variables,
                             how='outer',
                         )
                 except KeyError as error:
-                    LOGGER.warning(error)
+                    LOGGER.warning(f'{error.__class__.__name__} - {error}')
             else:
                 LOGGER.warning(
                     f'unable to parse data from "{run_name}/{result_filename}": {list(variable_dataframe)}'
