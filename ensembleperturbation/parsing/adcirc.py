@@ -440,8 +440,6 @@ def combine_outputs(
                     variable_dataframe = result_data[coordinate_variables + [variable]].copy()
                     variable_dataframe.rename(columns={variable: run_name}, inplace=True)
 
-                    LOGGER.info(f'{variable} dataframe columns: {list(variable_dataframe.columns)}')
-
                     if variable in variable_dataframes:
                         variable_dataframes[variable] = variable_dataframes[variable].merge(
                             variable_dataframe,
