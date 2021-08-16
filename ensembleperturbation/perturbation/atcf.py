@@ -1263,6 +1263,13 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, 
 def parse_vortex_perturbations(
     directory: PathLike = None, output_filename: PathLike = None
 ) -> DataFrame:
+    """
+    Parse `fort.22` and JSON files into a dataframe.
+
+    :param directory: directory containing `fort.22` and JSON files of tracks
+    :returns: dataframe of the variables perturbed with each track
+    """
+
     if directory is None:
         directory = Path.cwd()
     elif not isinstance(directory, Path):
@@ -1297,15 +1304,5 @@ def parse_vortex_perturbations(
     perturbations = DataFrame.from_records(
         list(perturbations.values()), index=list(perturbations)
     )
-
-    if output_filename is not None:
-        LOGGER.info(f'writing to "{output_filename}"')
-        perturbations.to_hdf(
-            output_filename,
-            key='vortex_perturbation_parameters',
-            mode='a',
-            format='table',
-            data_columns=True,
-        )
 
     return perturbations

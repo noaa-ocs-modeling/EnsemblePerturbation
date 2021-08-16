@@ -341,10 +341,11 @@ def combine_outputs(
     elif not isinstance(directory, Path):
         directory = Path(directory)
 
-    if not isinstance(output_filename, Path):
-        output_filename = Path(output_filename)
-    if output_filename.exists():
-        os.remove(output_filename)
+    if output_filename is not None:
+        if not isinstance(output_filename, Path):
+            output_filename = Path(output_filename)
+        if output_filename.exists():
+            os.remove(output_filename)
 
     runs_directory = directory / 'runs'
     if not runs_directory.exists():
@@ -370,9 +371,16 @@ def combine_outputs(
         }
 
     # parse all the inputs using built-in parser
-    parse_vortex_perturbations(
+    vortex_perturbations = parse_vortex_perturbations(
         track_directory, output_filename=output_filename,
     )
+
+    if output_filename is not None:
+        key = 'vortex_perturbation_parameters'
+        LOGGER.info(f'writing vortex perturbations to "{output_filename}/{key}"')
+        vortex_perturbations.to_hdf(
+            output_filename, key=key, mode='a', format='table', data_columns=True,
+        )
 
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing {file_data_variables} from "{directory}"')
@@ -391,16 +399,21 @@ def combine_outputs(
     # values -> maximum elevation values ( + location and depths)
     subset = None
     dataframe = None
+    variables = []
     for run_name in output_data:
         for result_filename in output_data[run_name]:
+            file_variables = file_data_variables[result_filename]
+
             variable_dataframe = output_data[run_name][result_filename]
 
             if isinstance(variable_dataframe, DataFrame):
+                coordinate_variables = ['x', 'y']
+                if 'depth' in variable_dataframe:
+                    coordinate_variables.append('depth')
+
                 if subset is None:
                     subset = Series(True, index=variable_dataframe.index)
-                    variables = ['x', 'y']
                     if 'depth' in variable_dataframe:
-                        variables.append('depth')
                         if maximum_depth is not None:
                             subset &= variable_dataframe['depth'] < maximum_depth
                     if bounds is not None:
@@ -410,26 +423,26 @@ def combine_outputs(
                         subset &= (variable_dataframe['y'] > bounds[1]) & (
                             variable_dataframe['y'] < bounds[3]
                         )
-                    variable_dataframe = variable_dataframe[variables][subset]
+                    variable_dataframe = variable_dataframe.loc[subset]
+
+                variable_dataframe = variable_dataframe[coordinate_variables + file_variables]
+
                 if dataframe is None:
                     dataframe = variable_dataframe
                 else:
-                    dataframe = pandas.concat(
-                        [
-                            dataframe,
-                            variable_dataframe[file_data_variables[result_filename]][subset],
-                        ],
-                        axis=1,
+                    dataframe = dataframe.merge(
+                        variable_dataframe, on=coordinate_variables, how='outer',
                     )
 
-            if output_filename is not None and dataframe is not None:
-                LOGGER.info(f'writing to "{output_filename}"')
-                dataframe.to_hdf(
-                    output_filename,
-                    key=','.join(file_data_variables[result_filename]),
-                    mode='a',
-                    format='table',
-                    data_columns=True,
+            variables.extend(file_variables)
+
+    if output_filename is not None and dataframe is not None:
+        for variable in variables:
+            if variable in dataframe:
+                variable_dataframe = dataframe[['x', 'y', 'depth', variable]]
+                LOGGER.info(f'writing to "{output_filename}/{variable}"')
+                variable_dataframe.to_hdf(
+                    output_filename, key=variable, mode='a', format='table', data_columns=True,
                 )
 
     return dataframe
