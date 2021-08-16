@@ -441,7 +441,9 @@ def combine_outputs(
                         dataframe = variable_dataframe
                     else:
                         dataframe = dataframe.merge(
-                            variable_dataframe, on=coordinate_variables, how='outer',
+                            variable_dataframe,
+                            on=coordinate_variables + file_variables,
+                            how='outer',
                         )
                 except KeyError as error:
                     LOGGER.warning(error)
@@ -452,8 +454,10 @@ def combine_outputs(
 
             variables.extend(file_variables)
 
+    dataframe.drop_duplicates(cols=variables, inplace=True)
+
     LOGGER.info(
-        f'parsed {len(variables)} variables into dataframe with shape {dataframe.shape}'
+        f'parsed {len(variables)} variables into dataframe with shape {dataframe.shape}: {variables}'
     )
 
     if output_filename is not None and dataframe is not None:
