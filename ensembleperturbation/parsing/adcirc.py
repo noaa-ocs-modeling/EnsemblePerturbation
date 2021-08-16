@@ -134,7 +134,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         filename = Path(filename)
     basename = filename.parts[-1]
 
-    LOGGER.info(f'opening "{filename.parts[-2:]}"')
+    LOGGER.info(f'opening "{"/".join(filename.parts[-2:])}"')
 
     if variables is None:
         if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
@@ -191,7 +191,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         )
         data[data == NODATA] = numpy.nan
 
-    LOGGER.debug(f'finished reading "{filename.parts[-2:]}"')
+    LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
 
     return data
 
