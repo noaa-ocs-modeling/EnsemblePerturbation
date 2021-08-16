@@ -431,7 +431,7 @@ def combine_outputs(
                     LOGGER.debug(f'subsetting: {num_records} nodes -> {len(result_data)} nodes')
 
                 LOGGER.info(
-                    f'found {len(result_data)} records in "{run_name}/{result_filename}" ({result_data.columns})'
+                    f'found {len(file_variables)} variables over {len(result_data)} nodes in "{run_name}/{result_filename}"'
                 )
 
                 for file_variable in file_variables:
