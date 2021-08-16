@@ -25,28 +25,28 @@ if __name__ == '__main__':
     combined_results = tables.open_file(combined_results_filename)
 
     # just get standard deviation of the outputs
-    output_standard_deviation =output_dataframe.std(axis=0, skipna=True)
+    output_standard_deviation = output_dataframe.std(axis=1, skipna=True)
 
-    # # Plot variable distributions the histogram of the data
-    # for variable in input_dataframe:
-    #     figure = pyplot.figure()
-    #     axis = figure.add_subplot(1, 1, 1)
-    #     axis.hist(input_dataframe[variable], bins='auto', density=True, alpha=0.75)
-    #     axis.set_xlabel('Parameter')
-    #     axis.set_ylabel('Probability')
-    #     axis.set_title('Histogram of ' + variable)
-    #     axis.grid(True)
-    #     pyplot.show()
+    # Plot variable distributions the histogram of the data
+    for variable in input_dataframe:
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+        axis.hist(input_dataframe[variable], bins='auto', density=True, alpha=0.75)
+        axis.set_xlabel('Parameter')
+        axis.set_ylabel('Probability')
+        axis.set_title('Histogram of ' + variable)
+        axis.grid(True)
+        pyplot.show()
 
-    # # plot histogram
-    # figure = pyplot.figure()
-    # axis = figure.add_subplot(1, 1, 1)
-    # axis.hist(output_std, bins='auto', density=True, alpha=0.75)
-    # axis.set_xlabel('Parameter')
-    # axis.set_ylabel('Probability')
-    # axis.set_title('Histogram of Maximum Elevation Variability')
-    # axis.grid(True)
-    # pyplot.show()
+    # plot histogram
+    figure = pyplot.figure()
+    axis = figure.add_subplot(1, 1, 1)
+    axis.hist(output_standard_deviation, bins='auto', density=True, alpha=0.75)
+    axis.set_xlabel('Parameter')
+    axis.set_ylabel('Probability')
+    axis.set_title('Histogram of Maximum Elevation Variability')
+    axis.grid(True)
+    pyplot.show()
 
     # plot map
     figure = pyplot.figure(figsize=(18, 8))

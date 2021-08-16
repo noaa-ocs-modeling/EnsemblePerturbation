@@ -17,8 +17,7 @@ from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
-from ensembleperturbation.perturbation.atcf import \
-    parse_vortex_perturbations
+from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -406,7 +405,7 @@ def combine_outputs(
         )
 
         for result_filename, result_data in run_data.items():
-            file_variables = file_data_variables[result_filename]
+            variables = file_data_variables[result_filename]
 
             if isinstance(result_data, DataFrame):
                 num_records = len(result_data)
@@ -428,29 +427,31 @@ def combine_outputs(
                             result_data['y'] < bounds[3]
                         )
                     result_data = result_data.loc[subset]
-                    LOGGER.debug(f'subsetting: {num_records} nodes -> {len(result_data)} nodes')
+                    LOGGER.debug(
+                        f'subsetting: {num_records} nodes -> {len(result_data)} nodes'
+                    )
 
-                LOGGER.info(
-                    f'found {len(file_variables)} variables over {len(result_data)} nodes in "{run_name}/{result_filename}"'
+                LOGGER.debug(
+                    f'found {len(variables)} variables over {len(result_data)} nodes in "{run_name}/{result_filename}"'
                 )
 
-                for file_variable in file_variables:
-                    variable_dataframe = result_data[coordinate_variables + [file_variable]]
-                    variable_dataframe.rename({file_variable: run_name}, inplace=True)
+                for variable in variables:
+                    variable_dataframe = result_data[coordinate_variables + [variable]]
+                    variable_dataframe.rename({variable: run_name}, inplace=True)
 
-                    if file_variable in variable_dataframes:
-                        variable_dataframes[file_variable] = variable_dataframes[file_variable].merge(
+                    if variable in variable_dataframes:
+                        variable_dataframes[variable] = variable_dataframes[variable].merge(
                             variable_dataframe,
                             on=coordinate_variables,
                             how='outer',
                             copy=False,
                         )
                     else:
-                        variable_dataframes[file_variable] = variable_dataframe
+                        variable_dataframes[variable] = variable_dataframe
             else:
                 result_data = {key: type(value) for key, value in result_data.items()}
                 LOGGER.warning(
-                    f'unable to parse data from "{run_name}/{result_filename}": {result_data}'
+                    f'outputs not yet implemented from "{run_name}/{result_filename}" {result_data}'
                 )
 
     if output_filename is not None and len(variable_dataframes) > 0:
@@ -459,7 +460,9 @@ def combine_outputs(
         )
 
         for variable, variable_dataframe in variable_dataframes.items():
-            LOGGER.info(f'writing "{output_filename}/{variable}"')
+            LOGGER.info(
+                f'writing {variable} over {len(variable_dataframe)} nodes to "{output_filename}/{variable}"'
+            )
             variable_dataframe.to_hdf(
                 output_filename, key=variable, mode='a', format='table', data_columns=True,
             )
