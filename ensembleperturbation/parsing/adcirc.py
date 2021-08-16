@@ -17,7 +17,8 @@ from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
-from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
+from ensembleperturbation.perturbation.atcf import \
+    parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -439,6 +440,8 @@ def combine_outputs(
                     variable_dataframe = result_data[coordinate_variables + [variable]].copy()
                     variable_dataframe.rename({variable: run_name}, inplace=True)
 
+                    LOGGER.info(f'{variable} dataframe columns: {list(variable_dataframe.columns)}')
+
                     if variable in variable_dataframes:
                         variable_dataframes[variable] = variable_dataframes[variable].merge(
                             variable_dataframe,
@@ -465,7 +468,7 @@ def combine_outputs(
                 LOGGER.warning(
                     f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
                 )
-                variable_dataframe.drop(duplicate_indices, inplace=True)
+                variable_dataframe.drop(duplicate_indices, axis=0, inplace=True)
 
             duplicate_columns = variable_dataframe.columns[
                 variable_dataframe.columns.duplicated()
@@ -474,7 +477,7 @@ def combine_outputs(
                 LOGGER.warning(
                     f'{len(duplicate_columns)} duplicate columns found: {duplicate_columns}'
                 )
-                variable_dataframe.drop(duplicate_columns, inplace=True)
+                variable_dataframe.drop(duplicate_columns, axis=1, inplace=True)
 
             LOGGER.info(
                 f'writing {variable} over {len(variable_dataframe)} nodes to "{output_filename}/{variable}"'
