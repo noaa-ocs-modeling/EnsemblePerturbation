@@ -437,6 +437,7 @@ def combine_outputs(
                 )
 
                 for variable in variables:
+                    variable = variable.replace('-', '_')
                     variable_dataframe = result_data[coordinate_variables + [variable]].copy()
                     variable_dataframe.rename(columns={variable: run_name}, inplace=True)
 
