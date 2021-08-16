@@ -17,8 +17,7 @@ from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
-from ensembleperturbation.perturbation.atcf import \
-    parse_vortex_perturbations
+from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -384,15 +383,15 @@ def combine_outputs(
         )
 
     # parse all the outputs using built-in parser
-    LOGGER.info(f'parsing {file_data_variables} from "{directory}"')
+    LOGGER.info(f'parsing from "{directory}"')
     output_data = parse_adcirc_outputs(
         directory=runs_directory, file_data_variables=file_data_variables,
     )
 
-    if len(output_data) == 0:
-        raise FileNotFoundError(f'could not find any output files in "{directory}"')
+    if len(output_data) > 0:
+        LOGGER.info(f'parsing results from {len(output_data)} runs')
     else:
-        LOGGER.info(f'building dataframe from {len(output_data)} perturbations')
+        raise FileNotFoundError(f'could not find any output files in "{directory}"')
 
     # now assemble results into a single dataframe with:
     # rows -> index of a vertex in the mesh subset
@@ -401,11 +400,14 @@ def combine_outputs(
     subset = None
     dataframe = None
     variables = []
-    for run_name in output_data:
-        for result_filename in output_data[run_name]:
+    for run_name, run_data in output_data.items():
+        LOGGER.info(
+            f'reading {len(run_data)} files from "{directory / run_name}": {list(run_data)}'
+        )
+        for result_filename, result_data in run_data.items():
             file_variables = file_data_variables[result_filename]
 
-            variable_dataframe = output_data[run_name][result_filename]
+            variable_dataframe = result_data
 
             if isinstance(variable_dataframe, DataFrame):
                 coordinate_variables = ['x', 'y']
@@ -427,10 +429,13 @@ def combine_outputs(
                     variable_dataframe = variable_dataframe.loc[subset]
 
                     LOGGER.info(
-                        f'found {len(variable_dataframe)} records in "{result_filename.name}" ({variable_dataframe.columns})')
+                        f'found {len(variable_dataframe)} records in "{result_filename}" ({variable_dataframe.columns})'
+                    )
 
                 try:
-                    variable_dataframe = variable_dataframe[coordinate_variables + file_variables]
+                    variable_dataframe = variable_dataframe[
+                        coordinate_variables + file_variables
+                    ]
 
                     if dataframe is None:
                         dataframe = variable_dataframe
