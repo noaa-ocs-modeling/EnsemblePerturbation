@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 import logging
+from os import PathLike
 from pathlib import Path
 
 from pandas import DataFrame
@@ -10,7 +11,7 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parsing')
 
 
-def main() -> {str: DataFrame}:
+def parse_combine_results():
     argument_parser = ArgumentParser()
     argument_parser.add_argument('output', help='output filename (`*.h5`)')
     argument_parser.add_argument(
@@ -28,17 +29,34 @@ def main() -> {str: DataFrame}:
     )
     arguments = argument_parser.parse_args()
 
-    if arguments.verbose:
+    return {
+        'output': arguments.output,
+        'directory': arguments.directory,
+        'max_depth': arguments.max_depth,
+        'bounds': arguments.bounds,
+        'verbose': arguments.verbose,
+    }
+
+
+def combine_results(
+    output: PathLike,
+    directory: PathLike = None,
+    max_depth: float = None,
+    bounds: (float, float, float, float) = None,
+    verbose: bool = False,
+) -> {str: DataFrame}:
+    if verbose:
         get_logger(LOGGER.name, console_level=logging.DEBUG)
 
-    variable_dataframe = combine_outputs(
-        arguments.directory,
-        maximum_depth=arguments.max_depth,
-        bounds=arguments.bounds,
-        output_filename=arguments.output,
+    variable_dataframes = combine_outputs(
+        directory, maximum_depth=max_depth, bounds=bounds, output_filename=output,
     )
 
-    return variable_dataframe
+    return variable_dataframes
+
+
+def main():
+    combine_results(**parse_combine_results())
 
 
 if __name__ == '__main__':
