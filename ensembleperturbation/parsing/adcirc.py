@@ -424,15 +424,22 @@ def combine_outputs(
                             variable_dataframe['y'] < bounds[3]
                         )
                     variable_dataframe = variable_dataframe.loc[subset]
+                    print(variable_dataframe.columns)
+                    print(len(variable_dataframe))
 
-                variable_dataframe = variable_dataframe[coordinate_variables + file_variables]
+                try:
+                    variable_dataframe = variable_dataframe[coordinate_variables + file_variables]
 
-                if dataframe is None:
-                    dataframe = variable_dataframe
-                else:
-                    dataframe = dataframe.merge(
-                        variable_dataframe, on=coordinate_variables, how='outer',
-                    )
+                    if dataframe is None:
+                        dataframe = variable_dataframe
+                    else:
+                        dataframe = dataframe.merge(
+                            variable_dataframe, on=coordinate_variables, how='outer',
+                        )
+                except KeyError:
+                    pass
+            else:
+                print(variable_dataframe)
 
             variables.extend(file_variables)
 
