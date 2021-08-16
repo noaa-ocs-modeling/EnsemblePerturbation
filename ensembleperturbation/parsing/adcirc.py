@@ -439,10 +439,10 @@ def combine_outputs(
                     variable_dataframe = result_data[coordinate_variables + [variable]].copy()
                     variable_dataframe.rename({variable: run_name}, inplace=True)
 
-                    if len(variable_dataframe.index.duplicated()) > 0:
-                        duplicate_indices = variable_dataframe[
-                            variable_dataframe.index.duplicated()
-                        ]
+                    duplicate_indices = variable_dataframe[
+                        variable_dataframe.index.duplicated()
+                    ]
+                    if len(duplicate_indices) > 0:
                         LOGGER.warning(
                             f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
                         )
