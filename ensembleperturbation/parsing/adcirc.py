@@ -446,11 +446,15 @@ def combine_outputs(
                 except KeyError as error:
                     LOGGER.warning(error)
             else:
-                LOGGER.warning(f'unable to parse data: {list(variable_dataframe)}')
+                LOGGER.warning(
+                    f'unable to parse data from "{run_name}/{result_filename}": {list(variable_dataframe)}'
+                )
 
             variables.extend(file_variables)
 
-    LOGGER.info(f'parsed {len(variables)} variables')
+    LOGGER.info(
+        f'parsed {len(variables)} variables into dataframe with shape {dataframe.shape}'
+    )
 
     if output_filename is not None and dataframe is not None:
         for variable in variables:
