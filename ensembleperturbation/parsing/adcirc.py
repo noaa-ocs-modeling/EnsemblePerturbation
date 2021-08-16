@@ -440,9 +440,13 @@ def combine_outputs(
                     variable_dataframe.rename({variable: run_name}, inplace=True)
 
                     if len(variable_dataframe.index.duplicated()) > 0:
+                        duplicate_indices = variable_dataframe[
+                            variable_dataframe.index.duplicated()
+                        ]
                         LOGGER.warning(
-                            f'duplicate indices found: {variable_dataframe.index.duplicated()}'
+                            f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
                         )
+                        variable_dataframe.drop_duplicates(inplace=True)
 
                     if variable in variable_dataframes:
                         variable_dataframes[variable] = variable_dataframes[variable].merge(
