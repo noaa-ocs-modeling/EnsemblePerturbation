@@ -6,6 +6,7 @@ import cmocean
 from matplotlib import pyplot
 import pandas
 from pandas import DataFrame
+import tables
 
 if __name__ == '__main__':
     argument_parser = ArgumentParser()
@@ -21,29 +22,31 @@ if __name__ == '__main__':
     )
     output_dataframe: DataFrame = pandas.read_hdf(combined_results_filename, key='zeta_max')
 
+    combined_results = tables.open_file(combined_results_filename)
+
     # just get standard deviation of the outputs
-    output_std = output_dataframe.filter(regex='vortex*', axis=1).std(axis=1, skipna=True)
+    output_standard_deviation =output_dataframe.std(axis=0, skipna=True)
 
-    # Plot variable distributions the histogram of the data
-    for variable in input_dataframe:
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
-        axis.hist(input_dataframe[variable], bins='auto', density=True, alpha=0.75)
-        axis.xlabel('Parameter')
-        axis.ylabel('Probability')
-        axis.title('Histogram of ' + variable)
-        axis.grid(True)
-        pyplot.show()
+    # # Plot variable distributions the histogram of the data
+    # for variable in input_dataframe:
+    #     figure = pyplot.figure()
+    #     axis = figure.add_subplot(1, 1, 1)
+    #     axis.hist(input_dataframe[variable], bins='auto', density=True, alpha=0.75)
+    #     axis.set_xlabel('Parameter')
+    #     axis.set_ylabel('Probability')
+    #     axis.set_title('Histogram of ' + variable)
+    #     axis.grid(True)
+    #     pyplot.show()
 
-    # plot histogram
-    figure = pyplot.figure()
-    axis = figure.add_subplot(1, 1, 1)
-    axis.hist(output_std, bins='auto', density=True, alpha=0.75)
-    axis.xlabel('Parameter')
-    axis.ylabel('Probability')
-    axis.title('Histogram of Maximum Elevation Variability')
-    axis.grid(True)
-    pyplot.show()
+    # # plot histogram
+    # figure = pyplot.figure()
+    # axis = figure.add_subplot(1, 1, 1)
+    # axis.hist(output_std, bins='auto', density=True, alpha=0.75)
+    # axis.set_xlabel('Parameter')
+    # axis.set_ylabel('Probability')
+    # axis.set_title('Histogram of Maximum Elevation Variability')
+    # axis.grid(True)
+    # pyplot.show()
 
     # plot map
     figure = pyplot.figure(figsize=(18, 8))
@@ -52,14 +55,15 @@ if __name__ == '__main__':
         output_dataframe.x,
         output_dataframe.y,
         s=1,
-        c=output_std,
+        c=output_standard_deviation,
         transform=ccrs.PlateCarree(),
         cmap=cmocean.cm.amp,
         vmin=0,
         vmax=1.6,
     )
-    axis.colorbar(ax=axis, shrink=0.98, extend='max', label='STD [m]')
     axis.coastlines()
+
+    # pyplot.colorbar(ax=axis, shrink=0.98, extend='max', label='STD [m]')
 
     # Add the gridlines
     gridlines = axis.gridlines(color='black', linestyle='dotted', draw_labels=True, alpha=0.5)

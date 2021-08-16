@@ -2,13 +2,15 @@ from argparse import ArgumentParser
 import logging
 from pathlib import Path
 
+from pandas import DataFrame
+
 from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing')
 
 
-def main():
+def main() -> {str: DataFrame}:
     argument_parser = ArgumentParser()
     argument_parser.add_argument('output', help='output filename (`*.h5`)')
     argument_parser.add_argument(
@@ -29,14 +31,14 @@ def main():
     if arguments.verbose:
         get_logger(LOGGER.name, console_level=logging.DEBUG)
 
-    dataframe = combine_outputs(
+    variable_dataframe = combine_outputs(
         arguments.directory,
         maximum_depth=arguments.max_depth,
         bounds=arguments.bounds,
         output_filename=arguments.output,
     )
 
-    return dataframe
+    return variable_dataframe
 
 
 if __name__ == '__main__':

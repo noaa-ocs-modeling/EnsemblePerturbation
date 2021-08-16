@@ -17,7 +17,8 @@ from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
-from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
+from ensembleperturbation.perturbation.atcf import \
+    parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -134,7 +135,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         filename = Path(filename)
     basename = filename.parts[-1]
 
-    LOGGER.info(f'opening "{"/".join(filename.parts[-2:])}"')
+    LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
 
     if variables is None:
         if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
@@ -335,7 +336,7 @@ def combine_outputs(
     maximum_depth: float = None,
     file_data_variables: {str: [str]} = None,
     output_filename: PathLike = None,
-) -> DataFrame:
+) -> {str: DataFrame}:
     if directory is None:
         directory = Path.cwd()
     elif not isinstance(directory, Path):
@@ -398,79 +399,69 @@ def combine_outputs(
     # columns -> name of perturbation, ( + x, y (lon, lat) and depth info)
     # values -> maximum elevation values ( + location and depths)
     subset = None
-    dataframe = None
-    variables = []
+    variable_dataframes = {}
     for run_name, run_data in output_data.items():
         LOGGER.info(
             f'reading {len(run_data)} files from "{directory / run_name}": {list(run_data)}'
         )
+
         for result_filename, result_data in run_data.items():
             file_variables = file_data_variables[result_filename]
 
-            variable_dataframe = result_data
+            if isinstance(result_data, DataFrame):
+                num_records = len(result_data)
 
-            if isinstance(variable_dataframe, DataFrame):
                 coordinate_variables = ['x', 'y']
-                if 'depth' in variable_dataframe:
+                if 'depth' in result_data:
                     coordinate_variables.append('depth')
 
                 if subset is None:
-                    subset = Series(True, index=variable_dataframe.index)
-                    if 'depth' in variable_dataframe:
+                    subset = Series(True, index=result_data.index)
+                    if 'depth' in result_data:
                         if maximum_depth is not None:
-                            subset &= variable_dataframe['depth'] < maximum_depth
+                            subset &= result_data['depth'] < maximum_depth
                     if bounds is not None:
-                        subset &= (variable_dataframe['x'] > bounds[0]) & (
-                            variable_dataframe['x'] < bounds[2]
+                        subset &= (result_data['x'] > bounds[0]) & (
+                            result_data['x'] < bounds[2]
                         )
-                        subset &= (variable_dataframe['y'] > bounds[1]) & (
-                            variable_dataframe['y'] < bounds[3]
+                        subset &= (result_data['y'] > bounds[1]) & (
+                            result_data['y'] < bounds[3]
                         )
-                    variable_dataframe = variable_dataframe.loc[subset]
+                    result_data = result_data.loc[subset]
+                    LOGGER.debug(f'subsetting: {num_records} nodes -> {len(result_data)} nodes')
 
-                    LOGGER.info(
-                        f'found {len(variable_dataframe)} records in "{result_filename}" ({variable_dataframe.columns})'
-                    )
+                LOGGER.info(
+                    f'found {len(result_data)} records in "{run_name}/{result_filename}" ({result_data.columns})'
+                )
 
-                try:
-                    variable_dataframe = variable_dataframe[
-                        coordinate_variables + file_variables
-                    ]
+                for file_variable in file_variables:
+                    variable_dataframe = result_data[coordinate_variables + [file_variable]]
+                    variable_dataframe.rename({file_variable: run_name}, inplace=True)
 
-                    if dataframe is None:
-                        dataframe = variable_dataframe
-                    else:
-                        dataframe = dataframe.merge(
+                    if file_variable in variable_dataframes:
+                        variable_dataframes[file_variable] = variable_dataframes[file_variable].merge(
                             variable_dataframe,
-                            on=[
-                                column
-                                for column in dataframe.columns
-                                if column in variable_dataframe.columns
-                            ],
+                            on=coordinate_variables,
                             how='outer',
+                            copy=False,
                         )
-                except KeyError as error:
-                    LOGGER.warning(f'{error.__class__.__name__} - {error}')
+                    else:
+                        variable_dataframes[file_variable] = variable_dataframe
             else:
+                result_data = {key: type(value) for key, value in result_data.items()}
                 LOGGER.warning(
-                    f'unable to parse data from "{run_name}/{result_filename}": {list(variable_dataframe)}'
+                    f'unable to parse data from "{run_name}/{result_filename}": {result_data}'
                 )
 
-            variables.extend(file_variables)
+    if output_filename is not None and len(variable_dataframes) > 0:
+        LOGGER.info(
+            f'parsed {len(variable_dataframes)} variables: {list(variable_dataframes)}'
+        )
 
-    dataframe.drop_duplicates(inplace=True)
+        for variable, variable_dataframe in variable_dataframes.items():
+            LOGGER.info(f'writing "{output_filename}/{variable}"')
+            variable_dataframe.to_hdf(
+                output_filename, key=variable, mode='a', format='table', data_columns=True,
+            )
 
-    LOGGER.info(
-        f'parsed {len(variables)} variables into dataframe with shape {dataframe.shape}: {variables}'
-    )
-
-    if output_filename is not None and dataframe is not None:
-        for variable in variables:
-            if variable in dataframe:
-                LOGGER.info(f'writing "{output_filename}/{variable}"')
-                variable_dataframe = dataframe[['x', 'y', 'depth', variable]]
-                variable_dataframe.to_hdf(
-                    output_filename, key=variable, mode='a', format='table', data_columns=True,
-                )
-
-    return dataframe
+    return variable_dataframes
