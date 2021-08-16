@@ -1303,7 +1303,7 @@ def parse_vortex_perturbations(
         perturbations.to_hdf(
             output_filename,
             key='vortex_perturbation_parameters',
-            mode='w',
+            mode='a',
             format='table',
             data_columns=True,
         )

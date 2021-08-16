@@ -17,6 +17,7 @@ from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
+from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -349,6 +350,10 @@ def combine_outputs(
     if not runs_directory.exists():
         raise FileNotFoundError(f'runs directory does not exist at "{runs_directory}"')
 
+    track_directory = directory / 'track_files'
+    if not track_directory.exists():
+        raise FileNotFoundError(f'track directory does not exist at "{track_directory}"')
+
     if file_data_variables is None:
         file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
     elif isinstance(file_data_variables, Collection):
@@ -363,6 +368,11 @@ def combine_outputs(
             else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
             for filename, variables in file_data_variables.items()
         }
+
+    # parse all the inputs using built-in parser
+    parse_vortex_perturbations(
+        track_directory, output_filename=output_filename,
+    )
 
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing {file_data_variables} from "{directory}"')
