@@ -436,8 +436,13 @@ def combine_outputs(
                 )
 
                 for variable in variables:
-                    variable_dataframe = result_data[coordinate_variables + [variable]]
+                    variable_dataframe = result_data[coordinate_variables + [variable]].copy()
                     variable_dataframe.rename({variable: run_name}, inplace=True)
+
+                    if len(variable_dataframe.index.duplicated()) > 0:
+                        LOGGER.warning(
+                            f'duplicate indices found: {variable_dataframe.index.duplicated()}'
+                        )
 
                     if variable in variable_dataframes:
                         variable_dataframes[variable] = variable_dataframes[variable].merge(
@@ -451,7 +456,7 @@ def combine_outputs(
             else:
                 result_data = {key: type(value) for key, value in result_data.items()}
                 LOGGER.warning(
-                    f'outputs not yet implemented from "{run_name}/{result_filename}" {result_data}'
+                    f'"{result_filename}" outputs not yet implemented: {result_data}'
                 )
 
     if output_filename is not None and len(variable_dataframes) > 0:
