@@ -425,8 +425,9 @@ def combine_outputs(
                             variable_dataframe['y'] < bounds[3]
                         )
                     variable_dataframe = variable_dataframe.loc[subset]
-                    print(variable_dataframe.columns)
-                    print(len(variable_dataframe))
+
+                    LOGGER.info(
+                        f'found {len(variable_dataframe)} records in "{result_filename.name}" ({variable_dataframe.columns})')
 
                 try:
                     variable_dataframe = variable_dataframe[coordinate_variables + file_variables]
@@ -440,7 +441,7 @@ def combine_outputs(
                 except KeyError as error:
                     LOGGER.warning(error)
             else:
-                print(variable_dataframe)
+                LOGGER.warning(f'unable to parse data: {list(variable_dataframe)}')
 
             variables.extend(file_variables)
 
