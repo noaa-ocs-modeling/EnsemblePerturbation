@@ -134,7 +134,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         filename = Path(filename)
     basename = filename.parts[-1]
 
-    LOGGER.debug(f'opening "{filename.parts[-2:]}"')
+    LOGGER.info(f'opening "{filename.parts[-2:]}"')
 
     if variables is None:
         if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
