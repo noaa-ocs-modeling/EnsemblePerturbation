@@ -12,6 +12,7 @@ DEPENDENCIES = {
     'adcircpy>=1.0.39': ['gdal', 'fiona'],
     'appdirs': [],
     'cartopy': ['cython', 'numpy', 'proj'],
+    'chaospy': [],
     'cmocean': [],
     'bs4': [],
     'click': [],
