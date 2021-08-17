@@ -115,19 +115,23 @@ if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
 if len(MISSING_DEPENDENCIES) > 0:
     for dependency, subdependencies in MISSING_DEPENDENCIES.items():
         for _ in range(1 + len(subdependencies)):
-            for package_name in subdependencies + [dependency]:
-                if dependency in missing_packages(
-                    DEPENDENCIES
-                ) or package_name in missing_packages(subdependencies):
-                    try:
-                        subprocess.run(
-                            f'{sys.executable} -m pip install {package_name.lower()}',
-                            check=True,
-                            shell=True,
-                            stderr=subprocess.DEVNULL,
-                        )
-                    except subprocess.CalledProcessError:
-                        pass
+            MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
+            missing_subdependencies = missing_packages(subdependencies)
+            packages = [
+                package_name
+                for package_name in subdependencies + [dependency]
+                if package_name in MISSING_DEPENDENCIES
+                or package_name in missing_subdependencies
+            ]
+            try:
+                subprocess.run(
+                    f'{sys.executable} -m pip install {" ".join(package_name.lower() for package_name in packages)}',
+                    check=True,
+                    shell=True,
+                    stderr=subprocess.DEVNULL,
+                )
+            except subprocess.CalledProcessError:
+                pass
 
     MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
