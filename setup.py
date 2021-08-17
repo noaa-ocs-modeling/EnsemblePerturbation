@@ -112,6 +112,25 @@ if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
 
     MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
+if len(MISSING_DEPENDENCIES) > 0:
+    for dependency, subdependencies in MISSING_DEPENDENCIES.items():
+        for _ in range(1 + len(subdependencies)):
+            for package_name in subdependencies + [dependency]:
+                if dependency in missing_packages(
+                    DEPENDENCIES
+                ) or package_name in missing_packages(subdependencies):
+                    try:
+                        subprocess.run(
+                            f'{sys.executable} -m pip install {package_name.lower()}',
+                            check=True,
+                            shell=True,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    except subprocess.CalledProcessError:
+                        pass
+
+    MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
+
 if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
     if 'pipwin' not in installed_packages():
         subprocess.run(
@@ -131,7 +150,7 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
                 ) or package_name in missing_packages(subdependencies):
                     try:
                         subprocess.run(
-                            f'{sys.executable} -m pip install {package_name.lower()}',
+                            f'{sys.executable} -m pipwin install {package_name.lower()}',
                             check=True,
                             shell=True,
                             stderr=subprocess.DEVNULL,
@@ -139,15 +158,7 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
                         if package_name in failed_pipwin_packages:
                             failed_pipwin_packages.remove(package_name)
                     except subprocess.CalledProcessError:
-                        try:
-                            subprocess.run(
-                                f'{sys.executable} -m pipwin install {package_name.lower()}',
-                                check=True,
-                                shell=True,
-                                stderr=subprocess.DEVNULL,
-                            )
-                        except subprocess.CalledProcessError:
-                            failed_pipwin_packages.append(package_name)
+                        failed_pipwin_packages.append(package_name)
 
             # since we don't know the dependencies here, repeat this process n number of times
             # (worst case is `O(n)`, where the first package is dependant on all the others)
