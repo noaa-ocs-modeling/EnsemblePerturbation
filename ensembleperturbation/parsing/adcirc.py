@@ -1,6 +1,5 @@
-import asyncio
+import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 import os
 from os import PathLike
 from pathlib import Path
@@ -268,33 +267,29 @@ def parse_adcirc_outputs(
             for filename, variables in file_data_variables.items()
         }
 
-    event_loop = asyncio.get_event_loop()
-    process_pool = ProcessPoolExecutor()
-
     dataframes = {}
     with TemporaryDirectory() as temporary_directory:
-        futures = []
         temporary_directory = Path(temporary_directory)
+        process_pool = ProcessPoolExecutor()
+        futures = []
+
         for filename in directory.glob('**/*.nc'):
             if filename.name in file_data_variables:
                 if filename.name in ['fort.63.nc', 'fort.64.nc']:
                     dataframes[filename] = parse_adcirc_netcdf(filename)
                 else:
                     futures.append(
-                        event_loop.run_in_executor(
-                            process_pool,
-                            partial(
-                                async_parse_adcirc_netcdf,
-                                filename=filename,
-                                pickle_filename=temporary_directory / filename.name,
-                            ),
-                        )
+                        process_pool.submit(
+                            async_parse_adcirc_netcdf,
+                            filename=filename,
+                            pickle_filename=temporary_directory / filename.name,
+                        ),
                     )
 
         if len(futures) > 0:
-            pickled_outputs = event_loop.run_until_complete(asyncio.gather(*futures))
+            for completed_future in concurrent.futures.as_completed(futures):
+                input_filename, pickle_filename = completed_future.result()
 
-            for input_filename, pickle_filename in pickled_outputs:
                 if pickle_filename.is_dir():
                     dataframes[input_filename] = {}
                     for variable_pickle_filename in pickle_filename.iterdir():

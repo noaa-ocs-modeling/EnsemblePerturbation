@@ -35,7 +35,8 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 """
 
 from abc import ABC
-import asyncio
+import concurrent.futures
+from concurrent.futures import ProcessPoolExecutor
 from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
@@ -805,7 +806,6 @@ class VortexPerturber:
         self.file_deck = file_deck
         self.mode = mode
         self.record_type = record_type
-        self.__event_loop = asyncio.get_event_loop()
 
     @property
     def storm(self) -> str:
@@ -973,6 +973,9 @@ class VortexPerturber:
             )
         ]
 
+        process_pool = ProcessPoolExecutor()
+        futures = []
+
         for perturbation_index, output_filename in enumerate(output_filenames):
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
@@ -990,8 +993,9 @@ class VortexPerturber:
                     for variable, alpha in perturbation.items()
                 }
 
-                self.__event_loop.create_task(
-                    self.write_perturbed_track(
+                futures.append(
+                    process_pool.submit(
+                        self.write_perturbed_track,
                         filename=output_filename,
                         dataframe=original_data,
                         perturbation=perturbation,
@@ -1001,13 +1005,12 @@ class VortexPerturber:
                     )
                 )
 
-        self.__event_loop.run_until_complete(
-            asyncio.gather(*asyncio.all_tasks(self.__event_loop))
-        )
+        return [
+            completed_future.result()
+            for completed_future in concurrent.futures.as_completed(futures)
+        ]
 
-        return output_filenames
-
-    async def write_perturbed_track(
+    def write_perturbed_track(
         self,
         filename: PathLike,
         dataframe: DataFrame,
