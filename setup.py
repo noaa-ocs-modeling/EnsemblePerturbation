@@ -11,7 +11,7 @@ from setuptools import config, find_packages, setup
 DEPENDENCIES = {
     'adcircpy>=1.0.39': ['gdal', 'fiona'],
     'appdirs': [],
-    'cartopy': [],
+    'cartopy': ['cython'],
     'cmocean': [],
     'bs4': [],
     'click': [],
