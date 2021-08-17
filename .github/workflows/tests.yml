@@ -26,16 +26,13 @@ jobs:
           restore-keys: ${{ runner.os }}-pip-${{ matrix.python-version }}-
       - name: Install wheel
         run: pip install wheel
-      - name: Run setup.py on Windows
-        if: contains(matrix.os, 'windows')
+      - name: Run `setup.py`
         run: |
           python setup.py install
-          pipwin install tables
       - name: Install dependencies
         run: |
           pip install wheel
-          pip install flake8
-          pip install -e .[testing]
+          pip install -e .[testing,development]
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names

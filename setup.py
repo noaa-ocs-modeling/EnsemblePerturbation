@@ -23,7 +23,7 @@ DEPENDENCIES = {
     'numpy': [],
     'pandas': [],
     'pint': [],
-    'pint-pandas': [],
+    'pint-pandas': ['pint'],
     'pyproj>=2.6': [],
     'tables': [],
     'python-dateutil': [],
