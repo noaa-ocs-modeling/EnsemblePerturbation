@@ -1,6 +1,7 @@
+import os
 import re
 
-from ensembleperturbation.parsing.adcirc import parse_adcirc_output, parse_adcirc_outputs
+from ensembleperturbation.parsing.adcirc import combine_outputs, parse_adcirc_outputs
 from tests import check_reference_directory, DATA_DIRECTORY
 
 
@@ -12,42 +13,32 @@ def test_parse_adcirc_output():
         if re.match('\.6(0-9)?\.nc', str(filename))
     ]
 
-    output_data = parse_adcirc_output(input_directory)
+    output_data = parse_adcirc_outputs(input_directory)
     for data_variable in output_filenames:
         assert data_variable in output_data
 
 
-def test_assemble_adcirc_output():
-    input_directory = DATA_DIRECTORY / 'input'
-    output_directory = DATA_DIRECTORY / 'output' / 'test_assemble_adcirc_output'
-    reference_directory = DATA_DIRECTORY / 'reference' / 'test_assemble_adcirc_output'
-    output_filetypes = {
-        'maxele.63.nc': 'zeta_max',
-        'maxvel.63.nc': 'vel_max',
-    }
-    max_depth = 5.0  # maximum depth [m] for subsetting the mesh outputs
-    write_mode = 'w'  # make/overwrite to a new HDF5 file
-
+def test_combine_output():
+    input_directory = DATA_DIRECTORY / 'input' / 'test_combine_outputs'
+    output_directory = DATA_DIRECTORY / 'output' / 'test_combine_outputs'
+    reference_directory = DATA_DIRECTORY / 'reference' / 'test_combine_outputs'
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    output_data = parse_adcirc_outputs(
-        directory=input_directory, file_data_variables=output_filetypes.keys(),
-    )
+    file_data_types = {
+        'fort.63.nc': ['zeta'],
+        'fort.64.nc': None,
+        'maxele.63.nc': ['zeta_max'],
+        'maxvel.63.nc': ['vel_max'],
+    }
 
-    for perturbation in output_data:
-        for variable in output_data[perturbation]:
-            ds = output_data[perturbation][variable]
-            depth = ds['depth']
-            subset = depth < max_depth
-            ds_subset = ds[['x', 'y', 'depth', output_filetypes[variable]]][subset]
-            ds_subset.to_hdf(
-                output_directory / f'{output_filetypes[variable]}.h5',
-                perturbation,
-                mode=write_mode,
-                format='table',
-                data_columns=True,
-            )
-        write_mode = 'a'  # switch to append for subsequent perturbations
+    output_filename = output_directory / 'outputs.h5'
+
+    combine_outputs(
+        input_directory,
+        file_data_variables=file_data_types,
+        maximum_depth=5.0,
+        output_filename=output_filename,
+    )
 
     check_reference_directory(output_directory, reference_directory)

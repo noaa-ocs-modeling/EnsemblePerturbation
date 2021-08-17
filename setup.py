@@ -11,6 +11,8 @@ from setuptools import config, find_packages, setup
 DEPENDENCIES = {
     'adcircpy>=1.0.39': ['gdal', 'fiona'],
     'appdirs': [],
+    'cartopy': ['cython', 'numpy', 'proj'],
+    'cmocean': [],
     'bs4': [],
     'click': [],
     'coupledmodeldriver>=1.4.6': [],
@@ -21,8 +23,9 @@ DEPENDENCIES = {
     'numpy': [],
     'pandas': [],
     'pint': [],
-    'pint-pandas': [],
+    'pint-pandas': ['pint'],
     'pyproj>=2.6': [],
+    'tables': [],
     'python-dateutil': [],
     'requests': [],
     'shapely': [],
@@ -109,6 +112,37 @@ if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
 
     MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
 
+if len(MISSING_DEPENDENCIES) > 0:
+    try:
+        subprocess.run(
+            f'{sys.executable} -m pip install {" ".join(package_name.lower() for package_name in MISSING_DEPENDENCIES)}',
+            check=True,
+            shell=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        for dependency, subdependencies in MISSING_DEPENDENCIES.items():
+            for _ in range(1 + len(subdependencies)):
+                MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
+                missing_subdependencies = missing_packages(subdependencies)
+                packages = [
+                    package_name
+                    for package_name in subdependencies + [dependency]
+                    if package_name in MISSING_DEPENDENCIES
+                    or package_name in missing_subdependencies
+                ]
+                try:
+                    subprocess.run(
+                        f'{sys.executable} -m pip install {" ".join(package_name.lower() for package_name in packages)}',
+                        check=True,
+                        shell=True,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except subprocess.CalledProcessError:
+                    pass
+
+    MISSING_DEPENDENCIES = missing_packages(DEPENDENCIES)
+
 if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
     if 'pipwin' not in installed_packages():
         subprocess.run(
@@ -128,7 +162,7 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
                 ) or package_name in missing_packages(subdependencies):
                     try:
                         subprocess.run(
-                            f'{sys.executable} -m pip install {package_name.lower()}',
+                            f'{sys.executable} -m pipwin install {package_name.lower()}',
                             check=True,
                             shell=True,
                             stderr=subprocess.DEVNULL,
@@ -136,15 +170,7 @@ if os.name == 'nt' and len(MISSING_DEPENDENCIES) > 0:
                         if package_name in failed_pipwin_packages:
                             failed_pipwin_packages.remove(package_name)
                     except subprocess.CalledProcessError:
-                        try:
-                            subprocess.run(
-                                f'{sys.executable} -m pipwin install {package_name.lower()}',
-                                check=True,
-                                shell=True,
-                                stderr=subprocess.DEVNULL,
-                            )
-                        except subprocess.CalledProcessError:
-                            failed_pipwin_packages.append(package_name)
+                        failed_pipwin_packages.append(package_name)
 
             # since we don't know the dependencies here, repeat this process n number of times
             # (worst case is `O(n)`, where the first package is dependant on all the others)
@@ -169,13 +195,14 @@ setup(
     setup_requires=['dunamai', 'setuptools>=41.2'],
     install_requires=list(DEPENDENCIES),
     extras_require={
-        'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'tables', 'wget'],
+        'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
     },
     entry_points={
         'console_scripts': [
             'make_storm_ensemble=ensembleperturbation.client.make_storm_ensemble:main',
             'perturb_tracks=ensembleperturbation.client.perturb_tracks:main',
+            'combine_results=ensembleperturbation.client.combine_results:main',
         ],
     },
 )

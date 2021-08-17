@@ -1,16 +1,23 @@
-from os import getcwd, PathLike
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import os
+from os import PathLike
 from pathlib import Path
-from typing import Union
+import pickle
+from tempfile import TemporaryDirectory
+from typing import Any, Collection, Mapping, Union
 
 import geopandas
 from geopandas import GeoDataFrame
 from netCDF4 import Dataset
 import numpy
 import pandas
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from shapely.geometry import Point
 
 from ensembleperturbation.parsing.utilities import decode_time
+from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -127,6 +134,8 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         filename = Path(filename)
     basename = filename.parts[-1]
 
+    LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
+
     if variables is None:
         if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
             variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
@@ -166,7 +175,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
             if variable.size > 0:
                 variables[name] = numpy.squeeze(variable)
             else:
-                LOGGER.warning(
+                LOGGER.debug(
                     f'array "{variable.name}" has invalid data shape "{variable.shape}"'
                 )
                 variables[name] = numpy.squeeze(
@@ -182,41 +191,50 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         )
         data[data == NODATA] = numpy.nan
 
+    LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
+
     return data
 
 
-def parse_adcirc_output(
-    directory: PathLike, file_data_variables: [str] = None
-) -> {str: Union[dict, DataFrame]}:
-    """
-    Parse ADCIRC output files
+def async_parse_adcirc_netcdf(
+    filename: PathLike, pickle_filename: PathLike, variables: [str] = None
+) -> (Path, Path):
+    if not isinstance(filename, Path):
+        filename = Path(filename)
+    if not isinstance(pickle_filename, Path):
+        pickle_filename = Path(pickle_filename)
 
-    :param directory: path to directory containing ADCIRC output files in
-    NetCDF format
-    :param file_data_variables: output files to parsing
-    :return: dictionary of output data
-    """
+    data = parse_adcirc_netcdf(filename=filename, variables=variables)
 
-    if not isinstance(directory, Path):
-        directory = Path(directory)
+    pickle_filename = pickle_data(data, pickle_filename)
 
-    if file_data_variables is None:
-        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+    return filename, pickle_filename
+
+
+def pickle_data(data: Any, filename: PathLike) -> Path:
+    if not isinstance(filename, Path):
+        filename = Path(filename)
+
+    if isinstance(data, Mapping):
+        filename.mkdir(parents=True, exist_ok=True)
+        for variable, variable_data in data.items():
+            pickle_data(variable_data, filename / variable)
     else:
-        file_data_variables = {
-            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
-            for filename in file_data_variables
-        }
+        if isinstance(data, numpy.ndarray):
+            filename = filename.parent / (filename.name + '.npy')
+            if isinstance(data, numpy.ma.MaskedArray):
+                data.dump(filename)
+            else:
+                numpy.save(filename, data)
+        elif isinstance(data, DataFrame):
+            filename = filename.parent / (filename.name + '.df')
+            data.to_pickle(filename)
+        else:
+            filename = filename.parent / (filename.name + '.pickle')
+            with open(filename, 'wb') as pickle_file:
+                pickle.dump(data, pickle_file)
 
-    output_data = {}
-    for output_filename in directory.glob('*.nc'):
-        basename = output_filename.parts[-1]
-        if basename in file_data_variables:
-            output_data[basename] = parse_adcirc_netcdf(
-                output_filename, file_data_variables[basename]
-            )
-
-    return output_data
+    return filename
 
 
 def parse_adcirc_outputs(
@@ -226,30 +244,79 @@ def parse_adcirc_outputs(
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
-    :param file_data_variables: output files to parsing
+    :param file_data_variables: output files to parse
     :return: dictionary of file tree containing parsed data
     """
 
     if directory is None:
-        directory = getcwd()
-
-    if not isinstance(directory, Path):
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
         directory = Path(directory)
+
     if file_data_variables is None:
         file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
-    else:
+    elif isinstance(file_data_variables, Collection):
         file_data_variables = {
             filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
             for filename in file_data_variables
         }
+    elif isinstance(file_data_variables, Mapping):
+        file_data_variables = {
+            filename: variables
+            if variables is not None
+            else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename, variables in file_data_variables.items()
+        }
 
-    output_datasets = {}
-    for filename in directory.glob('**/*.nc'):
+    event_loop = asyncio.get_event_loop()
+    process_pool = ProcessPoolExecutor()
+
+    dataframes = {}
+    with TemporaryDirectory() as temporary_directory:
+        futures = []
+        temporary_directory = Path(temporary_directory)
+        for filename in directory.glob('**/*.nc'):
+            if filename.name in file_data_variables:
+                if filename.name in ['fort.63.nc', 'fort.64.nc']:
+                    dataframes[filename] = parse_adcirc_netcdf(filename)
+                else:
+                    futures.append(
+                        event_loop.run_in_executor(
+                            process_pool,
+                            partial(
+                                async_parse_adcirc_netcdf,
+                                filename=filename,
+                                pickle_filename=temporary_directory / filename.name,
+                            ),
+                        )
+                    )
+
+        if len(futures) > 0:
+            pickled_outputs = event_loop.run_until_complete(asyncio.gather(*futures))
+
+            for input_filename, pickle_filename in pickled_outputs:
+                if pickle_filename.is_dir():
+                    dataframes[input_filename] = {}
+                    for variable_pickle_filename in pickle_filename.iterdir():
+                        with open(variable_pickle_filename) as pickle_file:
+                            dataframes[input_filename][
+                                variable_pickle_filename.stem
+                            ] = pickle.load(pickle_file)
+                else:
+                    if pickle_filename.suffix == '.npy':
+                        dataframes[input_filename] = numpy.load(pickle_filename)
+                    elif pickle_filename.suffix == '.df':
+                        dataframes[input_filename] = pandas.read_pickle(pickle_filename)
+                    else:
+                        with open(pickle_filename) as pickle_file:
+                            dataframes[input_filename] = pickle.load(pickle_file)
+
+    output_tree = {}
+    for filename, dataframe in dataframes.items():
         parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
         if parts[-1] not in file_data_variables:
             continue
-        print(filename)
-        tree = output_datasets
+        tree = output_tree
         for part_index in range(len(parts)):
             part = parts[part_index]
             if part_index < len(parts) - 1:
@@ -257,9 +324,166 @@ def parse_adcirc_outputs(
                     tree[part] = {}
                 tree = tree[part]
             else:
-                try:
-                    tree[part] = parse_adcirc_netcdf(filename)
-                except Exception as error:
-                    LOGGER.warning(f'{error.__class__.__name__} - {error}')
+                tree[part] = dataframe
 
-    return output_datasets
+    return output_tree
+
+
+def combine_outputs(
+    directory: PathLike = None,
+    bounds: (float, float, float, float) = None,
+    maximum_depth: float = None,
+    file_data_variables: {str: [str]} = None,
+    output_filename: PathLike = None,
+) -> {str: DataFrame}:
+    if directory is None:
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
+        directory = Path(directory)
+
+    if output_filename is not None:
+        if not isinstance(output_filename, Path):
+            output_filename = Path(output_filename)
+        if output_filename.exists():
+            os.remove(output_filename)
+
+    runs_directory = directory / 'runs'
+    if not runs_directory.exists():
+        raise FileNotFoundError(f'runs directory does not exist at "{runs_directory}"')
+
+    track_directory = directory / 'track_files'
+    if not track_directory.exists():
+        raise FileNotFoundError(f'track directory does not exist at "{track_directory}"')
+
+    if file_data_variables is None:
+        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+    elif isinstance(file_data_variables, Collection):
+        file_data_variables = {
+            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename in file_data_variables
+        }
+    elif isinstance(file_data_variables, Mapping):
+        file_data_variables = {
+            filename: variables
+            if variables is not None
+            else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            for filename, variables in file_data_variables.items()
+        }
+
+    # parse all the inputs using built-in parser
+    vortex_perturbations = parse_vortex_perturbations(
+        track_directory, output_filename=output_filename,
+    )
+
+    if output_filename is not None:
+        key = 'vortex_perturbation_parameters'
+        LOGGER.info(f'writing vortex perturbations to "{output_filename}/{key}"')
+        vortex_perturbations.to_hdf(
+            output_filename, key=key, mode='a', format='table', data_columns=True,
+        )
+
+    # parse all the outputs using built-in parser
+    LOGGER.info(f'parsing from "{directory}"')
+    output_data = parse_adcirc_outputs(
+        directory=runs_directory, file_data_variables=file_data_variables,
+    )
+
+    if len(output_data) > 0:
+        LOGGER.info(f'parsing results from {len(output_data)} runs')
+    else:
+        raise FileNotFoundError(f'could not find any output files in "{directory}"')
+
+    # now assemble results into a single dataframe with:
+    # rows -> index of a vertex in the mesh subset
+    # columns -> name of perturbation, ( + x, y (lon, lat) and depth info)
+    # values -> maximum elevation values ( + location and depths)
+    subset = None
+    variable_dataframes = {}
+    for run_name, run_data in output_data.items():
+        LOGGER.info(
+            f'reading {len(run_data)} files from "{directory / run_name}": {list(run_data)}'
+        )
+
+        for result_filename, result_data in run_data.items():
+            variables = file_data_variables[result_filename]
+
+            if isinstance(result_data, DataFrame):
+                num_records = len(result_data)
+
+                coordinate_variables = ['x', 'y']
+                if 'depth' in result_data:
+                    coordinate_variables.append('depth')
+
+                if subset is None:
+                    subset = Series(True, index=result_data.index)
+                    if 'depth' in result_data:
+                        if maximum_depth is not None:
+                            subset &= result_data['depth'] < maximum_depth
+                    if bounds is not None:
+                        subset &= (result_data['x'] > bounds[0]) & (
+                            result_data['x'] < bounds[2]
+                        )
+                        subset &= (result_data['y'] > bounds[1]) & (
+                            result_data['y'] < bounds[3]
+                        )
+                    result_data = result_data.loc[subset]
+                    LOGGER.debug(
+                        f'subsetting: {num_records} nodes -> {len(result_data)} nodes'
+                    )
+
+                LOGGER.debug(
+                    f'found {len(variables)} variables over {len(result_data)} nodes in "{run_name}/{result_filename}"'
+                )
+
+                for variable in variables:
+                    variable_dataframe = result_data[coordinate_variables + [variable]].copy()
+                    variable_dataframe.rename(columns={variable: run_name}, inplace=True)
+
+                    hdf5_variable = variable.replace('-', '_')
+                    if hdf5_variable in variable_dataframes:
+                        variable_dataframes[hdf5_variable] = variable_dataframes[
+                            hdf5_variable
+                        ].merge(
+                            variable_dataframe,
+                            on=coordinate_variables,
+                            how='outer',
+                            copy=False,
+                        )
+                    else:
+                        variable_dataframes[hdf5_variable] = variable_dataframe
+            else:
+                result_data = {key: type(value) for key, value in result_data.items()}
+                LOGGER.warning(
+                    f'"{result_filename}" outputs not yet implemented: {result_data}'
+                )
+
+    if output_filename is not None and len(variable_dataframes) > 0:
+        LOGGER.info(
+            f'parsed {len(variable_dataframes)} variables: {list(variable_dataframes)}'
+        )
+
+        for variable, variable_dataframe in variable_dataframes.items():
+            duplicate_indices = variable_dataframe.index[variable_dataframe.index.duplicated()]
+            if len(duplicate_indices) > 0:
+                LOGGER.warning(
+                    f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
+                )
+                variable_dataframe.drop(duplicate_indices, axis=0, inplace=True)
+
+            duplicate_columns = variable_dataframe.columns[
+                variable_dataframe.columns.duplicated()
+            ]
+            if len(duplicate_columns) > 0:
+                LOGGER.warning(
+                    f'{len(duplicate_columns)} duplicate columns found: {duplicate_columns}'
+                )
+                variable_dataframe.drop(duplicate_columns, axis=1, inplace=True)
+
+            LOGGER.info(
+                f'writing {variable} over {len(variable_dataframe)} nodes to "{output_filename}/{variable}"'
+            )
+            variable_dataframe.to_hdf(
+                output_filename, key=variable, mode='a', format='table', data_columns=True,
+            )
+
+    return variable_dataframes
