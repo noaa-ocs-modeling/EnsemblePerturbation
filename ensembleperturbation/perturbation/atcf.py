@@ -54,6 +54,7 @@ import numpy
 from numpy import floor, interp, sign
 from pandas import DataFrame
 import pint
+from pint import Quantity
 from pint_pandas import PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
@@ -77,29 +78,16 @@ class PerturbationType(Enum):
     UNIFORM = 'uniform'
 
 
-class VortexPerturbedVariable(ABC):
+class VortexVariable(ABC):
     name: str
-    perturbation_type: PerturbationType
 
     def __init__(
-        self,
-        lower_bound: float = None,
-        upper_bound: float = None,
-        historical_forecast_errors: {str: DataFrame} = None,
-        default: float = None,
-        unit: pint.Unit = None,
+        self, default: float = None, unit: pint.Unit = None,
     ):
         self.__unit = None
-        self.__lower_bound = None
-        self.__upper_bound = None
-        self.__historical_forecast_errors = None
         self.__default = None
 
         self.unit = unit
-
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
-        self.historical_forecast_errors = historical_forecast_errors
         self.default = default
 
     @property
@@ -113,6 +101,59 @@ class VortexPerturbedVariable(ABC):
                 unit = ''
             unit = units.Unit(unit)
         self.__unit = unit
+
+    @property
+    def default(self) -> pint.Quantity:
+        if self.__default is not None and self.__default.units != self.unit:
+            self.__default.ito(self.unit)
+        return self.__default
+
+    @default.setter
+    def default(self, default: float):
+        if isinstance(default, pint.Quantity):
+            if default.units != self.unit:
+                default = default.to(self.unit)
+        elif default is not None:
+            default *= self.unit
+        self.__default = default
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(lower_bound={repr(self.lower_bound)}, upper_bound={repr(self.upper_bound)}, historical_forecast_errors={repr(self.historical_forecast_errors)}, default={repr(self.default)}, unit={repr(self.unit)})'
+
+
+class CentralPressure(VortexVariable):
+    name = 'central_pressure'
+
+
+class BackgroundPressure(VortexVariable):
+    name = 'background_pressure'
+
+    def __init__(self):
+        super().__init__(
+            default=1013.0, unit=units.millibar,
+        )
+
+
+class VortexPerturbedVariable(VortexVariable, ABC):
+    perturbation_type: PerturbationType
+
+    def __init__(
+        self,
+        lower_bound: float = None,
+        upper_bound: float = None,
+        historical_forecast_errors: {str: DataFrame} = None,
+        default: float = None,
+        unit: pint.Unit = None,
+    ):
+        super().__init__(default=default, unit=unit)
+
+        self.__lower_bound = None
+        self.__upper_bound = None
+        self.__historical_forecast_errors = None
+
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.historical_forecast_errors = historical_forecast_errors
 
     @property
     def lower_bound(self) -> pint.Quantity:
@@ -178,21 +219,6 @@ class VortexPerturbedVariable(ABC):
                     dataframe[column].astype(pint_type, copy=False)
         self.__historical_forecast_errors = historical_forecast_errors
 
-    @property
-    def default(self) -> pint.Quantity:
-        if self.__default is not None and self.__default.units != self.unit:
-            self.__default.ito(self.unit)
-        return self.__default
-
-    @default.setter
-    def default(self, default: float):
-        if isinstance(default, pint.Quantity):
-            if default.units != self.unit:
-                default = default.to(self.unit)
-        elif default is not None:
-            default *= self.unit
-        self.__default = default
-
     def perturb(
         self,
         vortex_dataframe: DataFrame,
@@ -221,22 +247,6 @@ class VortexPerturbedVariable(ABC):
         ] * self.unit
 
         return vortex_dataframe
-
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(lower_bound={repr(self.lower_bound)}, upper_bound={repr(self.upper_bound)}, historical_forecast_errors={repr(self.historical_forecast_errors)}, default={repr(self.default)}, unit={repr(self.unit)})'
-
-
-class CentralPressure(VortexPerturbedVariable):
-    name = 'central_pressure'
-
-
-class BackgroundPressure(VortexPerturbedVariable):
-    name = 'background_pressure'
-
-    def __init__(self):
-        super().__init__(
-            default=1013.0, unit=units.millibar,
-        )
 
 
 class MaximumSustainedWindSpeed(VortexPerturbedVariable):
@@ -515,7 +525,7 @@ class CrossTrack(VortexPerturbedVariable):
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
         # Get the coordinates of the track
-        track_coords = vortex_dataframe[['longitude', 'latitude']].values.tolist()
+        points = vortex_dataframe[['longitude', 'latitude']].values
 
         # set the EPSG of the track coordinates
         wgs84 = CRS.from_epsg(4326)
@@ -524,68 +534,65 @@ class CrossTrack(VortexPerturbedVariable):
 
         # loop over all coordinates
         new_coordinates = []
-        for track_coord_index in range(0, len(track_coords)):
+        for current_index in range(0, len(points)):
+            current_point = points[current_index]
+
             # get the utm projection for the reference coordinate
-            utm_crs = utm_crs_from_longitude(track_coords[track_coord_index][0])
+            utm_crs = utm_crs_from_longitude(current_point[0])
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
             # get the current cross_track_error
-            cross_track_error = values[track_coord_index].to(units.meter)
+            cross_track_error = values[current_index].to(units.meter)
 
             # get the location of the original reference coordinate
-            x_ref, y_ref = (
-                transformer.transform(
-                    track_coords[track_coord_index][1], track_coords[track_coord_index][0],
-                )
-                * units.meter
+            current_point = (
+                transformer.transform(current_point[1], current_point[0]) * units.meter
             )
 
             # get the index of the previous forecasted coordinate
-            idx_p = track_coord_index - 1
-            while idx_p >= 0:
-                if times[idx_p] < times[track_coord_index]:
+            previous_index = current_index - 1
+            while previous_index >= 0:
+                if times[previous_index] < times[current_index]:
                     break
-                idx_p = idx_p - 1
-            if idx_p < 0:  # beginning of track
-                idx_p = track_coord_index
+                previous_index = previous_index - 1
+            if previous_index < 0:  # beginning of track
+                previous_index = current_index
 
             # get previous projected coordinate
-            x_p, y_p = (
-                transformer.transform(track_coords[idx_p][1], track_coords[idx_p][0])
-                * units.meter
+            previous_point = points[previous_index]
+            previous_point = (
+                transformer.transform(previous_point[1], previous_point[0]) * units.meter
             )
 
             # get the perpendicular offset based on the line connecting from the previous coordinate to the current coordinate
-            dx_p, dy_p = get_offset(x_p, y_p, x_ref, y_ref, cross_track_error)
+            previous_offset = get_offset(previous_point, current_point, cross_track_error)
 
             # get the index of the next forecasted coordinate
-            idx_n = track_coord_index + 1
-            while idx_n < len(track_coords):
-                if times[idx_n] > times[track_coord_index]:
+            next_index = current_index + 1
+            while next_index < len(points):
+                if times[next_index] > times[current_index]:
                     break
-                idx_n = idx_n + 1
-            if idx_n == len(track_coords):  # end of track
-                idx_n = track_coord_index
+                next_index = next_index + 1
+            if next_index == len(points):  # end of track
+                next_index = current_index
 
             # get previous projected coordinate
-            x_n, y_n = (
-                transformer.transform(track_coords[idx_n][1], track_coords[idx_n][0])
-                * units.meter
-            )
+            next_point = points[next_index]
+            next_point = transformer.transform(next_point[1], next_point[0]) * units.meter
 
             # get the perpendicular offset based on the line connecting from the current coordinate to the next coordinate
-            dx_n, dy_n = get_offset(x_ref, y_ref, x_n, y_n, cross_track_error)
+            next_offset = get_offset(current_point, next_point, cross_track_error)
 
             # get the perpendicular offset based on the average of the forward and backward piecewise track lines adjusted so that the distance matches the actual cross_error
-            dx = 0.5 * (dx_p + dx_n)
-            dy = 0.5 * (dy_p + dy_n)
-            alpha = (abs(cross_track_error) / numpy.sqrt(dx ** 2 + dy ** 2)).magnitude
+            normal_offset = numpy.mean([previous_offset, next_offset])
+            alpha = abs(cross_track_error) / numpy.sqrt(numpy.sum(normal_offset ** 2))
 
             # compute the next point and retrieve back the lat-lon geographic coordinate
+            new_point = current_point - alpha * normal_offset
             new_coordinates.append(
                 transformer.transform(
-                    (x_ref - alpha * dx).magnitude,
-                    (y_ref - alpha * dy).magnitude,
+                    new_point[0].magnitude,
+                    new_point[1].magnitude,
                     direction=TransformDirection.INVERSE,
                 )
             )
@@ -763,16 +770,6 @@ class AlongTrack(VortexPerturbedVariable):
         return vortex_dataframe
 
 
-VARIABLES = [
-    CentralPressure,
-    BackgroundPressure,
-    MaximumSustainedWindSpeed,
-    RadiusOfMaximumWinds,
-    CrossTrack,
-    AlongTrack,
-]
-
-
 class VortexPerturber:
     def __init__(
         self,
@@ -896,7 +893,7 @@ class VortexPerturber:
     def write(
         self,
         perturbations: Union[int, List[float], List[Dict[str, float]]],
-        variables: [VortexPerturbedVariable],
+        variables: [VortexVariable],
         directory: PathLike = None,
         overwrite: bool = False,
         continue_numbering: bool = True,
@@ -917,7 +914,7 @@ class VortexPerturber:
             if isinstance(variable, type):
                 variables[index] = variable()
             elif isinstance(variable, str):
-                for existing_variable in VARIABLES:
+                for existing_variable in VortexPerturbedVariable.__subclasses__():
                     if variable == existing_variable.name:
                         variables[index] = existing_variable()
                         break
@@ -988,8 +985,7 @@ class VortexPerturber:
 
                 perturbation = {
                     variable.name
-                    if isinstance(variable, type)
-                    and issubclass(variable, VortexPerturbedVariable)
+                    if isinstance(variable, type) and issubclass(variable, VortexVariable)
                     else variable: alpha
                     for variable, alpha in perturbation.items()
                 }
@@ -1016,7 +1012,7 @@ class VortexPerturber:
         filename: PathLike,
         dataframe: DataFrame,
         perturbation: {str: float},
-        variables: [VortexPerturbedVariable],
+        variables: [VortexVariable],
         storm_size: str,
         storm_strength: str,
     ) -> Path:
@@ -1221,21 +1217,34 @@ def utm_crs_from_longitude(longitude: float) -> CRS:
     return CRS.from_epsg(32600 + int(floor((longitude + 180) / 6) + 1))
 
 
-def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, float):
+def get_offset(
+    point_1: (float, float), point_2: (float, float), distance: float
+) -> (float, float):
     """
-    get_offset(x1,y1,x2,y2,d)
-      - get the perpendicular offset to the line (x1,y1) -> (x2,y2) by a distance of d
+    get the perpendicular offset to the line (x1,y1) -> (x2,y2) by the specified distance
+
+    :param point_1: first point
+    :param point_2: second point
+    :param distance: distance
+    :returns: offset
     """
 
-    if x1 == x2 and y1 == y2:
-        dx = 0
-        dy = 0
-    elif x1 == x2:
-        dx = d
-        dy = 0
-    elif y1 == y2:
-        dy = d
-        dx = 0
+    unit = None
+    for value in (point_1, point_2, distance):
+        if isinstance(value, Quantity):
+            unit = value._REGISTRY.meter
+            break
+
+    if numpy.all(point_1[:2] == point_2[:2]):
+        offset = [0, 0]
+    elif point_1[0] == point_2[0]:
+        if isinstance(distance, Quantity):
+            distance = distance.to(unit).magnitude
+        offset = [distance, 0]
+    elif point_1[1] == point_2[1]:
+        if isinstance(distance, Quantity):
+            distance = distance.to(unit).magnitude
+        offset = [0, distance]
     else:
         # if z is the distance to your parallel curve,
         # then your delta-x and delta-y calculations are:
@@ -1247,17 +1256,33 @@ def get_offset(x1: float, y1: float, x2: float, y2: float, d: float) -> (float, 
         #   z**2 / (1 + pslope**2) = x**2
         #   z / (1 + pslope**2)**0.5 = x
 
+        points = numpy.concatenate([point_1, point_2], axis=0)
+
+        difference = numpy.diff(points, axis=0)
+
         # tangential slope approximation
-        slope = (y2 - y1) / (x2 - x1)
+        slope = difference[1] / difference[0]
 
         # normal slope
-        pslope = -1 / slope  # (might be 1/slope depending on direction of travel)
-        psign = ((pslope > 0) == (x1 > x2)) * 2 - 1
+        normal_slope = -1 / slope  # (might be 1/slope depending on direction of travel)
+        normal_sign = ((normal_slope > 0) == (difference[0] < 0)) * 2 - 1
 
-        dx = psign * d / sqrt(1 + pslope ** 2)
-        dy = pslope * dx
+        dx = normal_sign * distance / sqrt(1 + normal_slope ** 2)
+        dy = normal_slope * dx
 
-    return dx, dy
+        if isinstance(dx, Quantity):
+            dx = dx.to(unit).magnitude
+        if isinstance(dy, Quantity):
+            dy = dy.to(unit).magnitude
+
+        offset = [dx, dy]
+
+    offset = numpy.array(offset)
+
+    if unit is not None:
+        offset *= unit
+
+    return offset
 
 
 def parse_vortex_perturbations(
