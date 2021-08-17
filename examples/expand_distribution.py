@@ -2,8 +2,7 @@ import chaospy
 from matplotlib import pyplot
 import numpy
 
-from ensembleperturbation.perturbation.atcf import \
-    PerturbationType, VortexPerturbedVariable
+from ensembleperturbation.perturbation.atcf import PerturbationType, VortexPerturbedVariable
 
 if __name__ == '__main__':
     distributions = {}
@@ -23,7 +22,7 @@ if __name__ == '__main__':
     grid = numpy.mgrid[-2:2:100j, -1:1:100j]
 
     pyplot.contourf(grid[0], grid[1], joint_distribution.pdf(grid), 100)
-    pyplot.scatter(*joint_distribution.sample(100, rule="sobol"))
+    pyplot.scatter(*joint_distribution.sample(100, rule='sobol'))
 
     pyplot.title(', '.join(distributions))
 
