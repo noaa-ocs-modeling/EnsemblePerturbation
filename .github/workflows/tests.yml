@@ -33,6 +33,7 @@ jobs:
           sudo apt install -y libgeos-dev
       - name: Run `setup.py`
         run: |
+          pip install pint
           python setup.py install
       - name: Install dependencies
         run: |
