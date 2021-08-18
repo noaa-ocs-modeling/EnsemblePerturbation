@@ -13,7 +13,7 @@ from ensembleperturbation.perturbation.atcf import VortexPerturber
 
 def main():
     arguments = parse_initialize_adcirc_arguments(
-        extra_arguments={'perturbations': int, 'variables': [str]}
+        extra_arguments={'perturbations': int, 'variables': [str], 'serial': bool}
     )
 
     if arguments['perturbations'] is None:
@@ -70,6 +70,8 @@ def main():
         variables=arguments['variables'],
         directory=track_directory,
         overwrite=arguments['overwrite'],
+        continue_numbering=True,
+        parallel=not arguments['serial'],
     )
 
     perturbations = {
