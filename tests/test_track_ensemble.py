@@ -67,6 +67,7 @@ def test_multivariate_besttrack_ensemble():
         variables=variables,
         directory=output_directory,
         overwrite=True,
+        parallel=True,
     )
 
     check_reference_directory(output_directory, reference_directory)

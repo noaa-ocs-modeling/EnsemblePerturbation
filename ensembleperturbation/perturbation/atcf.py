@@ -47,12 +47,14 @@ import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, uniform
+from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
+import pandas
 from pandas import DataFrame
 import pint
 from pint import Quantity
@@ -61,7 +63,7 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
-from ensembleperturbation.utilities import get_logger, units
+from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -104,16 +106,18 @@ class VortexVariable(ABC):
         self.__unit = unit
 
     @property
-    def default(self) -> pint.Quantity:
+    def default(self) -> Quantity:
         if self.__default is not None and self.__default.units != self.unit:
             self.__default.ito(self.unit)
         return self.__default
 
     @default.setter
     def default(self, default: float):
-        if isinstance(default, pint.Quantity):
+        if isinstance(default, Quantity):
             if default.units != self.unit:
                 default = default.to(self.unit)
+        elif isinstance(default, tuple):
+            units.Quantity.from_tuple(default)
         elif default is not None:
             default *= self.unit
         self.__default = default
@@ -157,31 +161,35 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         self.historical_forecast_errors = historical_forecast_errors
 
     @property
-    def lower_bound(self) -> pint.Quantity:
+    def lower_bound(self) -> Quantity:
         if self.__lower_bound.units != self.unit:
             self.__lower_bound.ito(self.unit)
         return self.__lower_bound
 
     @lower_bound.setter
     def lower_bound(self, lower_bound: float):
-        if isinstance(lower_bound, pint.Quantity):
+        if isinstance(lower_bound, Quantity):
             if lower_bound.units != self.unit:
                 lower_bound = lower_bound.to(self.unit)
+        elif isinstance(lower_bound, tuple):
+            units.Quantity.from_tuple(lower_bound)
         elif lower_bound is not None:
             lower_bound *= self.unit
         self.__lower_bound = lower_bound
 
     @property
-    def upper_bound(self) -> pint.Quantity:
+    def upper_bound(self) -> Quantity:
         if self.__upper_bound.units != self.unit:
             self.__upper_bound.ito(self.unit)
         return self.__upper_bound
 
     @upper_bound.setter
     def upper_bound(self, upper_bound: float):
-        if isinstance(upper_bound, pint.Quantity):
+        if isinstance(upper_bound, Quantity):
             if upper_bound.units != self.unit:
                 upper_bound = upper_bound.to(self.unit)
+        elif isinstance(upper_bound, tuple):
+            units.Quantity.from_tuple(upper_bound)
         elif upper_bound is not None:
             upper_bound *= self.unit
         self.__upper_bound = upper_bound
@@ -897,6 +905,7 @@ class VortexPerturber:
         directory: PathLike = None,
         overwrite: bool = False,
         continue_numbering: bool = True,
+        parallel: bool = True,
     ) -> [Path]:
         """
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
@@ -904,6 +913,7 @@ class VortexPerturber:
         :param directory: directory to which to write
         :param overwrite: overwrite existing files
         :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
+        :param parallel: generate perturbations concurrently
         :returns: written filenames
         """
 
@@ -963,9 +973,17 @@ class VortexPerturber:
             )
         ]
 
-        process_pool = ProcessPoolExecutor()
-        futures = []
+        if parallel:
+            process_pool = ProcessPoolExecutor()
+            temporary_directory = TemporaryDirectory()
+            original_data_pickle_filename = Path(temporary_directory.name) / 'original_data.df'
+            original_data.to_pickle(original_data_pickle_filename)
+        else:
+            process_pool = None
+            temporary_directory = None
+            original_data_pickle_filename = None
 
+        futures = []
         for perturbation_index, output_filename in enumerate(output_filenames):
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
@@ -983,36 +1001,65 @@ class VortexPerturber:
                     for variable, alpha in perturbation.items()
                 }
 
-                futures.append(
-                    process_pool.submit(
-                        self.write_perturbed_track,
-                        filename=output_filename,
-                        dataframe=original_data,
-                        perturbation=perturbation,
-                        variables=variables,
-                        storm_size=storm_size,
-                        storm_strength=storm_strength,
-                    )
-                )
+                write_kwargs = {
+                    'filename': output_filename,
+                    'dataframe': original_data,
+                    'perturbation': perturbation,
+                    'variables': variables,
+                    'storm_size': storm_size,
+                    'storm_strength': storm_strength,
+                }
 
-        return [
-            completed_future.result()
-            for completed_future in concurrent.futures.as_completed(futures)
-        ]
+                if parallel:
+                    write_kwargs.update(
+                        {
+                            'dataframe': original_data_pickle_filename,
+                            'variables': [
+                                variable.__class__.__name__ for variable in variables
+                            ],
+                        }
+                    )
+
+                    futures.append(
+                        process_pool.submit(self.write_perturbed_track, **write_kwargs,)
+                    )
+                else:
+                    self.write_perturbed_track(**write_kwargs)
+
+        if len(futures) > 0:
+            output_filenames = [
+                completed_future.result()
+                for completed_future in concurrent.futures.as_completed(futures)
+            ]
+
+        if temporary_directory is not None:
+            temporary_directory.cleanup()
+
+        return output_filenames
 
     def write_perturbed_track(
         self,
         filename: PathLike,
         dataframe: DataFrame,
         perturbation: {str: float},
-        variables: [VortexVariable],
+        variables: [VortexPerturbedVariable],
         storm_size: str,
         storm_strength: str,
     ) -> Path:
         if not isinstance(filename, Path):
             filename = Path(filename)
 
-        dataframe = dataframe.copy(deep=True)
+        if isinstance(dataframe, DataFrame):
+            dataframe = dataframe.copy(deep=True)
+        else:
+            dataframe = pandas.read_pickle(dataframe)
+
+        for variable_index, variable in enumerate(variables):
+            if isinstance(variable, str):
+                variables[variable_index] = {
+                    subclass.__name__: subclass
+                    for subclass in VortexPerturbedVariable.__subclasses__()
+                }[variable]()
 
         # add units to data frame
         dataframe = dataframe.astype(
@@ -1058,7 +1105,10 @@ class VortexPerturber:
 
                 LOGGER.debug(f'gaussian alpha = {alpha}')
                 perturbed_values = base_errors[0] * alpha / 0.7979
-                if variable.unit is not None and variable.unit != units.dimensionless:
+                if (
+                    variable.unit is not None
+                    and variable.unit != variable.unit._REGISTRY.dimensionless
+                ):
                     perturbed_values *= variable.unit
 
                 # add the error to the variable with bounds to some physical constraints
@@ -1174,7 +1224,7 @@ def storm_intensity_class(max_sustained_wind_speed: float) -> str:
     :return: intensity classification
     """
 
-    if not isinstance(max_sustained_wind_speed, pint.Quantity):
+    if not isinstance(max_sustained_wind_speed, Quantity):
         max_sustained_wind_speed *= units.knot
 
     if max_sustained_wind_speed < 50 * units.knot:
@@ -1193,7 +1243,7 @@ def storm_size_class(radius_of_maximum_winds: float) -> str:
     :return: size classification
     """
 
-    if not isinstance(radius_of_maximum_winds, pint.Quantity):
+    if not isinstance(radius_of_maximum_winds, Quantity):
         radius_of_maximum_winds *= units.nautical_mile
 
     if radius_of_maximum_winds < 15 * units.us_statute_mile:

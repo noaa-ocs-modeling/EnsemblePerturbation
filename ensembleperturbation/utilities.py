@@ -1,7 +1,9 @@
+from concurrent.futures import ProcessPoolExecutor
 import logging
 from os import PathLike
 from pathlib import Path
 import sys
+import traceback
 
 import numpy
 import pint
@@ -95,3 +97,24 @@ def ellipsoidal_distance(
     ellipsoid = crs_a.datum.to_json_dict()['ellipsoid']
     geodetic = Geod(a=ellipsoid['semi_major_axis'], rf=ellipsoid['inverse_flattening'])
     return geodetic.line_length(points[:, 0], points[:, 1])
+
+
+class ProcessPoolExecutorStackTraced(ProcessPoolExecutor):
+    def submit(self, fn, *args, **kwargs):
+        """Submits the wrapped function instead of `fn`"""
+
+        return super(ProcessPoolExecutorStackTraced, self).submit(
+            self._function_wrapper, fn, *args, **kwargs,
+        )
+
+    @staticmethod
+    def _function_wrapper(fn, *args, **kwargs):
+        """
+        Wraps `fn` in order to preserve the traceback of any kind of raised exception
+        """
+
+        try:
+            return fn(*args, **kwargs)
+        except Exception:
+            # Creates an exception of the same type with the traceback as message
+            raise sys.exc_info()[0](traceback.format_exc())
