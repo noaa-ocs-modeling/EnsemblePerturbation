@@ -941,16 +941,6 @@ class VortexPerturber:
         # extracting original dataframe
         original_data = self.forcing.data
 
-        # add units to data frame
-        original_data = original_data.astype(
-            {
-                variable.name: PintType(variable.unit)
-                for variable in variables
-                if variable.name in original_data
-            },
-            copy=False,
-        )
-
         LOGGER.info(f'writing {len(perturbations)} perturbations')
 
         if continue_numbering:
@@ -1023,6 +1013,16 @@ class VortexPerturber:
             filename = Path(filename)
 
         dataframe = dataframe.copy(deep=True)
+
+        # add units to data frame
+        dataframe = dataframe.astype(
+            {
+                variable.name: PintType(variable.unit)
+                for variable in variables
+                if variable.name in dataframe
+            },
+            copy=False,
+        )
 
         for variable in variables:
             alpha = perturbation[variable.name]
