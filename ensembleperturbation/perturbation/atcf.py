@@ -63,7 +63,7 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
-from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
+from ensembleperturbation.utilities import get_logger, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -815,6 +815,8 @@ class VortexPerturber:
         self.mode = mode
         self.record_type = record_type
 
+        self.__filename = None
+
     @property
     def storm(self) -> str:
         return self.__storm
@@ -890,7 +892,21 @@ class VortexPerturber:
                 is_equal = True
 
         if not is_equal:
-            self.__forcing = VortexForcing(**configuration)
+            if self.__filename is not None:
+                if '.22' in self.__filename:
+                    self.__forcing = VortexForcing.from_fort22(
+                        self.__filename,
+                        start_date=configuration['start_date'],
+                        end_date=configuration['end_date'],
+                    )
+                else:
+                    self.__forcing = VortexForcing.from_atcf_file(
+                        self.__filename,
+                        start_date=configuration['start_date'],
+                        end_date=configuration['end_date'],
+                    )
+            else:
+                self.__forcing = VortexForcing(**configuration)
             self.__previous_configuration = configuration
 
         if self.__forcing.storm_id is not None:
@@ -1213,7 +1229,9 @@ class VortexPerturber:
                 filename, start_date=start_date, end_date=end_date
             )
 
-        return cls(vortex.dataframe, start_date=start_date, end_date=end_date)
+        instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
+        instance.__filename = filename
+        return instance
 
 
 def storm_intensity_class(max_sustained_wind_speed: float) -> str:
