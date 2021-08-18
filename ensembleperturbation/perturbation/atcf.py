@@ -49,6 +49,7 @@ from pathlib import Path
 from random import gauss, uniform
 from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
+import warnings
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
@@ -56,8 +57,9 @@ import numpy
 from numpy import floor, interp, sign
 import pandas
 from pandas import DataFrame
+from pandas.core.common import SettingWithCopyWarning
 import pint
-from pint import Quantity
+from pint import Quantity, UnitStrippedWarning
 from pint_pandas import PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
@@ -66,6 +68,10 @@ from shapely.geometry import LineString
 from ensembleperturbation.utilities import get_logger, units
 
 LOGGER = get_logger('perturbation.atcf')
+
+warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+warnings.simplefilter(action='ignore', category=RuntimeWarning)
+warnings.simplefilter(action='ignore', category=UnitStrippedWarning)
 
 AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
@@ -893,7 +899,7 @@ class VortexPerturber:
 
         if not is_equal:
             if self.__filename is not None:
-                if '.22' in self.__filename:
+                if '.22' in self.__filename.suffix:
                     self.__forcing = VortexForcing.from_fort22(
                         self.__filename,
                         start_date=configuration['start_date'],
@@ -953,7 +959,10 @@ class VortexPerturber:
             directory.mkdir(parents=True, exist_ok=True)
 
         # write out original fort.22
-        self.forcing.write(directory / 'original.22', overwrite=True)
+        original_filename = directory / 'original.22'
+        self.forcing.write(original_filename, overwrite=True)
+        if self.__filename is None:
+            self.__filename = original_filename
 
         # Get the initial intensity and size
         storm_strength = storm_intensity_class(
