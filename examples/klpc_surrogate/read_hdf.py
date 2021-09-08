@@ -1,86 +1,63 @@
-#!/usr/bin/env python
-
-import sys
-import pandas as pd
-import numpy as np
+import cartopy
+from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
 import cmocean
-import cartopy.crs as ccrs
-from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-import matplotlib.pyplot as plt
+from matplotlib import pyplot
+import numpy
+from pandas import read_hdf
 
+from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array
 
-h5file = 'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+if __name__ == '__main__':
+    input_filename = 'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+    input_dataframe, output_dataframe = read_hdf(input_filename=input_filename)
 
-input_key = 'vortex_perturbation_parameters'
-input_df = pd.read_hdf(h5file,input_key)
+    pinput, output = ensemble_array(
+        input_dataframe=input_dataframe, output_dataframe=output_dataframe,
+    )
 
-output_key = 'zeta_max'
-output_df = pd.read_hdf(h5file,output_key)
+    # somehow this gives slightly different answer compared to pandas
+    output_standard_deviation = numpy.nanstd(output, axis=0)
+    # output_standard_deviation = output_dataframe.filter(regex='vortex*', axis=1).std(axis=1, skipna=True)
 
-lons = output_df['x']
-lats = output_df['y']
-lons_lats_list = list(zip(lons, lats))
+    numpy.savetxt('pinput.txt', pinput)
+    numpy.savetxt('pinput.txt', output)
+    numpy.savetxt('output_std.txt', output_standard_deviation)
 
+    # plotting the histogram of standard deviation (but I am not sure what is this helpful for frankly)
+    output_standard_deviation_clean = output_standard_deviation[
+        ~numpy.isnan(output_standard_deviation) & output_standard_deviation != 0
+    ]
+    pyplot.hist(output_standard_deviation_clean, bins='auto', density=True, alpha=0.75)
+    pyplot.xlabel('Parameter')
+    pyplot.ylabel('Probability')
+    pyplot.title('Histogram of Maximum Elevation Variability')
+    pyplot.grid(True)
+    pyplot.savefig('hist_maxelevstd.png')
+    pyplot.clf()
 
+    # plot map
+    nevery = 1
+    fig = pyplot.figure(figsize=(12, 8))
+    ax = pyplot.axes(projection=cartopy.crs.PlateCarree())
+    pyplot.scatter(
+        output_dataframe['x'][:nevery],
+        output_dataframe['y'][:nevery],
+        s=1,
+        c=output_standard_deviation[::nevery],
+        transform=cartopy.crs.PlateCarree(),
+        cmap=cmocean.cm.amp,
+        vmin=0,
+        vmax=1.6,
+    )
+    pyplot.colorbar(ax=ax, shrink=0.98, extend='max', label='STD [m]')
+    ax.coastlines()
+    # Add the gridlines
+    gl = ax.gridlines(color='black', linestyle='dotted', draw_labels=True, alpha=0.5)
+    gl.top_labels = None
+    gl.right_labels = None
+    gl.xformatter = LONGITUDE_FORMATTER
+    gl.yformatter = LATITUDE_FORMATTER
 
-nens = len(input_df)
-ngrid = len(lons_lats_list)
-dim = 4
-print('Parameter dimensionality is ', dim)
-print('Ensemble size is ', nens)
-print('Spatial grid size is ', ngrid)
-
-# Convert to proper numpy (there must be a cute pandas command to do this in a line or two...)
-pinput = np.empty((0, dim))
-output = np.empty((0, ngrid))
-for iens in range(nens):
-    sample_key = 'vortex_4_variable_perturbation_'+str(iens+1)
-    pinput = np.append(pinput, input_df.loc[sample_key+'.json'].to_numpy().reshape(1, -1), axis=0)
-    output = np.append(output, output_df[sample_key].to_numpy().reshape(1, -1), axis=0)
-
-print('Shape of parameter input is ', pinput.shape)
-print('Shape of model output is ', output.shape)
-
-np.savetxt('pinput.txt', pinput)
-np.savetxt('output.txt', output)
-
-output_std= np.nanstd(output, axis=0)
-# somehow this gives slightly different answer compared to pandas
-# output_std = output_df.filter(regex='vortex*', axis=1).std(axis=1,skipna=True)
-np.savetxt('output_std.txt', output_std)
-
-# cleanup before histogram
-oo = output_std[~np.isnan(output_std)]
-output_std_clean = oo[np.nonzero(oo)]
-# plotting the histogram of standard deviation (but I am not sure what is this helpful for frankly)
-plt.hist(output_std_clean, bins='auto', density=True, alpha=0.75)
-plt.xlabel('Parameter')
-plt.ylabel('Probability')
-plt.title('Histogram of Maximum Elevation Variability')
-plt.grid(True)
-plt.savefig('hist_maxelevstd.png')
-plt.clf()
-
-# plot map
-nevery = 1
-fig = plt.figure(figsize=(12,8))
-ax = plt.axes(projection=ccrs.PlateCarree())
-plt.scatter(lons[::nevery], lats[::nevery],
-            s=1,
-            c=output_std[::nevery],
-            transform=ccrs.PlateCarree(),
-            cmap=cmocean.cm.amp,
-            vmin=0,vmax=1.6
-)
-plt.colorbar(ax=ax, shrink=.98,extend='max',label='STD [m]')
-ax.coastlines()
-# Add the gridlines
-gl = ax.gridlines(color="black", linestyle="dotted", draw_labels=True, alpha=0.5)
-gl.top_labels = None
-gl.right_labels = None
-gl.xformatter = LONGITUDE_FORMATTER
-gl.yformatter = LATITUDE_FORMATTER
-
-plt.title("Maximum Elevation Variability from 40-member ensemble")
-plt.savefig('map_maxelevstd.png')
-plt.clf()
+    pyplot.title('Maximum Elevation Variability from 40-member ensemble')
+    pyplot.savefig('map_maxelevstd.png')
+    pyplot.clf()
