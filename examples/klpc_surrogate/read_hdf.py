@@ -3,13 +3,15 @@ from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
 import cmocean
 from matplotlib import pyplot
 import numpy
-from pandas import read_hdf
 
-from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array
+from ensembleperturbation.uncertainty_quantification.ensemble_array import (
+    ensemble_array,
+    read_combined_hdf,
+)
 
 if __name__ == '__main__':
     input_filename = 'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
-    input_dataframe, output_dataframe = read_hdf(input_filename=input_filename)
+    input_dataframe, output_dataframe = read_combined_hdf(input_filename=input_filename)
 
     pinput, output = ensemble_array(
         input_dataframe=input_dataframe, output_dataframe=output_dataframe,
