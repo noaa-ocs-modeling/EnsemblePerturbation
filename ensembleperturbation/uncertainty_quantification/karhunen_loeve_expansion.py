@@ -32,10 +32,7 @@ def karhunen_loeve_relative_diagonal(
 
 
 def karhunen_loeve_coefficient_samples(
-    data: numpy.ndarray,
-    mean_vector: numpy.ndarray,
-    eigen_values: numpy.ndarray,
-    eigen_vectors: numpy.ndarray,
+    data: numpy.ndarray, eigen_values: numpy.ndarray, eigen_vectors: numpy.ndarray,
 ):
     """
     get samples for the Karhunen–Loève coefficients from the given data
@@ -48,5 +45,6 @@ def karhunen_loeve_coefficient_samples(
     """
     # nens, neig
     return numpy.dot(
-        data.T - mean_vector, eigen_vectors * weights.reshape(-1, 1)
+        data.T - numpy.mean(data, axis=1),
+        eigen_vectors * trapezoidal_rule_weights(data.shape[0]).reshape(-1, 1),
     ) / numpy.sqrt(eigen_values)
