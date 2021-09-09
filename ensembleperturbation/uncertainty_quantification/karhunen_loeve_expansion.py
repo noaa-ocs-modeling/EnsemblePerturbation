@@ -38,7 +38,6 @@ def karhunen_loeve_coefficient_samples(
     get samples for the Karhunen–Loève coefficients from the given data
 
     :param data: array of data of shape `ngrid x nens`
-    :param mean_vector: average of fields
     :param eigen_values: 1D array of eigen values
     :param eigen_vectors: 2D array of eigen vectors
     :return: samples for the Karhunen–Loève coefficients
