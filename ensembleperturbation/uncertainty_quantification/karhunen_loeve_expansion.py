@@ -30,6 +30,11 @@ def karhunen_loeve_expansion(ymodel, neig: int = None, plot: bool = False):
         eigen_vectors=eigen_vectors,
     )
 
+    # WPringle: for some reason this is critical
+    xi = xi[:, ::-1]
+    modes = modes[:, ::-1]
+    eigen_values = eigen_values[::-1]
+
     if neig is None:
         neig = ngrid
     else:

@@ -18,9 +18,6 @@ df_input, df_output = read_combined_hdf(h5name)
 # Load the input/outputs
 np_input, np_output = ensemble_array(input_dataframe=df_input,output_dataframe=df_output)
 
-#mask = df_input.columns == 'radius_of_maximum_winds'
-# Transform the uniform dimension into gaussian
-#np_input[:, mask] = ndtri((np_input[:, mask]+1.)/2.)
 # Output this to text to be used in UQtk function
 numpy.savetxt('xdata.dat', np_input) #because pce_eval expects xdata.dat as input
 
