@@ -6,7 +6,7 @@ from pandas import DataFrame
 from scipy.special import ndtri
 
 def read_combined_hdf(
-    input_filename: PathLike, input_key: str = None, output_key: str = None
+    filename: PathLike, input_key: str = None, output_key: str = None
 ) -> (DataFrame, DataFrame):
     if input_key is None:
         input_key = 'vortex_perturbation_parameters'
@@ -14,8 +14,8 @@ def read_combined_hdf(
         output_key = 'zeta_max'
 
     return (
-        pandas.read_hdf(input_filename, input_key),
-        pandas.read_hdf(input_filename, output_key),
+        pandas.read_hdf(filename, input_key),
+        pandas.read_hdf(filename, output_key),
     )
 
 
