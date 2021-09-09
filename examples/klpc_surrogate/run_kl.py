@@ -1,7 +1,10 @@
 from matplotlib import pyplot
 import numpy
 
-from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array
+from ensembleperturbation.uncertainty_quantification.ensemble_array import (
+    ensemble_array,
+    read_combined_hdf,
+)
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_coefficient_samples,
     karhunen_loeve_eigen_values,
@@ -12,8 +15,11 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 
 if __name__ == '__main__':
     pinput, output = ensemble_array(
-        'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+        *read_combined_hdf(
+            filename=r'C:\Data\COASTAL_Act\runs\run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+        )
     )
+
     numpy.nan_to_num(output, copy=False)
 
     ymodel = output[:, ::100].T  # ymodel has a shape of ngrid x nens
@@ -38,10 +44,7 @@ if __name__ == '__main__':
     )
 
     xi = karhunen_loeve_coefficient_samples(
-        data=ymodel,
-        mean_vector=mean_vector,
-        eigen_values=eigen_values,
-        eigen_vectors=eigen_vectors,
+        data=ymodel, eigen_values=eigen_values, eigen_vectors=eigen_vectors,
     )
 
     xi = xi[:, :-1]
