@@ -3,7 +3,7 @@ from os import PathLike
 import numpy
 import pandas
 from pandas import DataFrame
-
+from scipy.special import ndtri
 
 def read_combined_hdf(
     input_filename: PathLike, input_key: str = None, output_key: str = None
@@ -41,6 +41,11 @@ def ensemble_array(
         output = numpy.append(
             output, output_dataframe[sample_key].to_numpy().reshape(1, -1), axis=0
         )
+
+    # Transform the uniform dimension into gaussian
+    for cdx,col in enumerate(input_dataframe.columns):
+        if col == 'radius_of_maximum_winds': 
+            pinput[:, cdx] = ndtri((pinput[:, cdx]+1.)/2.)
 
     print(f'Shape of parameter input: {pinput.shape}')
     print(f'Shape of model output: {output.shape}')

@@ -1,5 +1,63 @@
 import numpy
+from matplotlib import pyplot
 
+def karhunen_loeve_expansion(ymodel, neig: int = None, plot: bool = False):
+
+    # get the shape of the data
+    ngrid, nens = ymodel.shape
+
+    # evaluate weights and eigen values
+    mean_vector = numpy.mean(ymodel, axis=1)
+    covariance = numpy.cov(ymodel)
+
+    weights = trapezoidal_rule_weights(length=ngrid)
+
+    eigen_values, eigen_vectors = karhunen_loeve_eigen_values(
+        covariance=covariance, weights=weights
+    )
+
+    # Karhunen–Loève modes ('principal directions')
+    modes = karhunen_loeve_modes(eigen_vectors=eigen_vectors, weights=weights)
+    eigen_values[eigen_values < 1.0e-14] = 1.0e-14
+
+    relative_diagonal = karhunen_loeve_relative_diagonal(
+        karhunen_loeve_modes=modes, eigen_values=eigen_values, covariance=covariance
+    )
+
+    xi = karhunen_loeve_coefficient_samples(
+        data=ymodel,
+        eigen_values=eigen_values,
+        eigen_vectors=eigen_vectors,
+    )
+
+    if neig is None:
+        neig = ngrid
+    else:
+        xi = xi[:, :neig]
+        eigen_values = eigen_values[:neig]
+        modes = modes[:, :neig]
+
+    if plot:
+        pyplot.figure(figsize=(12, 9))
+        pyplot.plot(range(1, neig+1), eigen_values, 'o-')
+        pyplot.gca().set_xlabel('x')
+        pyplot.gca().set_ylabel('Eigenvalue')
+        pyplot.savefig('eig.png')
+        pyplot.gca().set_yscale('log')
+        pyplot.savefig('eig_log.png')
+        pyplot.close()
+
+        pyplot.figure(figsize=(12, 9))
+        pyplot.plot(range(ngrid), mean_vector, label='Mean')
+        for imode in range(neig):
+            pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
+        pyplot.gca().set_xlabel('x')
+        pyplot.gca().set_ylabel('KL Modes')
+        pyplot.legend()
+        pyplot.savefig('KLmodes.png')
+        pyplot.close()
+
+    return mean_vector, modes, eigen_values, xi, relative_diagonal, weights
 
 def trapezoidal_rule_weights(length: int):
     # Set trapesoidal rule weights
