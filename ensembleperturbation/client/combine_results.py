@@ -12,12 +12,16 @@ LOGGER = get_logger('parsing')
 
 
 def parse_combine_results():
+    cwd = Path.cwd()
+
     argument_parser = ArgumentParser()
-    argument_parser.add_argument('output', help='output filename (`*.h5`)')
+    argument_parser.add_argument(
+        'output', nargs='?', default=cwd / (cwd.name + '.h5'), help='output filename (`*.h5`)'
+    )
     argument_parser.add_argument(
         'directory',
         nargs='?',
-        default=Path.cwd(),
+        default=cwd,
         help='directory containing completed `runs` directory',
     )
     argument_parser.add_argument('--max-depth', help='maximum depth value to filter by')
