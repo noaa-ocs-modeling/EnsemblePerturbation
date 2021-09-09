@@ -1,10 +1,17 @@
 import numpy
 from matplotlib import pyplot
 
-def karhunen_loeve_expansion(ymodel, neig: int = None, plot: bool = False):
+def karhunen_loeve_expansion(ymodel, neig = None, plot: bool = False):
 
     # get the shape of the data
     ngrid, nens = ymodel.shape
+    
+    if neig is None:
+        neig = ngrid
+    elif isinstance(neig,int):
+        neig = min(neig,ngrid)
+    elif isinstance(neig,float):
+        assert neig <= 1.0 and neig >= 0.0, 'specify 0.0 <= neig <= 1.0'
 
     # evaluate weights and eigen values
     mean_vector = numpy.mean(ymodel, axis=1)
@@ -30,17 +37,33 @@ def karhunen_loeve_expansion(ymodel, neig: int = None, plot: bool = False):
         eigen_vectors=eigen_vectors,
     )
 
-    # WPringle: for some reason this is critical
+    # re-ordering the matrices (mode-1 first) 
     xi = xi[:, ::-1]
     modes = modes[:, ::-1]
     eigen_values = eigen_values[::-1]
-
-    if neig is None:
-        neig = ngrid
-    else:
+  
+    # get desired modes 
+    if isinstance(neig,float):
+        # determine neig that make up neig decimal fraction of the variance explained
+        target = neig*sum(eigen_values)
+        eig_sum = 0
+        for neig in range(ngrid):
+            eig_sum = eig_sum + eigen_values[neig]
+            if eig_sum >= target:
+                break 
         xi = xi[:, :neig]
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
+    else:
+        # get neig requested modes 
+        xi = xi[:, :neig]
+        eigen_values = eigen_values[:neig]
+        modes = modes[:, :neig]
+
+    # evaluating the model prediction based on neig modes
+    # now ypred is ngrid x nens just like ymodel
+    ypred = mean_vector + numpy.dot(numpy.dot(xi, numpy.diag(numpy.sqrt(eigen_values))), modes.T)
+    ypred = ypred.T
 
     if plot:
         pyplot.figure(figsize=(12, 9))
@@ -62,7 +85,14 @@ def karhunen_loeve_expansion(ymodel, neig: int = None, plot: bool = False):
         pyplot.savefig('KLmodes.png')
         pyplot.close()
 
-    return mean_vector, modes, eigen_values, xi, relative_diagonal, weights
+        # Plot to make sure ypred and ymodel are close
+        pyplot.plot(ymodel, ypred, 'o')
+        pyplot.gca().set_xlabel('actual')
+        pyplot.gca().set_ylabel('prediction')
+        pyplot.savefig('KLfit.png')
+        pyplot.close()
+
+    return ypred, mean_vector, modes, eigen_values, xi
 
 def trapezoidal_rule_weights(length: int):
     # Set trapesoidal rule weights
