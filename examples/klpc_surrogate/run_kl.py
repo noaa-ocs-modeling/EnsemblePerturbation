@@ -119,4 +119,6 @@ if __name__ == '__main__':
     if plot_surrogate:
         # Plot to make sure ypred and ymodel are close
         pyplot.plot(ymodel, ypred, 'o')
+        pyplot.plot([0, 6], [0, 6], '--k', label='1:1')
+        pyplot.legend()
         pyplot.show()
