@@ -1,18 +1,32 @@
 import os
+import sys
 
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as pyplot
 import numpy as np
 from scipy.special import ndtri
 
+from ensembleperturbation.uncertainty_quantification.ensemble_array import (
+    ensemble_array,
+    read_combined_hdf,
+)
+
 if __name__ == '__main__':
-    # x = np.linspace(-1.,1.,1000)
-    # y = ndtri((x+1.)/2.)
-    # plt.plot(x,y)
-    # plt.show()
-    # sys.exit()
+    plot = False
+
+    # if plot:
+    #     x = np.linspace(-1.,1.,1000)
+    #     y = ndtri((x+1.)/2.)
+    #     pyplot.plot(x,y)
+    #     pyplot.show()
+    #     sys.exit()
 
     # Load the input
-    pinput = np.loadtxt('pinput.txt')
+    pinput, output = ensemble_array(
+        *read_combined_hdf(
+            filename=r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+        )
+    )
+
     # Transform the uniform dimension into gaussian
     pinput[:, 2] = ndtri((pinput[:, 2] + 1.0) / 2.0)
 
@@ -34,6 +48,7 @@ if __name__ == '__main__':
     os.system(uqtk_cmd)
     qoi_pc = np.loadtxt('ydata.dat')
 
-    plt.plot(qoi, qoi_pc, 'o')
-    plt.plot([0, 1], [0, 1], 'k--', lw=1)
-    plt.show()
+    if plot:
+        pyplot.plot(qoi, qoi_pc, 'o')
+        pyplot.plot([0, 1], [0, 1], 'k--', lw=1)
+        pyplot.show()

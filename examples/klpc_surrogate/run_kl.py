@@ -14,9 +14,12 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 )
 
 if __name__ == '__main__':
+    plot_eigen_values = False
+    plot_surrogate = True
+
     pinput, output = ensemble_array(
         *read_combined_hdf(
-            filename=r'C:\Data\COASTAL_Act\runs\run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+            filename=r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
         )
     )
 
@@ -51,33 +54,34 @@ if __name__ == '__main__':
     modes = modes[:, :-1]
     eigen_values = eigen_values[:-1]
 
-    pyplot.figure(figsize=(12, 9))
-    pyplot.plot(range(1, ngrid + 1), eigen_values, 'o-')
-    pyplot.gca().set_xlabel('x')
-    pyplot.gca().set_ylabel('Eigenvalue')
-    pyplot.savefig('eig.png')
-    pyplot.gca().set_yscale('log')
-    pyplot.savefig('eig_log.png')
+    if plot_eigen_values:
+        pyplot.figure(figsize=(12, 9))
+        pyplot.plot(range(1, ngrid + 1), eigen_values, 'o-')
+        pyplot.gca().set_xlabel('x')
+        pyplot.gca().set_ylabel('Eigenvalue')
+        pyplot.savefig('eig.png')
+        pyplot.gca().set_yscale('log')
+        pyplot.savefig('eig_log.png')
 
-    pyplot.close()
+        pyplot.close()
 
-    # fig = figure(figsize=(12,9))
-    # plot(range(1,neig+1),eigValues, 'o-')
-    # yscale('log')
-    # xlabel('x')
-    # ylabel('Eigenvalue')
-    # savefig('eig_log.png')
-    # clf()
+        # fig = figure(figsize=(12,9))
+        # plot(range(1,neig+1),eigValues, 'o-')
+        # yscale('log')
+        # xlabel('x')
+        # ylabel('Eigenvalue')
+        # savefig('eig_log.png')
+        # clf()
 
-    pyplot.figure(figsize=(12, 9))
-    pyplot.plot(range(ngrid), mean_vector, label='Mean')
-    for imode in range(ngrid):
-        pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
-    pyplot.gca().set_xlabel('x')
-    pyplot.gca().set_ylabel('KL Modes')
-    pyplot.legend()
-    pyplot.savefig('KLmodes.png')
-    pyplot.close()
+        pyplot.figure(figsize=(12, 9))
+        pyplot.plot(range(ngrid), mean_vector, label='Mean')
+        for imode in range(ngrid):
+            pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
+        pyplot.gca().set_xlabel('x')
+        pyplot.gca().set_ylabel('KL Modes')
+        pyplot.legend()
+        pyplot.savefig('KLmodes.png')
+        pyplot.close()
 
     # pick the first neig eigenvalues, look at rel_diag array or eig.png to choose how many eigenmodes you should pick without losing much accuracy
     # can go all the way to neig = ngrid, in which case one should exactly recover ypred = ymodel
@@ -96,6 +100,7 @@ if __name__ == '__main__':
     ypred = ypred.T
     # now ypred is ngrid x nens just like ymodel
 
-    # Plot to make sure ypred and ymodel are close
-    pyplot.plot(ymodel, ypred, 'o')
-    pyplot.show()
+    if plot_surrogate:
+        # Plot to make sure ypred and ymodel are close
+        pyplot.plot(ymodel, ypred, 'o')
+        pyplot.show()
