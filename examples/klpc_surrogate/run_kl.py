@@ -1,3 +1,17 @@
+"""
+run_kl.py : an example of Karhunen-Loeve construction.
+I found a pure python implementation (it is bunch of linear algebra), so this does not rely on UQTk.
+This is a simple demo as a proof of concept - see the comments I left.
+Basically, instead of the full 200K output points, you should build PC surrogate for the first, say neig xi's (KL coefficients corresponding to first neig eigenmodes).
+As I said, this is a glorified principal components analysis (PCA) - feel free to use your own PCA, but the idea is the same.
+Now, the caveat: in run_kl.py, I picked every 100th grid point, otherwise the code chokes (KL relies on eigendecomposition that is impossible for 200K grid points, since it requires 200K by 200K matrix inversion). There are sparse covariance methods at the expense of more loss of accuracy, and they are quite complex.
+The easiest way-around for me was to pick every, say, 100th grid point.
+You can check out the map with read_hdf.py or your notebook with every 100th point and see if it captures the interesting locations...
+Otherwise, do your own downselection (sparsification) of the regional grid looking at the longitude/latitude pairs more meaningfully.
+- Khachik
+"""
+
+
 from matplotlib import pyplot
 import numpy
 
@@ -14,9 +28,12 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 )
 
 if __name__ == '__main__':
+    plot_eigen_values = False
+    plot_surrogate = True
+
     pinput, output = ensemble_array(
         *read_combined_hdf(
-            filename=r'C:\Data\COASTAL_Act\runs\run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+            filename=r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
         )
     )
 
@@ -51,33 +68,34 @@ if __name__ == '__main__':
     modes = modes[:, :-1]
     eigen_values = eigen_values[:-1]
 
-    pyplot.figure(figsize=(12, 9))
-    pyplot.plot(range(1, ngrid + 1), eigen_values, 'o-')
-    pyplot.gca().set_xlabel('x')
-    pyplot.gca().set_ylabel('Eigenvalue')
-    pyplot.savefig('eig.png')
-    pyplot.gca().set_yscale('log')
-    pyplot.savefig('eig_log.png')
+    if plot_eigen_values:
+        pyplot.figure(figsize=(12, 9))
+        pyplot.plot(range(1, ngrid + 1), eigen_values, 'o-')
+        pyplot.gca().set_xlabel('x')
+        pyplot.gca().set_ylabel('Eigenvalue')
+        pyplot.savefig('eig.png')
+        pyplot.gca().set_yscale('log')
+        pyplot.savefig('eig_log.png')
 
-    pyplot.close()
+        pyplot.close()
 
-    # fig = figure(figsize=(12,9))
-    # plot(range(1,neig+1),eigValues, 'o-')
-    # yscale('log')
-    # xlabel('x')
-    # ylabel('Eigenvalue')
-    # savefig('eig_log.png')
-    # clf()
+        # fig = figure(figsize=(12,9))
+        # plot(range(1,neig+1),eigValues, 'o-')
+        # yscale('log')
+        # xlabel('x')
+        # ylabel('Eigenvalue')
+        # savefig('eig_log.png')
+        # clf()
 
-    pyplot.figure(figsize=(12, 9))
-    pyplot.plot(range(ngrid), mean_vector, label='Mean')
-    for imode in range(ngrid):
-        pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
-    pyplot.gca().set_xlabel('x')
-    pyplot.gca().set_ylabel('KL Modes')
-    pyplot.legend()
-    pyplot.savefig('KLmodes.png')
-    pyplot.close()
+        pyplot.figure(figsize=(12, 9))
+        pyplot.plot(range(ngrid), mean_vector, label='Mean')
+        for imode in range(ngrid):
+            pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
+        pyplot.gca().set_xlabel('x')
+        pyplot.gca().set_ylabel('KL Modes')
+        pyplot.legend()
+        pyplot.savefig('KLmodes.png')
+        pyplot.close()
 
     # pick the first neig eigenvalues, look at rel_diag array or eig.png to choose how many eigenmodes you should pick without losing much accuracy
     # can go all the way to neig = ngrid, in which case one should exactly recover ypred = ymodel
@@ -96,6 +114,7 @@ if __name__ == '__main__':
     ypred = ypred.T
     # now ypred is ngrid x nens just like ymodel
 
-    # Plot to make sure ypred and ymodel are close
-    pyplot.plot(ymodel, ypred, 'o')
-    pyplot.show()
+    if plot_surrogate:
+        # Plot to make sure ypred and ymodel are close
+        pyplot.plot(ymodel, ypred, 'o')
+        pyplot.show()
