@@ -1,4 +1,3 @@
-import os
 import re
 
 from ensembleperturbation.parsing.adcirc import combine_outputs, parse_adcirc_outputs
