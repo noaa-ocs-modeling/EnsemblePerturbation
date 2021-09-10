@@ -1,3 +1,9 @@
+"""
+read_hdf.py : this is essentially the notebook the William shared.
+I am saving the input and output into text files for the next scripts to use.
+- Khachik
+"""
+
 import cartopy
 from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
 import cmocean

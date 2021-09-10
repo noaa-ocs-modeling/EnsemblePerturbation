@@ -1,5 +1,10 @@
+"""
+run_pc.py : an example of polynomial chaos (PC, not to confuse with principal components:) ) surrogate construction.
+Uses UQTk apps using system call, so make sure <uqtk-install-location>/bin is in your system's path, or add it explicitly into the script.
+- Khachik
+"""
+
 import os
-import sys
 
 import matplotlib.pyplot as pyplot
 import numpy as np
