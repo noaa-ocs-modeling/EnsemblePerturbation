@@ -941,16 +941,6 @@ class VortexPerturber:
         # extracting original dataframe
         original_data = self.forcing.data
 
-        # add units to data frame
-        original_data = original_data.astype(
-            {
-                variable.name: PintType(variable.unit)
-                for variable in variables
-                if variable.name in original_data
-            },
-            copy=False,
-        )
-
         LOGGER.info(f'writing {len(perturbations)} perturbations')
 
         if continue_numbering:
@@ -976,15 +966,16 @@ class VortexPerturber:
         process_pool = ProcessPoolExecutor()
         futures = []
 
+        variables = [variable.name for variable in variables]
         for perturbation_index, output_filename in enumerate(output_filenames):
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
                 perturbation = perturbations[perturbation_index]
 
                 if perturbation is None:
-                    perturbation = {variable.name: None for variable in variables}
+                    perturbation = {variable: None for variable in variables}
                 elif not isinstance(perturbation, Mapping):
-                    perturbation = {variable.name: perturbation for variable in variables}
+                    perturbation = {variable: perturbation for variable in variables}
 
                 perturbation = {
                     variable.name
@@ -1015,7 +1006,7 @@ class VortexPerturber:
         filename: PathLike,
         dataframe: DataFrame,
         perturbation: {str: float},
-        variables: [VortexVariable],
+        variables: [VortexPerturbedVariable],
         storm_size: str,
         storm_strength: str,
     ) -> Path:
@@ -1023,6 +1014,25 @@ class VortexPerturber:
             filename = Path(filename)
 
         dataframe = dataframe.copy(deep=True)
+
+        for index, variable in enumerate(variables):
+            if isinstance(variable, str):
+                for variable_class in VortexPerturbedVariable.__subclasses__():
+                    if (
+                        variable.lower() == variable_class.name.lower()
+                        or variable.lower() == variable_class.__name__.lower()
+                    ):
+                        variables[index] = variable_class()
+
+        # add units to data frame
+        dataframe = dataframe.astype(
+            {
+                variable.name: PintType(variable.unit)
+                for variable in variables
+                if variable.name in dataframe
+            },
+            copy=False,
+        )
 
         for variable in variables:
             alpha = perturbation[variable.name]
