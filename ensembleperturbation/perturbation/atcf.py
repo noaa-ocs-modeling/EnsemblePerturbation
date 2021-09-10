@@ -876,7 +876,7 @@ class VortexPerturber:
                 ):
                     if not configuration[key].equals(self.__previous_configuration[key]):
                         break
-                elif configuration[key] == self.__previous_configuration[key]:
+                elif configuration[key] != self.__previous_configuration[key]:
                     break
             else:
                 is_equal = True
