@@ -53,11 +53,12 @@ for k,qoi in enumerate(xi.transpose()):
                        pc_type=pc_type,poly_order=poly_order,lambda_regularization=lambda_reg)
 
     # Evaluates the constructed PC at the input for comparison
-    evaluate_pc_expansion(parameter_filename='coeff.dat',output_filename='ydata.dat',
+    evaluate_pc_expansion(x_filename='xdata.dat',parameter_filename='coeff.dat',output_filename='ydata.dat',
                           pc_type=pc_type,poly_order=poly_order)
-    #qoi_pc = numpy.loadtxt('ydata.dat')
+    qoi_pc = numpy.loadtxt('ydata.dat')
 
     # shows comparison of predicted against "real" result
-    #pyplot.plot(qoi, qoi_pc, 'o')
-    #pyplot.plot([0,1],[0,1], 'k--', lw=1)
-    #pyplot.show()
+    pyplot.plot(qoi, qoi_pc, 'o')
+    pyplot.plot([-2,2],[-2,2], 'k--', lw=1)
+    pyplot.show()
+    break
