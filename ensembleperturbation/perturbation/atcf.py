@@ -892,7 +892,7 @@ class VortexPerturber:
                 ):
                     if not configuration[key].equals(self.__previous_configuration[key]):
                         break
-                elif configuration[key] == self.__previous_configuration[key]:
+                elif configuration[key] != self.__previous_configuration[key]:
                     break
             else:
                 is_equal = True
@@ -1009,15 +1009,17 @@ class VortexPerturber:
             original_data_pickle_filename = None
 
         futures = []
+
+        variables = [variable.name for variable in variables]
         for perturbation_index, output_filename in enumerate(output_filenames):
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
                 perturbation = perturbations[perturbation_index]
 
                 if perturbation is None:
-                    perturbation = {variable.name: None for variable in variables}
+                    perturbation = {variable: None for variable in variables}
                 elif not isinstance(perturbation, Mapping):
-                    perturbation = {variable.name: perturbation for variable in variables}
+                    perturbation = {variable: perturbation for variable in variables}
 
                 perturbation = {
                     variable.name
@@ -1085,6 +1087,25 @@ class VortexPerturber:
                     subclass.__name__: subclass
                     for subclass in VortexPerturbedVariable.__subclasses__()
                 }[variable]()
+
+        # add units to data frame
+        dataframe = dataframe.astype(
+            {
+                variable.name: PintType(variable.unit)
+                for variable in variables
+                if variable.name in dataframe
+            },
+            copy=False,
+        )
+
+        for index, variable in enumerate(variables):
+            if isinstance(variable, str):
+                for variable_class in VortexPerturbedVariable.__subclasses__():
+                    if (
+                        variable.lower() == variable_class.name.lower()
+                        or variable.lower() == variable_class.__name__.lower()
+                    ):
+                        variables[index] = variable_class()
 
         # add units to data frame
         dataframe = dataframe.astype(

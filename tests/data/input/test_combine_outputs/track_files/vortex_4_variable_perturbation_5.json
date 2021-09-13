@@ -1,6 +1,6 @@
 {
-  "max_sustained_wind_speed": -0.25,
-  "cross_track": 0.25,
-  "along_track": 0.75,
-  "radius_of_maximum_winds": -1
+    "max_sustained_wind_speed": -0.25,
+    "cross_track": 0.25,
+    "along_track": 0.75,
+    "radius_of_maximum_winds": -1
 }
