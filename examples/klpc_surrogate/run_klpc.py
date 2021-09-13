@@ -7,6 +7,7 @@ from scipy.special import ndtri
 
 from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array, read_combined_hdf
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import karhunen_loeve_expansion
+from ensembleperturbation.uncertainty_quantification.polynomial_chaos import build_pc_expansion, evaluate_pc_expansion
 
 ##############################################################################
 # MAIN SCRIPT ################################################################
@@ -28,31 +29,35 @@ ymodel = np_output[:, ::100].T # ymodel has a shape of ngrid x nens
 neig = 0.99
 
 ## Evaluating the KL modes
-# mean is the average field, size (ngrid,)
-# kl_modes is the KL modes ('principal directions') of size (ngrid, ngrid)
-# eigval is the eigenvalue vector, size (ngrid,)
-# xi are the samples for the KL coefficients, size (nens, ngrid)
-ypred, ymean, kl_modes, eigval, xi = karhunen_loeve_expansion(ymodel,neig=neig,plot=True)
+# ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
+# ymean is the average field                                                 : size (ngrid,)
+# kl_modes is the KL modes ('principal directions')                          : size (ngrid,neig)
+# eigval is the eigenvalue vector                                            : size (neig,)
+# xi are the samples for the KL coefficients                                 : size (nens, neig)
+ypred, ymean, kl_modes, eigval, xi = karhunen_loeve_expansion(ymodel,neig=neig,plot=False)
 # pick the first neig eigenvalues, look at rel_diag array or eig.png to choose how many eigenmodes you should pick without losing much accuracy
 
 # Evaluate KL expansion using the same xi.
 #
 # WHAT NEEDS TO BE DONE: pick each column of xi (neig of them) and build PC surrogate for it like in run_pc.py (or feed the xi matrix to uqpc/uq_pc.py which I think Zach has looked at?), and then replace the xi below with its PC approximation xi_pc. Depends on your final goals, but the surrogate xi_pc and the associated ypred can be evaluated a lot more than 40 times and can be used for sensitivity analysis, moment extraction and model calibration. Essentially you will have a KL+PC spatiotemporal surrogate approximation of your model.
 
-# Pick a QoI of interest, for example, the mean of the whole region
-qoi = numpy.mean(np_output, axis=1)
+# Build PC for each mode in xi (each mode has nens values)
+pc_type = 'HG'  # Hermite-Gauss chaos
+poly_order = 2 # polynomial order
+lambda_reg = 0 # regularization lambda
+for k,qoi in enumerate(xi.transpose()):
+    numpy.savetxt('qoi.dat', qoi)
+ 
+    # Builds second order PC expansion for the each mode
+    build_pc_expansion(x_filename='xdata.dat',y_filename='qoi.dat',output_filename='coeff.dat',
+                       pc_type=pc_type,poly_order=poly_order,lambda_regularization=lambda_reg)
 
-numpy.savetxt('qoi.dat', qoi)
-# Builds second order PC expansion for the QoI
-#uqtk_cmd = 'regression -x xdata.dat -y qoi.dat -s HG -o 2 -l 0'
-#os.system(uqtk_cmd)
+    # Evaluates the constructed PC at the input for comparison
+    evaluate_pc_expansion(parameter_filename='coeff.dat',output_filename='ydata.dat',
+                          pc_type=pc_type,poly_order=poly_order)
+    #qoi_pc = numpy.loadtxt('ydata.dat')
 
-# Evaluates the constructed PC at the input for comparison
-#uqtk_cmd = 'pce_eval -f coeff.dat -s HG -o 2'
-#os.system(uqtk_cmd)
-#qoi_pc = numpy.loadtxt('ydata.dat')
-
-# shows comparison of predicted against "real" result
-#pyplot.plot(qoi, qoi_pc, 'o')
-#pyplot.plot([0,1],[0,1], 'k--', lw=1)
-#pyplot.show()
+    # shows comparison of predicted against "real" result
+    #pyplot.plot(qoi, qoi_pc, 'o')
+    #pyplot.plot([0,1],[0,1], 'k--', lw=1)
+    #pyplot.show()
