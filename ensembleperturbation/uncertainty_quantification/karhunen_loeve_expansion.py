@@ -60,11 +60,6 @@ def karhunen_loeve_expansion(ymodel, neig = None, plot: bool = False):
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
 
-    # evaluating the model prediction based on neig modes
-    # now ypred is ngrid x nens just like ymodel
-    ypred = mean_vector + numpy.dot(numpy.dot(xi, numpy.diag(numpy.sqrt(eigen_values))), modes.T)
-    ypred = ypred.T
-
     if plot:
         pyplot.figure(figsize=(12, 9))
         pyplot.plot(range(1, neig+1), eigen_values, 'o-')
@@ -85,14 +80,23 @@ def karhunen_loeve_expansion(ymodel, neig = None, plot: bool = False):
         pyplot.savefig('KLmodes.png')
         pyplot.close()
 
+    return mean_vector, modes, eigen_values, xi
+
+def karhunen_loeve_prediction(
+    mean_vector, modes, eigen_values, xi, ymodel = None):
+    
+    # evaluating the model prediction based on neig modes
+    # now ypred is ngrid x nens just like ymodel
+    ypred = mean_vector + numpy.dot(numpy.dot(xi, numpy.diag(numpy.sqrt(eigen_values))), modes.T)
+    ypred = ypred.T
+        
+    if ymodel is not None:
         # Plot to make sure ypred and ymodel are close
         pyplot.plot(ymodel, ypred, 'o')
         pyplot.gca().set_xlabel('actual')
         pyplot.gca().set_ylabel('prediction')
         pyplot.savefig('KLfit.png')
         pyplot.close()
-
-    return ypred, mean_vector, modes, eigen_values, xi
 
 def trapezoidal_rule_weights(length: int):
     # Set trapesoidal rule weights
