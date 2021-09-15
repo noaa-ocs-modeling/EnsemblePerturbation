@@ -30,7 +30,7 @@ def evaluate_pc_expansion(
     pce_eval function inputs: 
     -x "xdata filename" 
     -f "parameter filename" 
-    -s "PCtype" 
+    -s "PC type" 
     -o "Polynomial order"  
     """
     assert x_filename == 'xdata.dat', 'x_filename needs to be xdata.dat'
@@ -39,3 +39,29 @@ def evaluate_pc_expansion(
     if output_filename is not None:
         os.rename('ydata.dat',output_filename)
     return
+    
+def evaluate_pc_sensitivity(
+    parameter_filename: str = 'coeff.dat',
+    pc_type: str = 'HG', multiindex_type: str = 'TO', 
+    poly_order: int = 5, pc_dimension: int = 1, 
+):
+    """
+    evaluates the Sobol sensitivities of the PC expansion
+    
+    gen_mi function inputs (generates the multi-index files): 
+    -x "Multiindex type" 
+    -p "PC polynomial order" 
+    -q "PC dimension (number of parameters)" 
+    
+    pce_sens function inputs (generates the Sobol sensitivity indices): 
+    -x "PC type" 
+    -f "PC coefficient filename"
+    -m "Multiindex file (mindex.dat by default)"
+    """
+    # evaluate the multi-index file
+    uqtk_cmd = 'gen_mi -x ' + multiindex_type + ' -p ' + str(poly_order) + ' -q ' + str(pc_dimension)
+    os.system(uqtk_cmd)
+    
+    # evaluating the sensitivities
+    uqtk_cmd = 'pce_sens -f ' + parameter_filename + ' -x ' + pc_type
+    os.system(uqtk_cmd)

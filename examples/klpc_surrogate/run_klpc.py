@@ -7,7 +7,7 @@ from scipy.special import ndtri
 
 from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array, read_combined_hdf
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import karhunen_loeve_expansion, karhunen_loeve_prediction
-from ensembleperturbation.uncertainty_quantification.polynomial_chaos import build_pc_expansion, evaluate_pc_expansion
+from ensembleperturbation.uncertainty_quantification.polynomial_chaos import build_pc_expansion, evaluate_pc_expansion, evaluate_pc_sensitivity
 
 ##############################################################################
 # MAIN SCRIPT ################################################################
@@ -36,9 +36,6 @@ neig = 0.90 # gives us 6 modes
 # xi are the samples for the KL coefficients                                 : size (nens, neig)
 ymean, kl_modes, eigval, xi = karhunen_loeve_expansion(ymodel,neig=neig,plot=False)
 
-# update the number of eigenvalues
-neig = xi.shape[1]
-
 # evaluate the fit of the KL prediction
 # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
 ypred = karhunen_loeve_prediction(ymean, kl_modes, eigval, xi, ymodel)
@@ -46,6 +43,10 @@ ypred = karhunen_loeve_prediction(ymean, kl_modes, eigval, xi, ymodel)
 # Build PC for each mode in xi (each mode has nens values)
 pc_type = 'HG' # Hermite-Gauss chaos
 lambda_reg = 0 # regularization lambda
+neig = xi.shape[1] # number of eigenvalues
+pc_dim = np_input.shape[1] # dimension of the PC expansion
+tot_sens_all = numpy.empty((neig,pc_dim))
+main_sens_all = numpy.empty((neig,pc_dim))
 for k, qoi in enumerate(xi.transpose()):
     numpy.savetxt('qoi.dat', qoi)
 
@@ -71,20 +72,33 @@ for k, qoi in enumerate(xi.transpose()):
     pyplot.legend()
     pyplot.savefig('mode-' + str(k+1))
     pyplot.close()
-   
+        
+    # Evaluates the constructed PC at the input for comparison
+    evaluate_pc_sensitivity(parameter_filename='coeff' + str(k+1) + '.dat',
+                            pc_type=pc_type,pc_dimension=pc_dim,poly_order=poly_order)
+    tot_sens_all[k,:] = numpy.loadtxt('totsens.dat')
+    main_sens_all[k,:] = numpy.loadtxt('mainsens.dat')
+  
+for vdx, variable in enumerate(df_input.columns):
+    tot_sens = tot_sens_all[:,vdx] 
+    main_sens = main_sens_all[:,vdx] 
+    print(variable + '-> main sensitivity')
+    #print(tot_sens)
+    print(main_sens)
+
 # now do something with our qoi_pcs
 # WHAT NEEDS TO BE DONE: Depends on your final goals, but the surrogate xi_pc and the associated ypred can be evaluated a lot more than 40 times and can be used for sensitivity analysis, moment extraction and model calibration. Essentially you will have a KL+PC spatiotemporal surrogate approximation of your model.
-poly_order = 3
+#poly_order = 3
 # update the input matrix
-np_input = np_input
-numpy.savetxt('xdata.dat', np_input) #because pce_eval expects xdata.dat as input
-for k in range(neig):
-
-    # Evaluates the constructed PC at the input for comparison
-    evaluate_pc_expansion(x_filename='xdata.dat',parameter_filename='coeff' + str(k+1) + '.dat',
-                          output_filename='ydata.dat',pc_type=pc_type,poly_order=poly_order)
-    qoi_pc = numpy.loadtxt('ydata.dat')
- 
+#np_input = np_input
+#numpy.savetxt('xdata.dat', np_input) #because pce_eval expects xdata.dat as input
+#for k in range(neig):
+#
+#    # Evaluates the constructed PC at the input for comparison
+#    evaluate_pc_expansion(x_filename='xdata.dat',parameter_filename='coeff' + str(k+1) + '.dat',
+#                          output_filename='ydata.dat',pc_type=pc_type,poly_order=poly_order)
+#    qoi_pc = numpy.loadtxt('ydata.dat')
+# 
 # evaluate the fit of the KL prediction
 # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
 #ypred = karhunen_loeve_prediction(ymean, kl_modes, eigval, xi_pc, ymodel)
