@@ -79,8 +79,8 @@ AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
-ERROR_INDICES_NO_60H = [0, 12, 24, 36, 48, 72, 96, 120]  # no 60-hr data
-ERROR_INDICES_60H = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+ERROR_INDICES = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+ERROR_INDICES_NO_60H = ERROR_INDICES[:5] + ERROR_INDICES[6:]  # no 60-hr data
 
 
 class PerturbationType(Enum):
@@ -352,7 +352,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=ERROR_INDICES,
                 ),
                 '15-25sm': DataFrame(
                     {
@@ -380,7 +380,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=ERROR_INDICES,
                 ),
                 '25-35sm': DataFrame(
                     {
@@ -408,7 +408,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=ERROR_INDICES,
                 ),
                 '35-45sm': DataFrame(
                     {
@@ -436,7 +436,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=ERROR_INDICES,
                 ),
                 '>45sm': DataFrame(
                     {
@@ -464,7 +464,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=ERROR_INDICES,
                 ),
             },
             unit=units.nautical_mile,
