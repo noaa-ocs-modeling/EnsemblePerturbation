@@ -61,7 +61,7 @@ from pandas import DataFrame
 from pandas.core.common import SettingWithCopyWarning
 import pint
 from pint import Quantity, UnitStrippedWarning
-from pint_pandas import PintType
+from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
@@ -271,7 +271,19 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
-        all_values = vortex_dataframe[self.name].values - values
+        variable_values = vortex_dataframe[self.name].values
+        if (
+            not isinstance(variable_values, PintArray)
+            or variable_values.units == variable_values.units._REGISTRY.dimensionless
+        ):
+            variable_values *= self.unit
+        if (
+            not isinstance(values, Quantity)
+            or values.units == values.units._REGISTRY.dimensionless
+        ):
+            values *= self.unit
+
+        all_values = variable_values - values
         vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             for value in all_values
@@ -1145,10 +1157,14 @@ class VortexPerturber:
 
             validation_hours = self.validation_times / timedelta(hours=1)
 
-            # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
             historical_forecast_errors = variable.historical_forecast_errors[
                 storm_classification
-            ].pint.dequantify()
+            ]
+            try:
+                # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
+                historical_forecast_errors = historical_forecast_errors.pint.dequantify()
+            except:
+                pass
             validation_time_errors = DataFrame(
                 data={
                     column: interp(
