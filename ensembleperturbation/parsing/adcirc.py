@@ -9,11 +9,12 @@ from typing import Any, Collection, Mapping, Union
 
 import geopandas
 from geopandas import GeoDataFrame
-from netCDF4 import Dataset
+import netCDF4
 import numpy
 import pandas
 from pandas import DataFrame, Series
 from shapely.geometry import Point
+import xarray
 
 from ensembleperturbation.parsing.utilities import decode_time
 from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
@@ -56,7 +57,7 @@ NODATA = -99999.0
 
 
 def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
-    dataset = Dataset(filename)
+    dataset = netCDF4.Dataset(filename)
 
     coordinate_variables = ['x', 'y']
     coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
@@ -88,7 +89,7 @@ def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> Geo
 
 
 def fort62_stations_uv(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
-    dataset = Dataset(filename)
+    dataset = netCDF4.Dataset(filename)
 
     coordinate_variables = ['x', 'y']
     coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
@@ -141,7 +142,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         else:
             raise NotImplementedError(f'ADCIRC output file "{basename}" not implemented')
 
-    dataset = Dataset(filename)
+    dataset = netCDF4.Dataset(filename)
 
     data = {name: dataset[name] for name in variables}
 
@@ -393,7 +394,7 @@ def combine_outputs(
     # columns -> name of perturbation, ( + x, y (lon, lat) and depth info)
     # values -> maximum elevation values ( + location and depths)
     subset = None
-    variable_dataframes = {}
+    variables_data = {}
     for run_name, run_data in output_data.items():
         LOGGER.info(
             f'reading {len(run_data)} files from "{directory / run_name}": {list(run_data)}'
@@ -431,54 +432,70 @@ def combine_outputs(
                 )
 
                 for variable in variables:
-                    variable_dataframe = result_data[coordinate_variables + [variable]].copy()
-                    variable_dataframe.rename(columns={variable: run_name}, inplace=True)
+                    variable_data = result_data[coordinate_variables + [variable]].copy()
+                    variable_data.rename(columns={variable: run_name}, inplace=True)
 
                     hdf5_variable = variable.replace('-', '_')
-                    if hdf5_variable in variable_dataframes:
-                        variable_dataframes[hdf5_variable] = variable_dataframes[
-                            hdf5_variable
-                        ].merge(
-                            variable_dataframe,
-                            on=coordinate_variables,
-                            how='outer',
-                            copy=False,
+                    if hdf5_variable in variables_data:
+                        variables_data[hdf5_variable] = variables_data[hdf5_variable].merge(
+                            variable_data, on=coordinate_variables, how='outer', copy=False,
                         )
                     else:
-                        variable_dataframes[hdf5_variable] = variable_dataframe
+                        variables_data[hdf5_variable] = variable_data
             else:
-                result_data = {key: type(value) for key, value in result_data.items()}
-                LOGGER.warning(
-                    f'"{result_filename}" outputs not yet implemented: {result_data}'
+                data_arrays = {
+                    variable_name: (('time', 'node'), variable[:])
+                    for variable_name, variable in result_data['data'].items()
+                }
+                data_arrays['locations'] = (
+                    ('node', 'coordinate'),
+                    result_data['coordinates'][:],
+                )
+                variables_data[result_filename] = xarray.Dataset(
+                    data_vars=data_arrays,
+                    coords={
+                        'time': result_data['time'],
+                        'node': numpy.arange(len(result_data['coordinates'])),
+                        'coordinate': ['x', 'y', 'z'],
+                    },
                 )
 
-    if output_filename is not None and len(variable_dataframes) > 0:
-        LOGGER.info(
-            f'parsed {len(variable_dataframes)} variables: {list(variable_dataframes)}'
-        )
+    if output_filename is not None and len(variables_data) > 0:
+        LOGGER.info(f'parsed {len(variables_data)} variables: {list(variables_data)}')
 
-        for variable, variable_dataframe in variable_dataframes.items():
-            duplicate_indices = variable_dataframe.index[variable_dataframe.index.duplicated()]
-            if len(duplicate_indices) > 0:
-                LOGGER.warning(
-                    f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
+        data_arrays = []
+        for variable, variable_data in variables_data.items():
+            if isinstance(variable_data, DataFrame):
+                duplicate_indices = variable_data.index[variable_data.index.duplicated()]
+                if len(duplicate_indices) > 0:
+                    LOGGER.warning(
+                        f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
+                    )
+                    variable_data.drop(duplicate_indices, axis=0, inplace=True)
+
+                duplicate_columns = variable_data.columns[variable_data.columns.duplicated()]
+                if len(duplicate_columns) > 0:
+                    LOGGER.warning(
+                        f'{len(duplicate_columns)} duplicate columns found: {duplicate_columns}'
+                    )
+                    variable_data.drop(duplicate_columns, axis=1, inplace=True)
+
+                LOGGER.info(
+                    f'writing {variable} over {len(variable_data)} nodes to "{output_filename}/{variable}"'
                 )
-                variable_dataframe.drop(duplicate_indices, axis=0, inplace=True)
-
-            duplicate_columns = variable_dataframe.columns[
-                variable_dataframe.columns.duplicated()
-            ]
-            if len(duplicate_columns) > 0:
-                LOGGER.warning(
-                    f'{len(duplicate_columns)} duplicate columns found: {duplicate_columns}'
+                variable_data.to_hdf(
+                    output_filename, key=variable, mode='a', format='table', data_columns=True,
                 )
-                variable_dataframe.drop(duplicate_columns, axis=1, inplace=True)
+            elif isinstance(variable_data, xarray.Dataset):
+                data_arrays.extend(variable_data.data_vars.values())
 
-            LOGGER.info(
-                f'writing {variable} over {len(variable_dataframe)} nodes to "{output_filename}/{variable}"'
-            )
-            variable_dataframe.to_hdf(
-                output_filename, key=variable, mode='a', format='table', data_columns=True,
-            )
+        if len(data_arrays) > 0:
+            data = {}
+            coordinates = {}
+            for data_array in data_arrays:
+                data[data_array.name] = (data_array.dims, data_array.data)
+                coordinates.update(data_array.coords)
+            dataset = xarray.Dataset(data_vars=data, coords=coordinates,)
+            dataset.to_netcdf(output_filename.parent / (output_filename.stem + '.nc'))
 
-    return variable_dataframes
+    return variables_data
