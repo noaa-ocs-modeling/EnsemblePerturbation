@@ -119,7 +119,12 @@ if __name__ == '__main__':
         colormap = pyplot.get_cmap('gist_rainbow')
         # Plot to make sure ypred and ymodel are close
         for index in range(len(model_results)):
-            pyplot.plot(model_results[index], predicted_results[index], 'o', c=colormap(index / len(model_results)))
+            pyplot.plot(
+                model_results[index],
+                predicted_results[index],
+                'o',
+                c=colormap(index / len(model_results)),
+            )
         pyplot.plot([0, 6], [0, 6], '--k', label='1:1')
         pyplot.legend()
         pyplot.show()
