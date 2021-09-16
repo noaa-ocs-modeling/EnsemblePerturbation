@@ -80,7 +80,9 @@ E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
 HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
-HISTORICAL_ERROR_HOURS_NO_60H = HISTORICAL_ERROR_HOURS[:5] + HISTORICAL_ERROR_HOURS[6:]  # no 60-hr data
+HISTORICAL_ERROR_HOURS_NO_60H = (
+    HISTORICAL_ERROR_HOURS[:5] + HISTORICAL_ERROR_HOURS[6:]
+)  # no 60-hr data
 
 
 class PerturbationType(Enum):
