@@ -30,10 +30,11 @@ if __name__ == '__main__':
     plot_eigen_values = False
     plot_surrogate = True
 
+    input_filename = r'C:\Data\COASTAL_Act\runs\run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+    dataframes = read_combined_hdf(filename=input_filename)
     pinput, output = ensemble_array(
-        *read_combined_hdf(
-            filename=r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
-        )
+        input_dataframe=dataframes['vortex_perturbation_parameters'],
+        output_dataframe=dataframes['zeta_max'],
     )
 
     numpy.nan_to_num(output, copy=False)

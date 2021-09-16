@@ -26,10 +26,11 @@ if __name__ == '__main__':
     #     sys.exit()
 
     # Load the input
+    input_filename = r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+    dataframes = read_combined_hdf(filename=input_filename)
     pinput, output = ensemble_array(
-        *read_combined_hdf(
-            filename=r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
-        )
+        input_dataframe=dataframes['vortex_perturbation_parameters'],
+        output_dataframe=dataframes['zeta_max'],
     )
 
     # Transform the uniform dimension into gaussian

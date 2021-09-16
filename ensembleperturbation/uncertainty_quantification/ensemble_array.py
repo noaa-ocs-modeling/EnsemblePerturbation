@@ -3,20 +3,12 @@ from os import PathLike
 import numpy
 import pandas
 from pandas import DataFrame
+import tables
 
 
-def read_combined_hdf(
-    filename: PathLike, input_key: str = None, output_key: str = None
-) -> (DataFrame, DataFrame):
-    if input_key is None:
-        input_key = 'vortex_perturbation_parameters'
-    if output_key is None:
-        output_key = 'zeta_max'
-
-    return (
-        pandas.read_hdf(filename, input_key),
-        pandas.read_hdf(filename, output_key),
-    )
+def read_combined_hdf(filename: PathLike) -> {str: DataFrame}:
+    keys = [group._v_name for group in tables.open_file(filename).walk_groups('/')]
+    return {key: pandas.read_hdf(filename, key) for key in keys if key != '/'}
 
 
 def ensemble_array(
