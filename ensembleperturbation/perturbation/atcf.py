@@ -52,6 +52,7 @@ from typing import Dict, List, Mapping, Union
 import warnings
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
+import chaospy
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -233,6 +234,19 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         dataframe[column].pint.ito(self.unit)
                     dataframe[column].astype(pint_type, copy=False)
         self.__historical_forecast_errors = historical_forecast_errors
+
+    def chaospy_distribution(self) -> chaospy.Distribution:
+        # TODO see if we need to transform these distributions into unit space
+        # TODO figure out how to account for piecewise uncertainty
+
+        if self.perturbation_type == PerturbationType.GAUSSIAN:
+            distribution = chaospy.Normal(mu=0, sigma=1)
+        elif self.perturbation_type == PerturbationType.UNIFORM:
+            distribution = chaospy.Uniform(lower=-1, upper=1)
+        else:
+            raise ValueError(f'perturbation type {self.perturbation_type} not recognized')
+
+        return distribution
 
     def perturb(
         self,
