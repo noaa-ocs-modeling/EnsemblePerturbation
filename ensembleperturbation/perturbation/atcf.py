@@ -79,8 +79,8 @@ AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
-ERROR_INDICES = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
-ERROR_INDICES_NO_60H = ERROR_INDICES[:5] + ERROR_INDICES[6:]  # no 60-hr data
+HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+HISTORICAL_ERROR_HOURS_NO_60H = HISTORICAL_ERROR_HOURS[:5] + HISTORICAL_ERROR_HOURS[6:]  # no 60-hr data
 
 
 class PerturbationType(Enum):
@@ -291,11 +291,11 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {'mean error [kt]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -310,7 +310,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
                             13.55,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.knot,
@@ -352,7 +352,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '15-25sm': DataFrame(
                     {
@@ -380,7 +380,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '25-35sm': DataFrame(
                     {
@@ -408,7 +408,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '35-45sm': DataFrame(
                     {
@@ -436,7 +436,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '>45sm': DataFrame(
                     {
@@ -464,7 +464,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
             },
             unit=units.nautical_mile,
@@ -495,7 +495,7 @@ class CrossTrack(VortexPerturbedVariable):
                             119.67,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {
@@ -510,7 +510,7 @@ class CrossTrack(VortexPerturbedVariable):
                             103.45,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -525,7 +525,7 @@ class CrossTrack(VortexPerturbedVariable):
                             79.98,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -655,7 +655,7 @@ class AlongTrack(VortexPerturbedVariable):
                             125.01,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {
@@ -670,7 +670,7 @@ class AlongTrack(VortexPerturbedVariable):
                             108.07,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -685,7 +685,7 @@ class AlongTrack(VortexPerturbedVariable):
                             83.55,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
