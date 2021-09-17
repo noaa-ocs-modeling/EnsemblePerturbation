@@ -1250,7 +1250,6 @@ class VortexPerturber:
 
         # write out the modified `fort.22`
         perturbed_forcing = VortexForcing(storm=dataframe)
-        perturbed_forcing.storm_id = self.forcing.storm_id
         perturbed_forcing.write(filename, overwrite=True)
 
         if weight is not None:
