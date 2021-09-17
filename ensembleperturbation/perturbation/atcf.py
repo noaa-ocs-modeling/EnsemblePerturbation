@@ -1249,8 +1249,7 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        perturbed_forcing = VortexForcing(storm=dataframe)
-        perturbed_forcing.write(filename, overwrite=True)
+        VortexForcing(storm=dataframe).write(filename, overwrite=True)
 
         if weight is not None:
             perturbation['weight'] = weight
