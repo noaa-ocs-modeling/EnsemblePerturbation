@@ -5,7 +5,7 @@ from matplotlib import pyplot
 import numpy
 from scipy.special import ndtri
 
-from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array, read_combined_hdf
+from ensembleperturbation.uncertainty_quantification.ensemble_array import ensemble_array, read_combined_hdf, sample_points_with_equal_spacing
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import karhunen_loeve_expansion, karhunen_loeve_prediction
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import build_pc_expansion, evaluate_pc_expansion, evaluate_pc_sensitivity
 
@@ -19,22 +19,36 @@ df_input, df_output = read_combined_hdf(h5name)
 # Load the input/outputs
 np_input, np_output = ensemble_array(input_dataframe=df_input,output_dataframe=df_output)
 
-# Output this to text to be used in UQtk function
 numpy.savetxt('xdata.dat', np_input) #because pce_eval expects xdata.dat as input
 
 # adjusting the output to have less nodes for now (every 100 points)
-numpy.nan_to_num(np_output, copy=False)
-ymodel = np_output[:, ::100].T # ymodel has a shape of ngrid x nens
+#numpy.nan_to_num(np_output, copy=False)
+np_output_subset = np_output[:, ::25]
+
+#spacing_deg=0.005
+#neighbors=50
+# get every points spaced every spacing_deg degrees
+#mask = sample_points_with_equal_spacing(output_dataframe=df_output, spacing=spacing_deg)
+#mask = sample_points_with_equal_spacing(output_dataframe=df_output, neighbors=neighbors)
+#np_output_subset = np_output[:, mask]
+# remove areas where any of the ensembles was a NaN
+mask = numpy.isnan(np_output_subset)
+mask = mask.any(axis=0)
+ymodel = np_output_subset[:, ~mask].T
+
+print('shape of ymodel')
+print(ymodel.shape)
+
 # choose neig decimal percent of variance explained to keep
-neig = 0.90 # gives us 6 modes
-#neig = 0.99 # gives us 23 modes
+#neig = 0.90 # gives us 4 modes
+neig = 0.95  # gives  us 6 modes
 
 ## Evaluating the KL modes
 # ymean is the average field                                                 : size (ngrid,)
 # kl_modes is the KL modes ('principal directions')                          : size (ngrid,neig)
 # eigval is the eigenvalue vector                                            : size (neig,)
 # xi are the samples for the KL coefficients                                 : size (nens, neig)
-ymean, kl_modes, eigval, xi = karhunen_loeve_expansion(ymodel,neig=neig,plot=False)
+ymean, kl_modes, eigval, xi = karhunen_loeve_expansion(ymodel,neig=neig,plot=True)
 
 # evaluate the fit of the KL prediction
 # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
@@ -69,6 +83,7 @@ for k, qoi in enumerate(xi.transpose()):
     pyplot.plot([-2,3],[-2,3], 'k--', lw=1)
     pyplot.gca().set_xlabel('predicted')
     pyplot.gca().set_ylabel('actual')
+    pyplot.title('mode-' + str(k+1))
     pyplot.legend()
     pyplot.savefig('mode-' + str(k+1))
     pyplot.close()
@@ -79,6 +94,7 @@ for k, qoi in enumerate(xi.transpose()):
     tot_sens_all[k,:] = numpy.loadtxt('totsens.dat')
     main_sens_all[k,:] = numpy.loadtxt('mainsens.dat')
   
+print('eigen values = ' + str(eigval))
 for vdx, variable in enumerate(df_input.columns):
     tot_sens = tot_sens_all[:,vdx] 
     main_sens = main_sens_all[:,vdx] 
