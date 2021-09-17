@@ -30,7 +30,7 @@ def quadrature_perturbations(
     :returns: array of nodes with size NxV, array of weights with size N
     """
 
-    if variables is None:
+    if variables is None or len(variables) == 0:
         variables = [
             'cross_track',
             'along_track',
