@@ -37,7 +37,6 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 from abc import ABC
 import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
-from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
 from glob import glob
