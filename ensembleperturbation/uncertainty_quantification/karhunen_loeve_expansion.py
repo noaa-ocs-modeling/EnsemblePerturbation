@@ -98,6 +98,8 @@ def karhunen_loeve_prediction(
         pyplot.savefig('KLfit.png')
         pyplot.close()
 
+    return ypred
+
 def trapezoidal_rule_weights(length: int):
     # Set trapesoidal rule weights
     weights = numpy.full(length, fill_value=1)
