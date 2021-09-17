@@ -30,10 +30,11 @@ if __name__ == '__main__':
     plot_eigen_values = False
     plot_surrogate = True
 
+    input_filename = r'C:\Data\COASTAL_Act\runs\run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
+    dataframes = read_combined_hdf(filename=input_filename)
     pinput, output = ensemble_array(
-        *read_combined_hdf(
-            filename=r'run_20210812_florence_multivariate_besttrack_250msubset_40members.h5'
-        )
+        input_dataframe=dataframes['vortex_perturbation_parameters'],
+        output_dataframe=dataframes['zeta_max'],
     )
 
     numpy.nan_to_num(output, copy=False)
@@ -119,7 +120,12 @@ if __name__ == '__main__':
         colormap = pyplot.get_cmap('gist_rainbow')
         # Plot to make sure ypred and ymodel are close
         for index in range(len(model_results)):
-            pyplot.plot(model_results[index], predicted_results[index], 'o', c=colormap(index / len(model_results)))
+            pyplot.plot(
+                model_results[index],
+                predicted_results[index],
+                'o',
+                c=colormap(index / len(model_results)),
+            )
         pyplot.plot([0, 6], [0, 6], '--k', label='1:1')
         pyplot.legend()
         pyplot.show()

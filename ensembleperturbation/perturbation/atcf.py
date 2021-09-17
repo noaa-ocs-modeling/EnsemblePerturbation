@@ -52,6 +52,7 @@ from typing import Dict, List, Mapping, Union
 import warnings
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
+import chaospy
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -60,7 +61,7 @@ from pandas import DataFrame
 from pandas.core.common import SettingWithCopyWarning
 import pint
 from pint import Quantity, UnitStrippedWarning
-from pint_pandas import PintType
+from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
@@ -78,8 +79,10 @@ AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
-ERROR_INDICES_NO_60H = [0, 12, 24, 36, 48, 72, 96, 120]  # no 60-hr data
-ERROR_INDICES_60H = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+HISTORICAL_ERROR_HOURS_NO_60H = (
+    HISTORICAL_ERROR_HOURS[:5] + HISTORICAL_ERROR_HOURS[6:]
+)  # no 60-hr data
 
 
 class PerturbationType(Enum):
@@ -234,6 +237,19 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                     dataframe[column].astype(pint_type, copy=False)
         self.__historical_forecast_errors = historical_forecast_errors
 
+    def chaospy_distribution(self) -> chaospy.Distribution:
+        # TODO see if we need to transform these distributions into unit space
+        # TODO figure out how to account for piecewise uncertainty
+
+        if self.perturbation_type == PerturbationType.GAUSSIAN:
+            distribution = chaospy.Normal(mu=0, sigma=1)
+        elif self.perturbation_type == PerturbationType.UNIFORM:
+            distribution = chaospy.Uniform(lower=-1, upper=1)
+        else:
+            raise ValueError(f'perturbation type {self.perturbation_type} not recognized')
+
+        return distribution
+
     def perturb(
         self,
         vortex_dataframe: DataFrame,
@@ -255,7 +271,19 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
-        all_values = vortex_dataframe[self.name].values - values
+        variable_values = vortex_dataframe[self.name].values
+        if (
+            not isinstance(variable_values, PintArray)
+            or variable_values.units == variable_values.units._REGISTRY.dimensionless
+        ):
+            variable_values *= self.unit
+        if (
+            not isinstance(values, Quantity)
+            or values.units == values.units._REGISTRY.dimensionless
+        ):
+            values *= self.unit
+
+        all_values = variable_values - values
         vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             for value in all_values
@@ -277,11 +305,11 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {'mean error [kt]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -296,7 +324,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
                             13.55,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.knot,
@@ -338,7 +366,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '15-25sm': DataFrame(
                     {
@@ -366,7 +394,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '25-35sm': DataFrame(
                     {
@@ -394,7 +422,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '35-45sm': DataFrame(
                     {
@@ -422,7 +450,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '>45sm': DataFrame(
                     {
@@ -450,7 +478,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
             },
             unit=units.nautical_mile,
@@ -481,7 +509,7 @@ class CrossTrack(VortexPerturbedVariable):
                             119.67,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {
@@ -496,7 +524,7 @@ class CrossTrack(VortexPerturbedVariable):
                             103.45,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -511,7 +539,7 @@ class CrossTrack(VortexPerturbedVariable):
                             79.98,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -557,7 +585,7 @@ class CrossTrack(VortexPerturbedVariable):
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
             # get the current cross_track_error
-            cross_track_error = values[current_index].to(units.meter)
+            cross_track_error = values[current_index]
 
             # get the location of the original reference coordinate
             current_point = (
@@ -641,7 +669,7 @@ class AlongTrack(VortexPerturbedVariable):
                             125.01,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {
@@ -656,7 +684,7 @@ class AlongTrack(VortexPerturbedVariable):
                             108.07,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -671,7 +699,7 @@ class AlongTrack(VortexPerturbedVariable):
                             83.55,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -747,7 +775,7 @@ class AlongTrack(VortexPerturbedVariable):
             utm_crs = utm_crs_from_longitude(coordinates[index][0])
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
-            along_error = -1.0 * values[index - max_interpolated_points].to(units.meter)
+            along_error = -1.0 * values[index - max_interpolated_points]
             along_sign = int(sign(along_error))
 
             projected_points = []
@@ -1038,17 +1066,10 @@ class VortexPerturber:
                 }
 
                 if parallel:
-                    write_kwargs.update(
-                        {
-                            'dataframe': original_data_pickle_filename,
-                            'variables': [
-                                variable.__class__.__name__ for variable in variables
-                            ],
-                        }
-                    )
+                    write_kwargs['dataframe'] = original_data_pickle_filename
 
                     futures.append(
-                        process_pool.submit(self.write_perturbed_track, **write_kwargs,)
+                        process_pool.submit(self.write_perturbed_track, **write_kwargs)
                     )
                 else:
                     self.write_perturbed_track(**write_kwargs)
@@ -1081,12 +1102,19 @@ class VortexPerturber:
         else:
             dataframe = pandas.read_pickle(dataframe)
 
+        variable_names = {
+            **{
+                subclass.__name__: subclass
+                for subclass in VortexPerturbedVariable.__subclasses__()
+            },
+            **{
+                subclass.name: subclass
+                for subclass in VortexPerturbedVariable.__subclasses__()
+            },
+        }
         for variable_index, variable in enumerate(variables):
             if isinstance(variable, str):
-                variables[variable_index] = {
-                    subclass.__name__: subclass
-                    for subclass in VortexPerturbedVariable.__subclasses__()
-                }[variable]()
+                variables[variable_index] = variable_names[variable]()
 
         # add units to data frame
         dataframe = dataframe.astype(
@@ -1127,21 +1155,27 @@ class VortexPerturber:
             else:
                 storm_classification = storm_strength
 
+            validation_hours = self.validation_times / timedelta(hours=1)
+
             historical_forecast_errors = variable.historical_forecast_errors[
                 storm_classification
             ]
-            for column in historical_forecast_errors:
-                if isinstance(historical_forecast_errors[column].dtype, PintType):
-                    historical_forecast_errors[column] = historical_forecast_errors[
-                        column
-                    ].pint.magnitude
-
-            xp = historical_forecast_errors.index
-            fp = historical_forecast_errors.values
-            base_errors = [
-                interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
-                for ncol in range(len(fp[0]))
-            ]
+            try:
+                # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
+                historical_forecast_errors = historical_forecast_errors.pint.dequantify()
+            except:
+                pass
+            validation_time_errors = DataFrame(
+                data={
+                    column: interp(
+                        x=validation_hours,
+                        xp=historical_forecast_errors.index,
+                        fp=historical_forecast_errors.loc[:, column],
+                    )
+                    for column in historical_forecast_errors.columns
+                },
+                index=validation_hours,
+            )
 
             # get the random perturbation sample
             if variable.perturbation_type == PerturbationType.GAUSSIAN:
@@ -1150,7 +1184,7 @@ class VortexPerturber:
                     perturbation[variable.name] = alpha
 
                 LOGGER.debug(f'gaussian alpha = {alpha}')
-                perturbed_values = base_errors[0] * alpha / 0.7979
+                perturbed_values = (validation_time_errors.iloc[:, 0] * alpha / 0.7979).values
                 if (
                     variable.unit is not None
                     and variable.unit != variable.unit._REGISTRY.dimensionless
@@ -1170,8 +1204,15 @@ class VortexPerturber:
                     perturbation[variable.name] = alpha
 
                 LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
-                perturbed_values = 0.5 * (
-                    base_errors[0] * (1 - alpha) + base_errors[1] * (1 + alpha)
+                perturbed_values = numpy.mean(
+                    numpy.stack(
+                        (
+                            validation_time_errors.iloc[:, 0] * (1 - alpha),
+                            validation_time_errors.iloc[:, 1] * (1 + alpha),
+                        ),
+                        axis=1,
+                    ),
+                    axis=1,
                 )
                 if variable.unit is not None and variable.unit != units.dimensionless:
                     perturbed_values *= variable.unit
