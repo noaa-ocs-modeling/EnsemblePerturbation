@@ -37,7 +37,6 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 from abc import ABC
 import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
-from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
 from glob import glob
@@ -1250,7 +1249,9 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        VortexForcing(storm=dataframe).write(filename, overwrite=True)
+        perturbed_forcing = VortexForcing(storm=dataframe)
+        perturbed_forcing.storm_id = self.forcing.storm_id
+        perturbed_forcing.write(filename, overwrite=True)
 
         if weight is not None:
             perturbation['weight'] = weight
