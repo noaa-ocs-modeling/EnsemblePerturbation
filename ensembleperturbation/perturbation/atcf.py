@@ -953,14 +953,16 @@ class VortexPerturber:
         perturbations: Union[int, List[float], List[Dict[str, float]]],
         variables: [VortexVariable],
         directory: PathLike = None,
+        quadrature: bool = True,
         overwrite: bool = False,
-        continue_numbering: bool = True,
+        continue_numbering: bool = False,
         parallel: bool = True,
     ) -> [Path]:
         """
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
+        :param quadrature: create
         :param overwrite: overwrite existing files
         :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
         :param parallel: generate perturbations concurrently
@@ -985,6 +987,13 @@ class VortexPerturber:
             directory = Path(directory)
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
+
+        if quadrature:
+            perturbations, weights = quadrature_perturbations(
+                variables=variables, maximum=len(perturbations),
+            )
+        else:
+            weights = None
 
         # write out original fort.22
         original_filename = directory / 'original.22'
@@ -1050,9 +1059,7 @@ class VortexPerturber:
                     perturbation = {variable: perturbation for variable in variables}
 
                 perturbation = {
-                    variable.name
-                    if isinstance(variable, type) and issubclass(variable, VortexVariable)
-                    else variable: alpha
+                    variable.name if isinstance(variable, VortexVariable) else variable: alpha
                     for variable, alpha in perturbation.items()
                 }
 
@@ -1064,6 +1071,9 @@ class VortexPerturber:
                     'storm_size': storm_size,
                     'storm_strength': storm_strength,
                 }
+
+                if weights is not None:
+                    write_kwargs['weight'] = weights[perturbation_index]
 
                 if parallel:
                     write_kwargs['dataframe'] = original_data_pickle_filename
@@ -1093,6 +1103,7 @@ class VortexPerturber:
         variables: [VortexPerturbedVariable],
         storm_size: str,
         storm_strength: str,
+        weight: float = None,
     ) -> Path:
         if not isinstance(filename, Path):
             filename = Path(filename)
@@ -1239,9 +1250,10 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        perturbed_forcing = copy(self.forcing)
-        perturbed_forcing.dataframe.loc[dataframe.index] = dataframe
-        perturbed_forcing.write(filename, overwrite=True)
+        VortexForcing(storm=dataframe).write(filename, overwrite=True)
+
+        if weight is not None:
+            perturbation['weight'] = weight
         with open(filename.parent / f'{filename.stem}.json', 'w') as output_json:
             json.dump(perturbation, output_json, indent=2)
 
@@ -1345,6 +1357,32 @@ def storm_size_class(radius_of_maximum_winds: float) -> str:
         return '35-45sm'  # large
     else:
         return '>45sm'  # very large
+
+
+def quadrature_perturbations(
+    variables: [VortexPerturbedVariable], maximum: int = None
+) -> (numpy.ndarray, numpy.ndarray):
+    """
+    Generate quadrature from variable distributions.
+
+    :param variables: names of perturbed variables
+    :returns: array of nodes with size NxV, array of weights with size N
+    """
+
+    if variables is None or len(variables) == 0:
+        variables = [variable() for variable in VortexPerturbedVariable.__subclasses__()]
+
+    distribution = chaospy.J(*(variable.chaospy_distribution() for variable in variables))
+
+    nodes, weights = chaospy.generate_quadrature(
+        order=3, dist=distribution, rule='Gaussian', n_max=maximum
+    )
+
+    perturbations = [
+        {variable: node[index] for index, variable in enumerate(variables)} for node in nodes.T
+    ]
+
+    return perturbations, weights
 
 
 def utm_crs_from_longitude(longitude: float) -> CRS:

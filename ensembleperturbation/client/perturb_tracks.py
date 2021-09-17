@@ -4,52 +4,13 @@ from os import PathLike
 from pathlib import Path
 
 from adcircpy.forcing.winds.best_track import FileDeck
-import chaospy
 from coupledmodeldriver.client.initialize_adcirc import (
     initialize_adcirc,
     parse_initialize_adcirc_arguments,
 )
 from coupledmodeldriver.configure import BestTrackForcingJSON
-import numpy
 
-from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable, VortexPerturber
-
-PERTURBED_VARIABLES = {
-    variable_class.name: variable_class()
-    for variable_class in VortexPerturbedVariable.__subclasses__()
-}
-
-
-def quadrature_perturbations(variables: [str]) -> (numpy.ndarray, numpy.ndarray):
-    """
-    Generate quadrature from variable distributions.
-
-    :param variables: names of perturbed variables
-    :returns: array of nodes with size NxV, array of weights with size N
-    """
-
-    if variables is None:
-        variables = [
-            'cross_track',
-            'along_track',
-            'radius_of_maximum_winds',
-            'max_sustained_wind_speed',
-        ]
-
-    distribution = chaospy.J(
-        *(
-            PERTURBED_VARIABLES[variable_name].chaospy_distribution()
-            for variable_name in variables
-        )
-    )
-
-    nodes, weights = chaospy.generate_quadrature(order=3, dist=distribution, rule='Gaussian',)
-
-    perturbations = [
-        {variable: node[index] for index, variable in enumerate(variables)} for node in nodes.T
-    ]
-
-    return perturbations, weights
+from ensembleperturbation.perturbation.atcf import VortexPerturber
 
 
 def write_vortex_perturbations(
@@ -59,13 +20,14 @@ def write_vortex_perturbations(
     modeled_start_time: datetime,
     modeled_duration: timedelta,
     forcings: [str],
+    quadrature: bool = True,
     overwrite: bool = False,
     parallel: bool = False,
 ):
     if perturbations is None:
         raise ValueError('number of perturbations not given')
 
-    if variables is None:
+    if variables is None or len(variables) == 0:
         variables = [
             'cross_track',
             'along_track',
@@ -79,7 +41,7 @@ def write_vortex_perturbations(
     track_directory = output_directory / 'track_files'
     if not track_directory.exists():
         track_directory.mkdir(parents=True, exist_ok=True)
-    original_track_filename = track_directory / 'fort.22'
+    original_track_filename = track_directory / 'original.22'
 
     if original_track_filename.exists():
         vortex_forcing = BestTrackForcingJSON.from_fort22(
@@ -118,6 +80,7 @@ def write_vortex_perturbations(
         perturbations=perturbations,
         variables=variables,
         directory=track_directory,
+        quadrature=quadrature,
         overwrite=overwrite,
         continue_numbering=True,
         parallel=parallel,
@@ -145,12 +108,6 @@ def main():
         }
     )
 
-    if arguments['quadrature']:
-        arguments['perturbations'], weights = quadrature_perturbations(
-            variables=arguments['variables']
-        )
-        numpy.save(arguments['output_directory'] / 'weights.npy', weights)
-
     perturbations = write_vortex_perturbations(
         perturbations=arguments['perturbations'],
         variables=arguments['variables'],
@@ -158,6 +115,7 @@ def main():
         modeled_start_time=arguments['modeled_start_time'],
         modeled_duration=arguments['modeled_duration'],
         forcings=arguments['forcings'],
+        quadrature=arguments['quadrature'],
         overwrite=arguments['overwrite'],
         parallel=not arguments['serial'],
     )
