@@ -14,11 +14,16 @@ from ensembleperturbation.uncertainty_quantification.polynomial_chaos import bui
 ##############################################################################
 
 h5name = '../data/florence_40member.h5'
-df_input, df_output = read_combined_hdf(h5name)
+dataframes = read_combined_hdf(h5name)
+keys = list(dataframes.keys())
+
+breakpoint()
 
 # Load the input/outputs
-np_input, np_output = ensemble_array(input_dataframe=df_input,output_dataframe=df_output)
-
+np_input, np_output = ensemble_array(
+        input_dataframe=dataframes[keys[0]],
+        output_dataframe=dataframes[keys[1]],
+    )
 numpy.savetxt('xdata.dat', np_input) #because pce_eval expects xdata.dat as input
 
 # adjusting the output to have less nodes for now (every 100 points)
@@ -95,7 +100,7 @@ for k, qoi in enumerate(xi.transpose()):
     main_sens_all[k,:] = numpy.loadtxt('mainsens.dat')
   
 print('eigen values = ' + str(eigval))
-for vdx, variable in enumerate(df_input.columns):
+for vdx, variable in enumerate(dataframes[keys[0]].columns):
     tot_sens = tot_sens_all[:,vdx] 
     main_sens = main_sens_all[:,vdx] 
     print(variable + '-> main sensitivity')
