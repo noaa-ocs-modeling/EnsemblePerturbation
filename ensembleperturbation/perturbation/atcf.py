@@ -1059,9 +1059,7 @@ class VortexPerturber:
                     perturbation = {variable: perturbation for variable in variables}
 
                 perturbation = {
-                    variable.name
-                    if isinstance(variable, type) and issubclass(variable, VortexVariable)
-                    else variable: alpha
+                    variable.name if isinstance(variable, VortexVariable) else variable: alpha
                     for variable, alpha in perturbation.items()
                 }
 
@@ -1374,12 +1372,7 @@ def quadrature_perturbations(
     """
 
     if variables is None or len(variables) == 0:
-        variables = [
-            'cross_track',
-            'along_track',
-            'radius_of_maximum_winds',
-            'max_sustained_wind_speed',
-        ]
+        variables = [variable() for variable in VortexPerturbedVariable.__subclasses__()]
 
     distribution = chaospy.J(*(variable.chaospy_distribution() for variable in variables))
 

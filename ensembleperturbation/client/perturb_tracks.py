@@ -27,7 +27,7 @@ def write_vortex_perturbations(
     if perturbations is None:
         raise ValueError('number of perturbations not given')
 
-    if variables is None:
+    if variables is None or len(variables) == 0:
         variables = [
             'cross_track',
             'along_track',
