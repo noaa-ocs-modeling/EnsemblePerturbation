@@ -20,7 +20,9 @@ PERTURBED_VARIABLES = {
 }
 
 
-def quadrature_perturbations(variables: [str]) -> (numpy.ndarray, numpy.ndarray):
+def quadrature_perturbations(
+    variables: [str], maximum: int = None
+) -> (numpy.ndarray, numpy.ndarray):
     """
     Generate quadrature from variable distributions.
 
@@ -43,7 +45,9 @@ def quadrature_perturbations(variables: [str]) -> (numpy.ndarray, numpy.ndarray)
         )
     )
 
-    nodes, weights = chaospy.generate_quadrature(order=3, dist=distribution, rule='Gaussian',)
+    nodes, weights = chaospy.generate_quadrature(
+        order=3, dist=distribution, rule='Gaussian', n_max=maximum
+    )
 
     perturbations = [
         {variable: node[index] for index, variable in enumerate(variables)} for node in nodes.T
@@ -147,7 +151,7 @@ def main():
 
     if arguments['quadrature']:
         arguments['perturbations'], weights = quadrature_perturbations(
-            variables=arguments['variables']
+            variables=arguments['variables'], maximum=arguments['perturbations'],
         )
         numpy.save(arguments['output_directory'] / 'weights.npy', weights)
 
