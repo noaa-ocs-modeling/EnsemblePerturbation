@@ -36,7 +36,6 @@ By William Pringle, Argonne National Laboratory, Mar-May 2021
 
 from abc import ABC
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from enum import Enum
 from glob import glob
@@ -65,7 +64,7 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 
-from ensembleperturbation.utilities import get_logger, units
+from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -1035,7 +1034,7 @@ class VortexPerturber:
         ]
 
         if parallel:
-            process_pool = ProcessPoolExecutor()
+            process_pool = ProcessPoolExecutorStackTraced()
             temporary_directory = TemporaryDirectory()
             original_data_pickle_filename = Path(temporary_directory.name) / 'original_data.df'
             original_data.to_pickle(original_data_pickle_filename)
