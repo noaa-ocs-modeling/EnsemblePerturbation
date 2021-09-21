@@ -1464,9 +1464,7 @@ def get_offset(
     return offset
 
 
-def parse_vortex_perturbations(
-    directory: PathLike = None, output_filename: PathLike = None
-) -> DataFrame:
+def parse_vortex_perturbations(directory: PathLike = None) -> DataFrame:
     """
     Parse `fort.22` and JSON files into a dataframe.
 
