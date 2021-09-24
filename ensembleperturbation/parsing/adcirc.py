@@ -1,5 +1,4 @@
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
 import os
 from os import PathLike
 from pathlib import Path
@@ -18,7 +17,7 @@ import xarray
 
 from ensembleperturbation.parsing.utilities import decode_time
 from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
-from ensembleperturbation.utilities import get_logger
+from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced
 
 LOGGER = get_logger('parsing.adcirc')
 
@@ -271,7 +270,7 @@ def parse_adcirc_outputs(
     dataframes = {}
     with TemporaryDirectory() as temporary_directory:
         temporary_directory = Path(temporary_directory)
-        process_pool = ProcessPoolExecutor()
+        process_pool = ProcessPoolExecutorStackTraced()
         futures = []
 
         for filename in directory.glob('**/*.nc'):

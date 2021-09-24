@@ -17,15 +17,11 @@ if __name__ == '__main__':
         input_filename = Path(input_filename)
 
     netcdf_filename = input_filename.parent / (input_filename.stem + '.nc')
-    weights_filename = input_filename.parent / 'weights.npy'
 
     if not netcdf_filename.exists():
         raise ValueError(f'no NetCDF4 found at "{netcdf_filename}"')
-    if not weights_filename.exists():
-        raise ValueError(f'no weights found at "{weights_filename}"')
 
     netcdf_dataset = xarray.open_dataset(netcdf_filename)
-    weights = numpy.load(weights_filename)
 
     variables = {
         variable_class.name: variable_class()
@@ -43,33 +39,42 @@ if __name__ == '__main__':
         )
     )
 
-    # get samples of the model at certain nodes
-    x = netcdf_dataset['time'][::5]
-    samples = mesh_zeta_max.iloc[:, 4:].values()
+    # get samples of the model at certain times and nodes
+    times = netcdf_dataset['time']
+    grid_nodes = netcdf_dataset['node'][::5]
+    samples = netcdf_dataset.loc[{'time': times, 'node': grid_nodes}]['zeta']
 
     # expand polynomials with polynomial chaos
     polynomials = chaospy.generate_expansion(
         order=3, dist=distribution, rule='three_terms_recurrence',
     )
 
-    # create surrogate model
-    surrogate_model = chaospy.fit_quadrature(
-        orth=polynomials, nodes=ensemble_perturbations.values, weights=weights, solves=samples,
-    )
-
-    mean = chaospy.E(poly=surrogate_model, dist=distribution)
-    deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
-
-    if plot:
-        pyplot.plot(x, mean)
-        pyplot.fill_between(
-            x, mean - deviation, mean + deviation, alpha=0.5,
+    # create surrogate models for selected nodes
+    surrogate_models = {
+        index: chaospy.fit_quadrature(
+            orth=polynomials,
+            nodes=ensemble_perturbations.iloc[:, :-1].values,
+            weights=ensemble_perturbations.iloc[:, -1].values,
+            solves=grid_node,
         )
-        pyplot.show()
+        for index, grid_node in enumerate(samples.T)
+        if numpy.any(~numpy.isnan(grid_node))
+    }
 
-    c_1 = [1, 0.9, 0.07]
+    for surrogate_model in surrogate_models:
+        mean = chaospy.E(poly=surrogate_model, dist=distribution)
+        deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
 
-    y_1 = distribution.fwd(c_1)
-    assert distribution.inv(y_1) == c_1
+        if plot:
+            pyplot.plot(times, mean)
+            pyplot.fill_between(
+                times, mean - deviation, mean + deviation, alpha=0.5,
+            )
+            pyplot.show()
+
+        c_1 = [1, 0.9, 0.07]
+
+        y_1 = distribution.fwd(c_1)
+        assert distribution.inv(y_1) == c_1
 
     print('done')
