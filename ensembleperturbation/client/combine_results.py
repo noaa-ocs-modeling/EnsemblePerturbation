@@ -34,6 +34,9 @@ def parse_combine_results():
     argument_parser.add_argument(
         '--verbose', action='store_true', help='log more verbose messages'
     )
+    argument_parser.add_argument(
+        '--parallel', action='store_true', help='parse outputs concurrently'
+    )
     arguments = argument_parser.parse_args()
 
     return {
@@ -43,6 +46,7 @@ def parse_combine_results():
         'max_depth': arguments.max_depth,
         'bounds': arguments.bounds,
         'verbose': arguments.verbose,
+        'parallel': arguments.parallel,
     }
 
 
@@ -53,6 +57,7 @@ def combine_results(
     max_depth: float = None,
     bounds: (float, float, float, float) = None,
     verbose: bool = False,
+    parallel: bool = False,
 ) -> {str: DataFrame}:
     if verbose:
         get_logger(LOGGER.name, console_level=logging.DEBUG)
@@ -69,6 +74,7 @@ def combine_results(
         maximum_depth=max_depth,
         bounds=bounds,
         output_filename=output,
+        parallel=parallel,
     )
 
     return variable_dataframes
