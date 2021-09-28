@@ -237,13 +237,14 @@ def pickle_data(data: Any, filename: PathLike) -> Path:
 
 
 def parse_adcirc_outputs(
-    directory: PathLike = None, file_data_variables: [str] = None
+    directory: PathLike = None, file_data_variables: [str] = None, parallel: bool = False,
 ) -> {str: dict}:
     """
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
     :param file_data_variables: output files to parse
+    :param parallel: parse outputs concurrently
     :return: dictionary of file tree containing parsed data
     """
 
@@ -275,7 +276,7 @@ def parse_adcirc_outputs(
 
         for filename in directory.glob('**/*.nc'):
             if filename.name in file_data_variables:
-                if filename.name in ['fort.63.nc', 'fort.64.nc']:
+                if not parallel or filename.name in ['fort.63.nc', 'fort.64.nc']:
                     dataframes[filename] = parse_adcirc_netcdf(filename)
                 else:
                     futures.append(
@@ -330,6 +331,7 @@ def combine_outputs(
     maximum_depth: float = None,
     file_data_variables: {str: [str]} = None,
     output_filename: PathLike = None,
+    parallel: bool = False,
 ) -> {str: DataFrame}:
     if directory is None:
         directory = Path.cwd()
@@ -378,7 +380,7 @@ def combine_outputs(
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
     output_data = parse_adcirc_outputs(
-        directory=runs_directory, file_data_variables=file_data_variables,
+        directory=runs_directory, file_data_variables=file_data_variables, parallel=parallel,
     )
 
     if len(output_data) > 0:
