@@ -366,9 +366,7 @@ def combine_outputs(
         }
 
     # parse all the inputs using built-in parser
-    vortex_perturbations = parse_vortex_perturbations(
-        track_directory, output_filename=output_filename,
-    )
+    vortex_perturbations = parse_vortex_perturbations(track_directory)
 
     if output_filename is not None:
         key = 'vortex_perturbation_parameters'
