@@ -470,7 +470,7 @@ def combine_outputs(
                     )
 
                     if maximum_depth is not None:
-                        data_array = data_array.isel(node=coordinates[:, 2] < -maximum_depth)
+                        data_array = data_array.isel(node=-coordinates[:, 2] < maximum_depth)
 
                     variables_data[variable_name].append(data_array)
 
