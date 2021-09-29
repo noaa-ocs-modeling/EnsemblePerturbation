@@ -339,6 +339,9 @@ def combine_outputs(
     elif not isinstance(directory, Path):
         directory = Path(directory)
 
+    if maximum_depth is not None and not isinstance(maximum_depth, float):
+        maximum_depth = float(maximum_depth)
+
     if output_filename is not None:
         if not isinstance(output_filename, Path):
             output_filename = Path(output_filename)
@@ -453,20 +456,23 @@ def combine_outputs(
                 for variable_name, variable_data in result_data['data'].items():
                     if variable_name not in variables_data:
                         variables_data[variable_name] = []
-                    variables_data[variable_name].append(
-                        DataArray(
-                            variable_data[:],
-                            dims=variable_data.dimensions,
-                            coords={
-                                'time': result_data['time'],
-                                'node': coordinates.coords['node'],
-                                'x': coordinates[:, 0],
-                                'y': coordinates[:, 1],
-                                'z': coordinates[:, 2],
-                            },
-                            name=run_name,
-                        )
+                    data_array = DataArray(
+                        variable_data[:],
+                        dims=variable_data.dimensions,
+                        coords={
+                            'time': result_data['time'],
+                            'node': coordinates.coords['node'],
+                            'x': coordinates[:, 0],
+                            'y': coordinates[:, 1],
+                            'z': coordinates[:, 2],
+                        },
+                        name=run_name,
                     )
+
+                    if maximum_depth is not None:
+                        data_array = data_array.isel(node=coordinates[:, 2] < -maximum_depth)
+
+                    variables_data[variable_name].append(data_array)
 
     if output_filename is not None and len(variables_data) > 0:
         LOGGER.info(f'parsed {len(variables_data)} variables: {list(variables_data)}')
