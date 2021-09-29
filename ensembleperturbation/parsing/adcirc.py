@@ -455,10 +455,9 @@ def combine_outputs(
                         variables_data[variable_name] = []
                     variables_data[variable_name].append(
                         DataArray(
-                            variable_data[:][None, ...],
+                            variable_data.data,
                             dims=['run', *variable_data.dimensions],
                             coords={
-                                'run': [run_name],
                                 'time': result_data['time'],
                                 'node': coordinates.coords['node'],
                                 'x': coordinates[:, 0],
@@ -501,7 +500,7 @@ def combine_outputs(
                 )
             elif isinstance(variable_data, List):
                 # combine N-dimensional xarrays for this variable into an additional `run` dimension specifying the run name
-                data_arrays[variable_name] = xarray.concat(
+                variable_data = xarray.concat(
                     variable_data,
                     dim=DataArray(
                         [data_array.name for data_array in variable_data],
@@ -509,6 +508,7 @@ def combine_outputs(
                         name='run',
                     ),
                 )
+                data_arrays[variable_name] = variable_data
 
         if len(data_arrays) > 0:
             dataset = xarray.Dataset(data_vars=data_arrays)
