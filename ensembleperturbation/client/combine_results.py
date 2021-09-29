@@ -43,7 +43,7 @@ def parse_combine_results():
         'output': arguments.output,
         'directory': arguments.directory,
         'filenames': arguments.filenames,
-        'max_depth': arguments.max_depth,
+        'max_depth': float(arguments.max_depth) if arguments.max_depth is not None else None,
         'bounds': arguments.bounds,
         'verbose': arguments.verbose,
         'parallel': arguments.parallel,
