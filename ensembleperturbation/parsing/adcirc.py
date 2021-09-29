@@ -456,7 +456,7 @@ def combine_outputs(
                     variables_data[variable_name].append(
                         DataArray(
                             variable_data[:],
-                            dims=['run', *variable_data.dimensions],
+                            dims=variable_data.dimensions,
                             coords={
                                 'time': result_data['time'],
                                 'node': coordinates.coords['node'],
