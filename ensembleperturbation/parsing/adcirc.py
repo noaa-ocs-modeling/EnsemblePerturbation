@@ -396,9 +396,7 @@ def combine_outputs(
     subset = None
     variables_data = {}
     for run_name, run_data in output_data.items():
-        LOGGER.info(
-            f'reading {len(run_data)} files from "{directory / run_name}": {list(run_data)}'
-        )
+        LOGGER.info(f'reading {len(run_data)} files from "runs/{run_name}": {", ".join(run_data)}')
 
         for result_filename, result_data in run_data.items():
             variables = file_data_variables[result_filename]
