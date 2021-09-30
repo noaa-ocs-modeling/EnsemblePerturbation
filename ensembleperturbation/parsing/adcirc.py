@@ -8,14 +8,12 @@ from typing import Any, Collection, List, Mapping, Union
 
 import geopandas
 from geopandas import GeoDataFrame
-import netCDF4
 import numpy
 import pandas
 from pandas import DataFrame, Series
 from shapely.geometry import Point
-from xarray import DataArray
+import xarray
 
-from ensembleperturbation.parsing.utilities import decode_time
 from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced
 
@@ -56,11 +54,11 @@ NODATA = -99999.0
 
 
 def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
-    dataset = netCDF4.Dataset(filename)
+    dataset = xarray.open_dataset(filename, drop_variables=['neta'])
 
     coordinate_variables = ['x', 'y']
     coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
-    times = decode_time(dataset['time'])
+    times = dataset['time']
 
     all_station_names = [
         station_name.tobytes().decode().strip().strip("'")
@@ -88,11 +86,11 @@ def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> Geo
 
 
 def fort62_stations_uv(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
-    dataset = netCDF4.Dataset(filename)
+    dataset = xarray.open_dataset(filename, drop_variables=['neta'])
 
     coordinate_variables = ['x', 'y']
     coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
-    times = decode_time(dataset['time'])
+    times = dataset['time']
 
     all_station_names = [
         station_name.tobytes().decode().strip().strip("'")
@@ -141,7 +139,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         else:
             raise NotImplementedError(f'ADCIRC output file "{basename}" not implemented')
 
-    dataset = netCDF4.Dataset(filename)
+    dataset = xarray.open_dataset(filename, drop_variables=['neta'])
 
     data = {name: dataset[name] for name in variables}
 
@@ -150,7 +148,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         coordinate_variables += ['depth']
     coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
 
-    times = decode_time(dataset['time'])
+    times = dataset['time']
 
     if basename in ['fort.63.nc', 'fort.64.nc']:
         data = {'coordinates': coordinates, 'time': times, 'data': data}
@@ -170,7 +168,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
         variables = {}
         for name, variable in data.items():
             if 'time_of' in name:
-                variable = decode_time(variable, unit=dataset['time'].units)
+                pass
             if variable.size > 0:
                 variables[name] = numpy.squeeze(variable)
             else:
@@ -446,8 +444,8 @@ def combine_outputs(
                     else:
                         variables_data[hdf5_variable] = variable_data
             else:
-                coordinates = DataArray(
-                    result_data['coordinates'][:],
+                coordinates = xarray.DataArray(
+                    result_data['coordinates'],
                     dims=['node', 'coordinate'],
                     coords={'node': numpy.arange(len(result_data['coordinates']))},
                 )
@@ -455,24 +453,14 @@ def combine_outputs(
                 for variable_name, variable_data in result_data['data'].items():
                     if variable_name not in variables_data:
                         variables_data[variable_name] = []
-                    data_array = DataArray(
-                        variable_data[:][None, :],
-                        dims=['run', *variable_data.dimensions],
-                        coords={
-                            'run': [run_name],
-                            'time': result_data['time'],
-                            'node': coordinates.coords['node'],
-                            'x': coordinates[:, 0],
-                            'y': coordinates[:, 1],
-                            'z': coordinates[:, 2],
-                        },
-                        name=run_name,
-                    )
 
+                    variable_data.name = run_name
                     if maximum_depth is not None:
-                        data_array = data_array.isel(node=-coordinates[:, 2] < maximum_depth)
+                        variable_data = variable_data.isel(
+                            node=-coordinates[:, 2] < maximum_depth
+                        )
 
-                    variables_data[variable_name].append(data_array)
+                    variables_data[variable_name].append(variable_data)
 
     if output_filename is not None and len(variables_data) > 0:
         LOGGER.info(f'parsed {len(variables_data)} variables: {list(variables_data)}')
@@ -507,11 +495,22 @@ def combine_outputs(
                     data_columns=True,
                 )
             elif isinstance(variable_data, List):
-                for data_array in variable_data:
-                    data_array.to_netcdf(
-                        output_netcdf_filename,
-                        mode='a',
-                        encoding={data_array.name: {'zlib': True}},
-                    )
+                # combine N-dimensional xarrays for this variable into an additional `run` dimension specifying the run name
+                variable_data = xarray.concat(
+                    variable_data,
+                    dim=xarray.DataArray(
+                        [data_array.name for data_array in variable_data],
+                        dims=['run'],
+                        name='run',
+                    ),
+                )
+                data_arrays[variable_name] = variable_data
+
+        if len(data_arrays) > 0:
+            dataset = xarray.Dataset(data_vars=data_arrays)
+            dataset.to_netcdf(
+                output_netcdf_filename,
+                encoding={data_array.name: {'zlib': True} for data_array in dataset.variables},
+            )
 
     return variables_data
