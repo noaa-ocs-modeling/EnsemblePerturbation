@@ -13,7 +13,6 @@ import numpy
 import pandas
 from pandas import DataFrame, Series
 from shapely.geometry import Point
-import xarray
 from xarray import DataArray
 
 from ensembleperturbation.parsing.utilities import decode_time
@@ -457,9 +456,10 @@ def combine_outputs(
                     if variable_name not in variables_data:
                         variables_data[variable_name] = []
                     data_array = DataArray(
-                        variable_data[:],
-                        dims=variable_data.dimensions,
+                        variable_data[:][None, :],
+                        dims=['run', *variable_data.dimensions],
                         coords={
+                            'run': [run_name],
                             'time': result_data['time'],
                             'node': coordinates.coords['node'],
                             'x': coordinates[:, 0],
@@ -476,6 +476,8 @@ def combine_outputs(
 
     if output_filename is not None and len(variables_data) > 0:
         LOGGER.info(f'parsed {len(variables_data)} variables: {list(variables_data)}')
+
+        output_netcdf_filename = output_filename.parent / (output_filename.stem + '.nc')
 
         data_arrays = {}
         for variable_name, variable_data in variables_data.items():
@@ -505,19 +507,13 @@ def combine_outputs(
                     data_columns=True,
                 )
             elif isinstance(variable_data, List):
-                # combine N-dimensional xarrays for this variable into an additional `run` dimension specifying the run name
-                variable_data = xarray.concat(
-                    variable_data,
-                    dim=DataArray(
-                        [data_array.name for data_array in variable_data],
-                        dims=['run'],
-                        name='run',
-                    ),
-                )
-                data_arrays[variable_name] = variable_data
-
-        if len(data_arrays) > 0:
-            dataset = xarray.Dataset(data_vars=data_arrays)
-            dataset.to_netcdf(output_filename.parent / (output_filename.stem + '.nc'))
+                for data_array in variable_data:
+                    data_array.to_netcdf(
+                        output_netcdf_filename,
+                        mode='a',
+                        encoding={
+                            variable: {'zlib': True} for variable in data_array.variables
+                        },
+                    )
 
     return variables_data
