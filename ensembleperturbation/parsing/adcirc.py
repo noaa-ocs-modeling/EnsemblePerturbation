@@ -396,12 +396,16 @@ def combine_outputs(
     subset = None
     variables_data = {}
     for run_name, run_data in output_data.items():
-        LOGGER.info(f'reading {len(run_data)} files from "runs/{run_name}": {", ".join(run_data)}')
+        LOGGER.info(
+            f'reading {len(run_data)} files from "runs/{run_name}": {", ".join(run_data)}'
+        )
 
         for result_filename, result_data in run_data.items():
             variables = file_data_variables[result_filename]
 
             if isinstance(result_data, DataFrame):
+                LOGGER.debug(f'reading dataframe "{result_filename}"')
+
                 num_records = len(result_data)
 
                 coordinate_variables = ['x', 'y']
@@ -442,6 +446,8 @@ def combine_outputs(
                     else:
                         variables_data[hdf5_variable] = variable_data
             else:
+                LOGGER.debug(f'reading xarray "{result_filename}"')
+
                 coordinates = xarray.DataArray(
                     result_data['coordinates'],
                     dims=['node', 'coordinate'],
@@ -454,6 +460,8 @@ def combine_outputs(
 
                     variable_data.name = run_name
                     if maximum_depth is not None:
+                        LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
+
                         variable_data = variable_data.isel(
                             node=-coordinates[:, 2] < maximum_depth
                         )
