@@ -511,9 +511,7 @@ def combine_outputs(
                     data_array.to_netcdf(
                         output_netcdf_filename,
                         mode='a',
-                        encoding={
-                            variable: {'zlib': True} for variable in data_array.variables
-                        },
+                        encoding={data_array.name: {'zlib': True}},
                     )
 
     return variables_data
