@@ -86,8 +86,13 @@ class AdcircOutput(ABC):
             parallel=True,
         )
 
-        if 'depth' in dataset.variables:
-            dataset = dataset.assign_coords({'depth': dataset['depth']})
+        if 'depth' in dataset:
+            dataset = dataset.assign_coords(
+                {'depth': dataset['depth'].isel(run=0).drop_vars('run')}
+            )
+
+        if 'node' not in dataset:
+            dataset = dataset.assign_coords({'node': dataset['node']})
 
         return dataset[variables]
 
@@ -315,9 +320,7 @@ class FieldOutput(AdcircOutput, ABC):
 
         if maximum_depth is not None:
             LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
-            subset = xarray.ufuncs.logical_and(
-                subset, (-dataset['depth'] < maximum_depth).any('run')
-            )
+            subset = xarray.ufuncs.logical_and(subset, -dataset['depth'] < maximum_depth)
 
         return subset
 
