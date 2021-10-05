@@ -592,6 +592,9 @@ def combine_outputs(
             with dask.config.set(**{'array.slicing.split_large_chunks': True}):
                 file_data = file_data.sel(node=subset)
 
+        output_data[basename] = file_data
+
+    for basename, file_data in output_data.items():
         if output_filename is not None:
             output_netcdf_filename = output_filename.parent / basename
             LOGGER.info(f'writing to "{output_netcdf_filename}"')
@@ -601,7 +604,5 @@ def combine_outputs(
                     variable_name: {'zlib': True} for variable_name in file_data.variables
                 },
             )
-
-        output_data[basename] = file_data
 
     return output_data
