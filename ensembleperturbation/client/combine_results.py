@@ -32,6 +32,11 @@ def parse_combine_results():
         '--bounds', help='bounding box in format `(minx,miny,maxx,maxy)`'
     )
     argument_parser.add_argument(
+        '--only-inundated',
+        action='store_true',
+        help='filter by inundation (nodes that were both wet and dry) based on sea level',
+    )
+    argument_parser.add_argument(
         '--verbose', action='store_true', help='log more verbose messages'
     )
     arguments = argument_parser.parse_args()

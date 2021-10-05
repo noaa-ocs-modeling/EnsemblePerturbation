@@ -15,8 +15,7 @@ from shapely.geometry import Point
 import xarray
 from xarray import DataArray, Dataset
 
-from ensembleperturbation.perturbation.atcf import \
-    parse_vortex_perturbations
+from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
@@ -64,10 +63,22 @@ class AdcircOutput(ABC):
             variables = cls.variables
 
         filenames = list(directory.glob(f'**/{cls.filename}'))
+
+        drop_variables = cls.drop_variables
+
+        with xarray.open_dataset(
+            filenames[0], drop_variables=drop_variables
+        ) as sample_dataset:
+            drop_variables.extend(
+                variable_name
+                for variable_name in sample_dataset.variables
+                if variable_name not in variables
+                and variable_name not in ['node', 'time', 'x', 'y', 'depth']
+            )
+
         dataset = xarray.open_mfdataset(
             filenames,
-            data_vars=variables,
-            drop_variables=['neta'],
+            drop_variables=drop_variables,
             combine='nested',
             concat_dim=xarray.DataArray(
                 [filename.parent.name for filename in filenames], dims=['run'], name='run',
@@ -80,12 +91,41 @@ class AdcircOutput(ABC):
 
         return dataset[variables]
 
+    @classmethod
+    @abstractmethod
+    def subset(
+        cls, dataset: Dataset, bounds: (float, float, float, float) = None, **kwargs,
+    ) -> Dataset:
+        raise NotImplementedError
+
 
 class StationTimeSeriesOutput(AdcircOutput, ABC):
     @classmethod
     @abstractmethod
     def read(cls, filename: PathLike, names: [str] = None) -> GeoDataFrame:
         raise NotImplementedError
+
+    @classmethod
+    def subset(
+        cls, dataset: Dataset, bounds: (float, float, float, float) = None, **kwargs,
+    ) -> Dataset:
+        subset = ~dataset['station'].isnull()
+
+        if bounds is not None:
+            LOGGER.debug(f'filtering within bounds {bounds}')
+            if bounds[0] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['x'] > bounds[0])
+            if bounds[2] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['x'] < bounds[2])
+            if bounds[1] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['y'] > bounds[1])
+            if bounds[3] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['y'] < bounds[3])
+
+        if numpy.all(subset):
+            subset = None
+
+        return subset
 
 
 class ElevationStationOutput(StationTimeSeriesOutput):
@@ -252,6 +292,35 @@ class FieldOutput(AdcircOutput, ABC):
 
         return data
 
+    @classmethod
+    def subset(
+        cls,
+        dataset: Dataset,
+        bounds: (float, float, float, float) = None,
+        maximum_depth: float = None,
+        **kwargs,
+    ) -> Dataset:
+        subset = ~dataset['node'].isnull()
+
+        if bounds is not None:
+            LOGGER.debug(f'filtering within bounds {bounds}')
+            if bounds[0] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['x'] > bounds[0])
+            if bounds[2] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['x'] < bounds[2])
+            if bounds[1] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['y'] > bounds[1])
+            if bounds[3] is not None:
+                subset = xarray.ufuncs.logical_and(dataset['y'] < bounds[3])
+
+        if maximum_depth is not None:
+            LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
+            subset = xarray.ufuncs.logical_and(
+                subset, (-dataset['depth'] < maximum_depth).any('run')
+            )
+
+        return subset
+
 
 class MaximumElevationOutput(FieldOutput):
     """ Maximum Elevation at All Nodes in the Model Grid (maxele.63) """
@@ -310,6 +379,30 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
 
     filename = 'fort.63.nc'
     variables = ['zeta']
+
+    @classmethod
+    def subset(
+        cls,
+        dataset: Dataset,
+        bounds: (float, float, float, float) = None,
+        maximum_depth: float = None,
+        only_inundated: bool = False,
+        **kwargs,
+    ) -> Dataset:
+        subset = super().subset(dataset, maximum_depth=maximum_depth)
+
+        if only_inundated:
+            # get all nodes that experienced inundation (were both wet and dry at any time)
+            dry_nodes = dataset['zeta'].isnull()
+            inundated_nodes = dataset['node'][dry_nodes.any('time') & ~dry_nodes.all('time')]
+            LOGGER.info(
+                f'found {len(inundated_nodes)} inundated nodes ({len(inundated_nodes) / len(dataset["node"]):3.2%} of total)'
+            )
+
+        if numpy.all(subset):
+            subset = None
+
+        return subset
 
 
 class VelocityTimeSeriesOutput(FieldTimeSeriesOutput):
@@ -417,6 +510,7 @@ def combine_outputs(
     directory: PathLike = None,
     bounds: (float, float, float, float) = None,
     maximum_depth: float = None,
+    only_inundated: bool = False,
     file_data_variables: {str: [str]} = None,
     output_filename: PathLike = None,
 ) -> {str: DataFrame}:
@@ -477,31 +571,17 @@ def combine_outputs(
     else:
         raise FileNotFoundError(f'could not find any output files in "{directory}"')
 
-    # now assemble results into a single dataframe with:
-    # rows -> index of a vertex in the mesh subset
-    # columns -> name of perturbation, ( + x, y (lon, lat) and depth info)
-    # values -> maximum elevation values ( + location and depths)
-    subset = None
+    # generate subset
     for basename, file_data in output_data.items():
-        if subset is None:
-            subset = ~file_data['node'].isnull()
-            if maximum_depth is not None:
-                LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
-                subset = xarray.ufuncs.logical_and(subset, -file_data['depth'] < maximum_depth)
-            if bounds is not None:
-                LOGGER.debug(f'filtering within bounds {bounds}')
-                if bounds[0] is not None:
-                    subset = xarray.ufuncs.logical_and(file_data['x'] > bounds[0])
-                if bounds[2] is not None:
-                    subset = xarray.ufuncs.logical_and(file_data['x'] < bounds[2])
-                if bounds[1] is not None:
-                    subset = xarray.ufuncs.logical_and(file_data['y'] > bounds[1])
-                if bounds[3] is not None:
-                    subset = xarray.ufuncs.logical_and(file_data['y'] < bounds[3])
-            if numpy.all(subset):
-                subset = None
+        subset = file_data_variables[basename].subset(
+            file_data,
+            bounds=bounds,
+            maximum_depth=maximum_depth,
+            only_inundated=only_inundated,
+        )
+
         if subset is not None:
-            with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+            with dask.config.set(**{'array.slicing.split_large_chunks': True}):
                 file_data = file_data.sel(node=subset)
 
         if output_filename is not None:
