@@ -27,14 +27,17 @@ def parse_combine_results():
     argument_parser.add_argument(
         '--filenames', nargs='*', default=None, help='ADCIRC output files to parse',
     )
-    argument_parser.add_argument('--max-depth', help='maximum depth value to filter by')
     argument_parser.add_argument(
         '--bounds', help='bounding box in format `(minx,miny,maxx,maxy)`'
     )
+    argument_parser.add_argument('--max-depth', help='maximum depth value to filter by')
     argument_parser.add_argument(
         '--only-inundated',
         action='store_true',
         help='filter by inundation (nodes that were both wet and dry) based on sea level',
+    )
+    argument_parser.add_argument(
+        '--parallel', action='store_true', help='load concurrently with Dask'
     )
     argument_parser.add_argument(
         '--verbose', action='store_true', help='log more verbose messages'
@@ -47,6 +50,8 @@ def parse_combine_results():
         'filenames': arguments.filenames,
         'max_depth': float(arguments.max_depth) if arguments.max_depth is not None else None,
         'bounds': arguments.bounds,
+        'only_inundated': arguments.only_inundated,
+        'parallel': arguments.parallel,
         'verbose': arguments.verbose,
     }
 
@@ -55,8 +60,10 @@ def combine_results(
     output: PathLike,
     directory: PathLike = None,
     filenames: [str] = None,
-    max_depth: float = None,
     bounds: (float, float, float, float) = None,
+    max_depth: float = None,
+    only_inundated: (float, float, float, float) = None,
+    parallel: bool = False,
     verbose: bool = False,
 ) -> {str: DataFrame}:
     if verbose:
@@ -65,9 +72,11 @@ def combine_results(
     variable_dataframes = combine_outputs(
         directory,
         file_data_variables=filenames,
-        maximum_depth=max_depth,
         bounds=bounds,
+        maximum_depth=max_depth,
+        only_inundated=only_inundated,
         output_filename=output,
+        parallel=parallel,
     )
 
     return variable_dataframes

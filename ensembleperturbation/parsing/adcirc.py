@@ -47,12 +47,15 @@ class AdcircOutput(ABC):
         return filename, pickle_filename
 
     @classmethod
-    def read_directory(cls, directory: PathLike, variables: [str] = None) -> Dataset:
+    def read_directory(
+        cls, directory: PathLike, variables: [str] = None, parallel: bool = False
+    ) -> Dataset:
         """
         Compile a dataset from output files in the given directory.
 
         :param directory: directory containing output files
         :param variables: variables to return
+        :param parallel: load data concurrently with Dask
         :return: dataset of output data
         """
 
@@ -83,7 +86,7 @@ class AdcircOutput(ABC):
             concat_dim=xarray.DataArray(
                 [filename.parent.name for filename in filenames], dims=['run'], name='run',
             ),
-            parallel=True,
+            parallel=parallel,
         )
 
         if 'depth' in dataset:
@@ -471,13 +474,14 @@ def pickle_data(data: Any, filename: PathLike) -> Path:
 
 
 def parse_adcirc_outputs(
-    directory: PathLike = None, file_outputs: [str] = None,
+    directory: PathLike = None, file_outputs: [str] = None, parallel: bool = False,
 ) -> {str: dict}:
     """
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
     :param file_outputs: output files to parse
+    :param parallel: load data concurrently with Dask
     :return: variables to parsed data
     """
 
@@ -503,7 +507,7 @@ def parse_adcirc_outputs(
     output_tree = {}
     for basename, output_class in file_outputs.items():
         output_tree[basename] = output_class.read_directory(
-            directory, variables=output_class.variables
+            directory, variables=output_class.variables, parallel=parallel,
         )
 
     return output_tree
@@ -511,11 +515,12 @@ def parse_adcirc_outputs(
 
 def combine_outputs(
     directory: PathLike = None,
+    file_data_variables: {str: [str]} = None,
     bounds: (float, float, float, float) = None,
     maximum_depth: float = None,
     only_inundated: bool = False,
-    file_data_variables: {str: [str]} = None,
     output_filename: PathLike = None,
+    parallel: bool = False,
 ) -> {str: DataFrame}:
     if directory is None:
         directory = Path.cwd()
@@ -566,7 +571,7 @@ def combine_outputs(
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
     output_data = parse_adcirc_outputs(
-        directory=runs_directory, file_outputs=file_data_variables,
+        directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
     )
 
     if len(output_data) > 0:
