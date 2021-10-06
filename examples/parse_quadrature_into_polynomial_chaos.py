@@ -14,7 +14,7 @@ if __name__ == '__main__':
     if not isinstance(input_filename, Path):
         input_filename = Path(input_filename)
 
-    netcdf_filename = input_filename.parent / (input_filename.stem + '.nc')
+    netcdf_filename = input_filename.parent / 'fort.63.nc'
     if not netcdf_filename.exists():
         raise ValueError(f'no NetCDF4 found at "{netcdf_filename}"')
 

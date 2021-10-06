@@ -107,7 +107,11 @@ class AdcircOutput(ABC):
         raise NotImplementedError
 
 
-class StationTimeSeriesOutput(AdcircOutput, ABC):
+class TimeSeriesOutput(ABC):
+    pass
+
+
+class StationTimeSeriesOutput(AdcircOutput, TimeSeriesOutput, ABC):
     @classmethod
     @abstractmethod
     def read(cls, filename: PathLike, names: [str] = None) -> GeoDataFrame:
@@ -122,16 +126,13 @@ class StationTimeSeriesOutput(AdcircOutput, ABC):
         if bounds is not None:
             LOGGER.debug(f'filtering within bounds {bounds}')
             if bounds[0] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['x'] > bounds[0])
+                subset = xarray.ufuncs.logical_and(subset, dataset['x'] > bounds[0])
             if bounds[2] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['x'] < bounds[2])
+                subset = xarray.ufuncs.logical_and(subset, dataset['x'] < bounds[2])
             if bounds[1] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['y'] > bounds[1])
+                subset = xarray.ufuncs.logical_and(subset, dataset['y'] > bounds[1])
             if bounds[3] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['y'] < bounds[3])
-
-        if numpy.all(subset):
-            subset = None
+                subset = xarray.ufuncs.logical_and(subset, dataset['y'] < bounds[3])
 
         return subset
 
@@ -376,7 +377,7 @@ class HotStartOutput2(HotStartOutput):
     filename = 'fort.68.nc'
 
 
-class FieldTimeSeriesOutput(FieldOutput, ABC):
+class FieldTimeSeriesOutput(FieldOutput, TimeSeriesOutput, ABC):
     pass
 
 
@@ -398,15 +399,15 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
         subset = super().subset(dataset, maximum_depth=maximum_depth)
 
         if only_inundated:
-            # get all nodes that experienced inundation (were both wet and dry at any time)
-            dry_nodes = dataset['zeta'].isnull()
-            inundated_nodes = dataset['node'][dry_nodes.any('time') & ~dry_nodes.all('time')]
-            LOGGER.info(
-                f'found {len(inundated_nodes)} inundated nodes ({len(inundated_nodes) / len(dataset["node"]):3.2%} of total)'
-            )
+            dry_subset = dataset['zeta'].isnull()
 
-        if numpy.all(subset):
-            subset = None
+            # get all nodes that experienced inundation (were both wet and dry at any time)
+            inundated_subset = dry_subset.any('time') & ~dry_subset.all('time')
+
+            if 'run' in dataset:
+                inundated_subset = inundated_subset.any('run')
+
+            subset = xarray.ufuncs.logical_and(subset, inundated_subset)
 
         return subset
 
@@ -581,7 +582,11 @@ def combine_outputs(
 
     # generate subset
     for basename, file_data in output_data.items():
-        subset = file_data_variables[basename].subset(
+        num_nodes = len(file_data['node'])
+
+        file_data_variable = file_data_variables[basename]
+
+        subset = file_data_variable.subset(
             file_data,
             bounds=bounds,
             maximum_depth=maximum_depth,
@@ -591,6 +596,11 @@ def combine_outputs(
         if subset is not None:
             with dask.config.set(**{'array.slicing.split_large_chunks': True}):
                 file_data = file_data.sel(node=subset)
+
+            if only_inundated and issubclass(file_data_variable, ElevationTimeSeriesOutput):
+                LOGGER.info(
+                    f'found {len(file_data["node"])} inundated nodes ({len(file_data["node"]) / num_nodes:3.2%} of total)'
+                )
 
         output_data[basename] = file_data
 
