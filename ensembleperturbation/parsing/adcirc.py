@@ -576,13 +576,22 @@ def combine_outputs(
     )
 
     if len(output_data) > 0:
-        LOGGER.info(f'parsing results from {len(output_data)} runs')
+        first_dataset = list(output_data.values())[0]
+        runs_string = ', '.join(f'"{run}"' for run in first_dataset['run'].values)
+        LOGGER.info(f'found {len(first_dataset["run"])} run(s): {runs_string}')
     else:
         raise FileNotFoundError(f'could not find any output files in "{directory}"')
 
     # generate subset
     for basename, file_data in output_data.items():
         num_nodes = len(file_data['node'])
+
+        variable_shape_string = ', '.join(
+            f'"{name}" {variable.shape}' for name, variable in file_data.items()
+        )
+        LOGGER.info(
+            f'found {len(file_data)} variable(s) in "{basename}": {variable_shape_string}'
+        )
 
         file_data_variable = file_data_variables[basename]
 
