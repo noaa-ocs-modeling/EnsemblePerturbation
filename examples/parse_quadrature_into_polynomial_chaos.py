@@ -44,19 +44,18 @@ if __name__ == '__main__':
     samples = netcdf_dataset['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
 
     if plot:
-        storm_name = 'florence2018'
-
         figure = pyplot.figure()
+        figure.suptitle(
+            f'standard deviation of max elevation across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
+        )
         axis = figure.add_subplot(1, 1, 1)
 
         countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
         countries.plot(color='lightgrey', ax=axis)
 
         axis.scatter(samples['x'], samples['y'], c=samples.max('time').std('run'))
-        figure.suptitle(
-            f'standard deviation of max elevation across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
-        )
 
+        storm_name = 'florence2018'
         storm = BestTrackForcing(storm_name)
         storm.data.plot(x='longitude', y='latitude', label=storm_name, ax=axis)
 
