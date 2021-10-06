@@ -1,14 +1,15 @@
 from pathlib import Path
 
 import chaospy
+import geopandas
 from matplotlib import pyplot
 import xarray
 
-from ensembleperturbation.perturbation.atcf import LOGGER, VortexPerturbedVariable
+from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.uncertainty_quantification.ensemble_array import read_combined_hdf
 
 if __name__ == '__main__':
-    plot = False
+    plot = True
 
     input_filename = r'C:\Data\COASTAL_Act\runs\run_20210928_florence_besttrack_250msubset_quadrature_manual\run_20210928_florence_besttrack_250msubset_quadrature_manual.h5'
     if not isinstance(input_filename, Path):
@@ -35,18 +36,20 @@ if __name__ == '__main__':
         )
     )
 
-    # get all nodes that experienced inundation (were both wet and dry at any time)
-    dry_nodes = netcdf_dataset['zeta'].isnull()
-    inundated_nodes = netcdf_dataset['node'][dry_nodes.any('time') & ~dry_nodes.all('time')]
-    LOGGER.info(
-        f'found {len(inundated_nodes)} inundated nodes ({len(inundated_nodes) / len(netcdf_dataset["node"]):3.2%} of total)'
-    )
-
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     sample_times = netcdf_dataset['time']
-    sample_nodes = inundated_nodes[::1000]
+    sample_nodes = netcdf_dataset['node']
     samples = netcdf_dataset['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+
+    if plot:
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+        countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+        countries.plot(color='lightgrey', ax=axis)
+        axis.scatter(samples['x'], samples['y'], c=samples.max('time').std('run'))
+        figure.suptitle('')
+        pyplot.show()
 
     # expand polynomials with polynomial chaos
     polynomials = chaospy.generate_expansion(
