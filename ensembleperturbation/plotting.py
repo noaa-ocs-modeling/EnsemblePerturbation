@@ -368,15 +368,16 @@ def plot_points(
         kwargs['s'] = 2
 
     sc = axis.scatter(points[:, 0], points[:, 1], **kwargs)
- 
-    if 'c' in kwargs: 
+
+    if 'c' in kwargs:
         pyplot.colorbar(sc)
- 
+
     if save_filename is not None:
         pyplot.savefig(save_filename)
 
     if show:
         pyplot.show()
+
 
 # def plot_geoarray(array: numpy.array, transform: Affine = None,
 #                   nodata: float = None, axis: pyplot.Axes = None,

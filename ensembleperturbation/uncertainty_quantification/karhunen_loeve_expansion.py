@@ -1,16 +1,16 @@
-import numpy
 from matplotlib import pyplot
+import numpy
 
-def karhunen_loeve_expansion(ymodel, neig = None, plot: bool = False):
 
+def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
     # get the shape of the data
     ngrid, nens = ymodel.shape
-    
+
     if neig is None:
         neig = ngrid
-    elif isinstance(neig,int):
-        neig = min(neig,ngrid)
-    elif isinstance(neig,float):
+    elif isinstance(neig, int):
+        neig = min(neig, ngrid)
+    elif isinstance(neig, float):
         assert neig <= 1.0 and neig >= 0.0, 'specify 0.0 <= neig <= 1.0'
 
     # evaluate weights and eigen values
@@ -32,37 +32,35 @@ def karhunen_loeve_expansion(ymodel, neig = None, plot: bool = False):
     )
 
     xi = karhunen_loeve_coefficient_samples(
-        data=ymodel,
-        eigen_values=eigen_values,
-        eigen_vectors=eigen_vectors,
+        data=ymodel, eigen_values=eigen_values, eigen_vectors=eigen_vectors,
     )
 
-    # re-ordering the matrices (mode-1 first) 
+    # re-ordering the matrices (mode-1 first)
     xi = xi[:, ::-1]
     modes = modes[:, ::-1]
     eigen_values = eigen_values[::-1]
-  
-    # get desired modes 
-    if isinstance(neig,float):
+
+    # get desired modes
+    if isinstance(neig, float):
         # determine neig that make up neig decimal fraction of the variance explained
-        target = neig*sum(eigen_values)
+        target = neig * sum(eigen_values)
         eig_sum = 0
         for neig in range(ngrid):
             eig_sum = eig_sum + eigen_values[neig]
             if eig_sum >= target:
-                break 
+                break
         xi = xi[:, :neig]
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
     else:
-        # get neig requested modes 
+        # get neig requested modes
         xi = xi[:, :neig]
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
 
     if plot:
         pyplot.figure(figsize=(12, 9))
-        pyplot.plot(range(1, neig+1), eigen_values, 'o-')
+        pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
         pyplot.gca().set_xlabel('x')
         pyplot.gca().set_ylabel('Eigenvalue')
         pyplot.savefig('eig.png')
@@ -82,14 +80,15 @@ def karhunen_loeve_expansion(ymodel, neig = None, plot: bool = False):
 
     return mean_vector, modes, eigen_values, xi
 
-def karhunen_loeve_prediction(
-    mean_vector, modes, eigen_values, xi, ymodel = None):
-    
+
+def karhunen_loeve_prediction(mean_vector, modes, eigen_values, xi, ymodel=None):
     # evaluating the model prediction based on neig modes
     # now ypred is ngrid x nens just like ymodel
-    ypred = mean_vector + numpy.dot(numpy.dot(xi, numpy.diag(numpy.sqrt(eigen_values))), modes.T)
+    ypred = mean_vector + numpy.dot(
+        numpy.dot(xi, numpy.diag(numpy.sqrt(eigen_values))), modes.T
+    )
     ypred = ypred.T
-        
+
     if ymodel is not None:
         # Plot to make sure ypred and ymodel are close
         pyplot.plot(ymodel, ypred, 'o')
@@ -99,6 +98,7 @@ def karhunen_loeve_prediction(
         pyplot.close()
 
     return ypred
+
 
 def trapezoidal_rule_weights(length: int):
     # Set trapesoidal rule weights

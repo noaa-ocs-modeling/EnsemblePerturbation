@@ -2,10 +2,11 @@ from os import PathLike
 
 import numpy
 import pandas
-import tables
 from pandas import DataFrame
-from scipy.special import ndtri
 from scipy.spatial import cKDTree
+from scipy.special import ndtri
+import tables
+
 
 def read_combined_hdf(filename: PathLike) -> {str: DataFrame}:
     keys = [group._v_name for group in tables.open_file(filename).walk_groups('/')]
@@ -36,38 +37,39 @@ def ensemble_array(
         )
 
     # Transform the uniform dimension into gaussian
-    for cdx,col in enumerate(input_dataframe.columns):
-        if col == 'radius_of_maximum_winds': 
-            pinput[:, cdx] = ndtri((pinput[:, cdx]+1.)/2.)
+    for cdx, col in enumerate(input_dataframe.columns):
+        if col == 'radius_of_maximum_winds':
+            pinput[:, cdx] = ndtri((pinput[:, cdx] + 1.0) / 2.0)
 
     print(f'Shape of parameter input: {pinput.shape}')
     print(f'Shape of model output: {output.shape}')
 
     return pinput, output
 
+
 def sample_points_with_equal_spacing(output_dataframe: DataFrame, spacing: float):
     # get the mask indices for an equal spatial sampling of points
-    
+
     # make the point tree
-    points = output_dataframe[["x","y"]].to_numpy()
+    points = output_dataframe[['x', 'y']].to_numpy()
     point_tree = cKDTree(points)
 
     # enquire
-    bad_indices = numpy.empty(0,dtype=int)
-    good_indices = numpy.zeros(1,dtype=int)
+    bad_indices = numpy.empty(0, dtype=int)
+    good_indices = numpy.zeros(1, dtype=int)
     bad = 0
     counter = 0
-    while bad < len(points)-1:
+    while bad < len(points) - 1:
         counter = counter + 1
-        idx_temp = point_tree.query_ball_point(points[good_indices[-1],:],spacing)
-        idx_temp = numpy.setdiff1d(idx_temp,good_indices,assume_unique=True) 
-        bad_indices = numpy.unique(numpy.append(bad_indices,idx_temp))
-        for bdx,bad in enumerate(bad_indices):
+        idx_temp = point_tree.query_ball_point(points[good_indices[-1], :], spacing)
+        idx_temp = numpy.setdiff1d(idx_temp, good_indices, assume_unique=True)
+        bad_indices = numpy.unique(numpy.append(bad_indices, idx_temp))
+        for bdx, bad in enumerate(bad_indices):
             if bad <= good_indices[-1]:
-               continue
-            if bdx == len(bad_indices)-1 or bad_indices[bdx+1] - bad > 1:
-               good_indices = numpy.append(good_indices,bad+1)
-               break
+                continue
+            if bdx == len(bad_indices) - 1 or bad_indices[bdx + 1] - bad > 1:
+                good_indices = numpy.append(good_indices, bad + 1)
+                break
     good_indices = good_indices[:-1]
 
-    return good_indices    
+    return good_indices
