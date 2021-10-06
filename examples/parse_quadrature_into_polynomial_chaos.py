@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from adcircpy.forcing import BestTrackForcing
 import chaospy
 import geopandas
 from matplotlib import pyplot
@@ -43,12 +44,22 @@ if __name__ == '__main__':
     samples = netcdf_dataset['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
 
     if plot:
+        storm_name = 'florence2018'
+
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
+
         countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
         countries.plot(color='lightgrey', ax=axis)
+
         axis.scatter(samples['x'], samples['y'], c=samples.max('time').std('run'))
-        figure.suptitle('')
+        figure.suptitle(
+            f'standard deviation of max elevation across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
+        )
+
+        storm = BestTrackForcing(storm_name)
+        storm.data.plot(x='longitude', y='latitude', label=storm_name, ax=axis)
+
         pyplot.show()
 
     # expand polynomials with polynomial chaos
