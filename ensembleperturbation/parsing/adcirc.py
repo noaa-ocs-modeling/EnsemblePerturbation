@@ -533,10 +533,8 @@ def combine_outputs(
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
-    else:
-        output_directory = Path.cwd()
-    if not output_directory.exists():
-        output_directory.mkdir(parents=True, exist_ok=True)
+        if not output_directory.exists():
+            output_directory.mkdir(parents=True, exist_ok=True)
 
     runs_directory = directory / 'runs'
     if not runs_directory.exists():
@@ -560,10 +558,6 @@ def combine_outputs(
 
     # parse all the inputs using built-in parser
     vortex_perturbations = parse_vortex_perturbations(track_directory)
-
-    if output_directory is not None:
-        LOGGER.info(f'writing vortex perturbations to "{output_directory}"')
-        vortex_perturbations.to_netcdf(output_directory / 'perturbations.nc')
 
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
@@ -609,17 +603,17 @@ def combine_outputs(
 
         output_data[basename] = file_data
 
+    output_data['perturbations.nc'] = vortex_perturbations
+
     for basename, file_data in output_data.items():
         if output_directory is not None:
-            output_netcdf_filename = output_directory / basename
-            LOGGER.info(f'writing to "{output_netcdf_filename}"')
+            output_filename = output_directory / basename
+            LOGGER.info(f'writing to "{output_filename}"')
             file_data.to_netcdf(
-                output_netcdf_filename,
+                output_filename,
                 encoding={
                     variable_name: {'zlib': True} for variable_name in file_data.variables
                 },
             )
-
-    output_data['perturbations'] = vortex_perturbations
 
     return output_data
