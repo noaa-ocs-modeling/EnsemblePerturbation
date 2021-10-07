@@ -566,9 +566,7 @@ def combine_outputs(
     )
 
     if len(output_data) > 0:
-        first_dataset = list(output_data.values())[0]
-        runs_string = ', '.join(f'"{run}"' for run in first_dataset['run'].values)
-        LOGGER.info(f'found {len(first_dataset["run"])} run(s): {runs_string}')
+        LOGGER.info(f'found {len(list(output_data.values())[0])} run(s)')
     else:
         LOGGER.warning(f'could not find any output files in "{directory}"')
 
@@ -593,13 +591,12 @@ def combine_outputs(
         )
 
         if subset is not None:
-            with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            with dask.config.set(**{'array.slicing.split_large_chunks': False}):
                 file_data = file_data.sel(node=subset)
 
-            if only_inundated and issubclass(file_data_variable, ElevationTimeSeriesOutput):
-                LOGGER.info(
-                    f'found {len(file_data["node"])} inundated nodes ({len(file_data["node"]) / num_nodes:3.2%} of total)'
-                )
+            LOGGER.info(
+                f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
+            )
 
         output_data[basename] = file_data
 
