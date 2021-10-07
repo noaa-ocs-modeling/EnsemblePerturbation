@@ -17,6 +17,7 @@ if __name__ == '__main__':
         file_data_variables=['fort.63.nc'],
         maximum_depth=0,
         only_inundated=True,
+        parallel=True,
     )
 
     netcdf_dataset = datasets['fort.63.nc']

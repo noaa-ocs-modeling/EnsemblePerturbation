@@ -64,19 +64,19 @@ class AdcircOutput(ABC):
         if variables is None:
             variables = cls.variables
 
-        filenames = list(directory.glob(f'**/{cls.filename}'))
+        filename_pattern = f'**/{cls.filename}'
+        filenames = list(directory.glob(filename_pattern))
+        LOGGER.debug(f'found {len(filenames)} files matching "{filename_pattern}"')
 
         drop_variables = cls.drop_variables
 
-        with xarray.open_dataset(
-            filenames[0], drop_variables=drop_variables
-        ) as sample_dataset:
-            drop_variables.extend(
-                variable_name
-                for variable_name in sample_dataset.variables
-                if variable_name not in variables
-                and variable_name not in ['node', 'time', 'x', 'y', 'depth']
-            )
+        sample_dataset = xarray.open_dataset(filenames[0], drop_variables=drop_variables)
+        drop_variables.extend(
+            variable_name
+            for variable_name in sample_dataset.variables
+            if variable_name not in variables
+            and variable_name not in ['node', 'time', 'x', 'y', 'depth']
+        )
 
         dataset = xarray.open_mfdataset(
             filenames,
