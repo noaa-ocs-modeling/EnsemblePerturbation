@@ -580,7 +580,7 @@ def combine_outputs(
         runs_string = ', '.join(f'"{run}"' for run in first_dataset['run'].values)
         LOGGER.info(f'found {len(first_dataset["run"])} run(s): {runs_string}')
     else:
-        raise FileNotFoundError(f'could not find any output files in "{directory}"')
+        LOGGER.warning(f'could not find any output files in "{directory}"')
 
     # generate subset
     for basename, file_data in output_data.items():
@@ -623,5 +623,7 @@ def combine_outputs(
                     variable_name: {'zlib': True} for variable_name in file_data.variables
                 },
             )
+
+    output_data['perturbations'] = vortex_perturbations
 
     return output_data

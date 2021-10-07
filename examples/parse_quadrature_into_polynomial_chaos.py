@@ -1,34 +1,29 @@
-from pathlib import Path
-
 from adcircpy.forcing import BestTrackForcing
 import chaospy
 import geopandas
 from matplotlib import pyplot
-import xarray
 
+from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
-from ensembleperturbation.uncertainty_quantification.ensemble_array import read_combined_hdf
 
 if __name__ == '__main__':
-    plot = True
+    plot = False
+    input_directory = '/scratch2/COASTAL/coastal/scrub/Zachary.Burnett/working/zach/nems_adcirc/run_20210928_florence_besttrack_250msubset_quadrature_manual'
 
-    input_filename = r'C:\Data\COASTAL_Act\runs\run_20210928_florence_besttrack_250msubset_quadrature_manual\run_20210928_florence_besttrack_250msubset_quadrature_manual.h5'
-    if not isinstance(input_filename, Path):
-        input_filename = Path(input_filename)
+    datasets = combine_outputs(
+        input_directory,
+        file_data_variables=['fort.63.nc'],
+        maximum_depth=0,
+        only_inundated=True,
+    )
 
-    netcdf_filename = input_filename.parent / 'fort.63.nc'
-    if not netcdf_filename.exists():
-        raise ValueError(f'no NetCDF4 found at "{netcdf_filename}"')
-
-    netcdf_dataset = xarray.open_dataset(netcdf_filename)
+    netcdf_dataset = datasets['fort.63.nc']
+    ensemble_perturbations = datasets['vortex_perturbation_parameters']
 
     variables = {
         variable_class.name: variable_class()
         for variable_class in VortexPerturbedVariable.__subclasses__()
     }
-
-    dataframes = read_combined_hdf(filename=input_filename)
-    ensemble_perturbations = dataframes['vortex_perturbation_parameters']
 
     distribution = chaospy.J(
         *(
@@ -73,6 +68,8 @@ if __name__ == '__main__':
         weights=ensemble_perturbations.iloc[:, -1].values,
         solves=samples.T,
     )
+
+    print(surrogate_model)
 
     # surrogate_models = {}
     # with ProcessPoolExecutorStackTraced() as process_pool:
