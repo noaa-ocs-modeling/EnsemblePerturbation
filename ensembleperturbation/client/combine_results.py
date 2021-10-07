@@ -16,7 +16,7 @@ def parse_combine_results():
 
     argument_parser = ArgumentParser()
     argument_parser.add_argument(
-        'output', nargs='?', default=cwd / (cwd.name + '.h5'), help='output filename (`*.h5`)'
+        'output', nargs='?', default=cwd, help='output directory'
     )
     argument_parser.add_argument(
         'directory',
@@ -69,17 +69,17 @@ def combine_results(
     if verbose:
         get_logger(LOGGER.name, console_level=logging.DEBUG)
 
-    variable_dataframes = combine_outputs(
+    parsed_data = combine_outputs(
         directory,
         file_data_variables=filenames,
         bounds=bounds,
         maximum_depth=max_depth,
         only_inundated=only_inundated,
-        output_filename=output,
+        output_directory=output,
         parallel=parallel,
     )
 
-    return variable_dataframes
+    return parsed_data
 
 
 def main():

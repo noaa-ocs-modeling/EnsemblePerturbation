@@ -63,6 +63,7 @@ from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
+from xarray import Dataset
 
 from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
@@ -1463,7 +1464,7 @@ def get_offset(
     return offset
 
 
-def parse_vortex_perturbations(directory: PathLike = None) -> DataFrame:
+def parse_vortex_perturbations(directory: PathLike = None) -> Dataset:
     """
     Parse `fort.22` and JSON files into a dataframe.
 
@@ -1487,23 +1488,20 @@ def parse_vortex_perturbations(directory: PathLike = None) -> DataFrame:
             f'could not find any perturbation JSON file(s) in "{directory}"'
         )
 
-    # convert dictionary to dataframe with:
-    # rows -> name of perturbation
-    # columns -> name of each variable that is perturbed
-    # values -> the perturbation parameter for each variable
-    perturbations = {
-        vortex: perturbations[vortex]
-        for vortex, number in sorted(
-            {
-                vortex: int(vortex.split('_')[-1])
-                for vortex, pertubations in perturbations.items()
-            }.items(),
-            key=lambda item: item[1],
-        )
-    }
+    run_names = sorted(perturbations, key=lambda run_name: int(run_name.split('_')[-1]))
+    variable_names = list(perturbations[run_names[0]])
 
-    perturbations = DataFrame.from_records(
-        list(perturbations.values()), index=list(perturbations)
+    perturbations = [
+        [
+            perturbations[run_name][variable_name]
+            if variable_name in perturbations[run_name]
+            else numpy.nan
+            for variable_name in variable_names
+        ]
+        for run_name in run_names
+    ]
+
+    return Dataset(
+        {'perturbations': (('run', 'variable'), perturbations)},
+        coords={'run': run_names, 'variable': variable_names},
     )
-
-    return perturbations

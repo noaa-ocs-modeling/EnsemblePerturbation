@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-import os
 from os import PathLike
 from pathlib import Path
 import pickle
@@ -520,7 +519,7 @@ def combine_outputs(
     bounds: (float, float, float, float) = None,
     maximum_depth: float = None,
     only_inundated: bool = False,
-    output_filename: PathLike = None,
+    output_directory: PathLike = None,
     parallel: bool = False,
 ) -> {str: DataFrame}:
     if directory is None:
@@ -531,13 +530,11 @@ def combine_outputs(
     if maximum_depth is not None and not isinstance(maximum_depth, float):
         maximum_depth = float(maximum_depth)
 
-    if output_filename is not None:
-        if not isinstance(output_filename, Path):
-            output_filename = Path(output_filename)
-        if output_filename.exists():
-            os.remove(output_filename)
-    if not output_filename.parent.exists():
-        output_filename.mkdir(parents=True, exist_ok=True)
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True, exist_ok=True)
 
     runs_directory = directory / 'runs'
     if not runs_directory.exists():
@@ -562,12 +559,9 @@ def combine_outputs(
     # parse all the inputs using built-in parser
     vortex_perturbations = parse_vortex_perturbations(track_directory)
 
-    if output_filename is not None:
-        key = 'vortex_perturbation_parameters'
-        LOGGER.info(f'writing vortex perturbations to "{output_filename}/{key}"')
-        vortex_perturbations.to_hdf(
-            output_filename, key=key, mode='a', format='table', data_columns=True,
-        )
+    if output_directory is not None:
+        LOGGER.info(f'writing vortex perturbations to "{output_directory}"')
+        vortex_perturbations.to_netcdf(output_directory / 'perturbations.nc')
 
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
@@ -614,8 +608,8 @@ def combine_outputs(
         output_data[basename] = file_data
 
     for basename, file_data in output_data.items():
-        if output_filename is not None:
-            output_netcdf_filename = output_filename.parent / basename
+        if output_directory is not None:
+            output_netcdf_filename = output_directory / basename
             LOGGER.info(f'writing to "{output_netcdf_filename}"')
             file_data.to_netcdf(
                 output_netcdf_filename,

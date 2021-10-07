@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from adcircpy.forcing import BestTrackForcing
 import chaospy
 import geopandas
@@ -8,7 +10,7 @@ from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 
 if __name__ == '__main__':
     plot = False
-    input_directory = '/scratch2/COASTAL/coastal/scrub/Zachary.Burnett/working/zach/nems_adcirc/run_20210928_florence_besttrack_250msubset_quadrature_manual'
+    input_directory = Path.cwd()
 
     datasets = combine_outputs(
         input_directory,
@@ -37,6 +39,8 @@ if __name__ == '__main__':
     sample_times = netcdf_dataset['time']
     sample_nodes = netcdf_dataset['node']
     samples = netcdf_dataset['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+
+    print(samples.shape)
 
     if plot:
         figure = pyplot.figure()

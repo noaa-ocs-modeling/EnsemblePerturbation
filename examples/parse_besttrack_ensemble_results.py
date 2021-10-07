@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     # get the output values
     output_dataframe = combine_outputs(
-        runs_directory, maximum_depth=maximum_depth, bounds=bounds, output_filename='runs.h5'
+        runs_directory, maximum_depth=maximum_depth, bounds=bounds, output_directory='output',
     )
     print(output_dataframe)
 
