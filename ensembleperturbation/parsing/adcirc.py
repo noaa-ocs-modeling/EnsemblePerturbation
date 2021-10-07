@@ -556,10 +556,15 @@ def combine_outputs(
             for filename, variables in file_data_variables.items()
         }
 
+    # parse all the inputs using built-in parser
+    output_data = {'perturbations.nc': parse_vortex_perturbations(track_directory)}
+
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
-    output_data = parse_adcirc_outputs(
-        directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
+    output_data.update(
+        parse_adcirc_outputs(
+            directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
+        )
     )
 
     if len(output_data) > 0:
@@ -569,36 +574,34 @@ def combine_outputs(
 
     # generate subset
     for basename, file_data in output_data.items():
-        num_nodes = len(file_data['node'])
+        if 'node' in file_data:
+            num_nodes = len(file_data['node'])
 
-        variable_shape_string = ', '.join(
-            f'"{name}" {variable.shape}' for name, variable in file_data.items()
-        )
-        LOGGER.info(
-            f'found {len(file_data)} variable(s) in "{basename}": {variable_shape_string}'
-        )
-
-        file_data_variable = file_data_variables[basename]
-
-        subset = file_data_variable.subset(
-            file_data,
-            bounds=bounds,
-            maximum_depth=maximum_depth,
-            only_inundated=only_inundated,
-        )
-
-        if subset is not None:
-            with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-                file_data = file_data.sel(node=subset)
-
+            variable_shape_string = ', '.join(
+                f'"{name}" {variable.shape}' for name, variable in file_data.items()
+            )
             LOGGER.info(
-                f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
+                f'found {len(file_data)} variable(s) in "{basename}": {variable_shape_string}'
             )
 
-        output_data[basename] = file_data
+            file_data_variable = file_data_variables[basename]
 
-    # parse all the inputs using built-in parser
-    output_data['perturbations.nc'] = parse_vortex_perturbations(track_directory)
+            subset = file_data_variable.subset(
+                file_data,
+                bounds=bounds,
+                maximum_depth=maximum_depth,
+                only_inundated=only_inundated,
+            )
+
+            if subset is not None:
+                with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+                    file_data = file_data.sel(node=subset)
+
+                LOGGER.info(
+                    f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
+                )
+
+            output_data[basename] = file_data
 
     for basename, file_data in output_data.items():
         if output_directory is not None:
