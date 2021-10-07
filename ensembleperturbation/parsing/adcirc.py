@@ -556,9 +556,6 @@ def combine_outputs(
             for filename, variables in file_data_variables.items()
         }
 
-    # parse all the inputs using built-in parser
-    vortex_perturbations = parse_vortex_perturbations(track_directory)
-
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
     output_data = parse_adcirc_outputs(
@@ -600,7 +597,8 @@ def combine_outputs(
 
         output_data[basename] = file_data
 
-    output_data['perturbations.nc'] = vortex_perturbations
+    # parse all the inputs using built-in parser
+    output_data['perturbations.nc'] = parse_vortex_perturbations(track_directory)
 
     for basename, file_data in output_data.items():
         if output_directory is not None:
@@ -608,9 +606,9 @@ def combine_outputs(
             LOGGER.info(f'writing to "{output_filename}"')
             file_data.to_netcdf(
                 output_filename,
-                encoding={
-                    variable_name: {'zlib': True} for variable_name in file_data.variables
-                },
+                # encoding={
+                #     variable_name: {'zlib': True} for variable_name in file_data.variables
+                # },
             )
 
     return output_data

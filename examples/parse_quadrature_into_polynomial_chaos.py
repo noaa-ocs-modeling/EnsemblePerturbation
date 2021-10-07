@@ -20,8 +20,8 @@ if __name__ == '__main__':
         parallel=True,
     )
 
-    netcdf_dataset = datasets['fort.63.nc']
-    ensemble_perturbations = datasets['vortex_perturbation_parameters']
+    perturbations = datasets['perturbations.nc']
+    elevations = datasets['fort.63.nc']
 
     variables = {
         variable_class.name: variable_class()
@@ -31,15 +31,15 @@ if __name__ == '__main__':
     distribution = chaospy.J(
         *(
             variables[variable_name].chaospy_distribution()
-            for variable_name in ensemble_perturbations.columns[:-1]
+            for variable_name in perturbations['variable']
         )
     )
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    sample_times = netcdf_dataset['time']
-    sample_nodes = netcdf_dataset['node']
-    samples = netcdf_dataset['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+    sample_times = elevations['time']
+    sample_nodes = elevations['node']
+    samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
 
     print(samples.shape)
 
@@ -69,8 +69,8 @@ if __name__ == '__main__':
     # create surrogate models for selected nodes
     surrogate_model = chaospy.fit_quadrature(
         orth=polynomials,
-        nodes=ensemble_perturbations.iloc[:, :-1].T.values,
-        weights=ensemble_perturbations.iloc[:, -1].values,
+        nodes=perturbations['perturbations'].values.T,
+        weights=perturbations['weights'].values,
         solves=samples.T,
     )
 

@@ -1489,19 +1489,32 @@ def parse_vortex_perturbations(directory: PathLike = None) -> Dataset:
         )
 
     run_names = sorted(perturbations, key=lambda run_name: int(run_name.split('_')[-1]))
-    variable_names = list(perturbations[run_names[0]])
-
-    perturbations = [
-        [
-            perturbations[run_name][variable_name]
-            if variable_name in perturbations[run_name]
-            else numpy.nan
-            for variable_name in variable_names
-        ]
-        for run_name in run_names
+    variable_names = [
+        variable_name
+        for variable_name in perturbations[run_names[0]]
+        if variable_name != 'weight'
     ]
 
+    perturbation_values = []
+    weights = []
+    for run_name in run_names:
+        run_perturbations = perturbations[run_name]
+        perturbation_values.append(
+            [
+                run_perturbations[variable_name]
+                if variable_name in run_perturbations
+                else numpy.nan
+                for variable_name in variable_names
+            ]
+        )
+        weights.append(
+            run_perturbations['weight'] if 'weight' in run_perturbations else numpy.nan
+        )
+
     return Dataset(
-        {'perturbations': (('run', 'variable'), perturbations)},
+        {
+            'perturbations': (('run', 'variable'), perturbation_values),
+            'weights': (('run',), weights),
+        },
         coords={'run': run_names, 'variable': variable_names},
     )
