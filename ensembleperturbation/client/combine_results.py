@@ -15,9 +15,7 @@ def parse_combine_results():
     cwd = Path.cwd()
 
     argument_parser = ArgumentParser()
-    argument_parser.add_argument(
-        'output', nargs='?', default=cwd, help='output directory'
-    )
+    argument_parser.add_argument('output', nargs='?', default=cwd, help='output directory')
     argument_parser.add_argument(
         'directory',
         nargs='?',

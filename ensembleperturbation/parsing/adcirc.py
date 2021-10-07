@@ -533,6 +533,8 @@ def combine_outputs(
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
+    else:
+        output_directory = Path.cwd()
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
