@@ -566,7 +566,7 @@ def combine_outputs(
     )
 
     if len(output_data) > 0:
-        LOGGER.info(f'found {len(list(output_data.values())[0])} run(s)')
+        LOGGER.info(f'found {len(list(output_data.values())[0]["run"])} run(s)')
     else:
         LOGGER.warning(f'could not find any output files in "{directory}"')
 
