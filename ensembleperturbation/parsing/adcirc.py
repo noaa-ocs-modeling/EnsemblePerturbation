@@ -64,13 +64,19 @@ class AdcircOutput(ABC):
         if variables is None:
             variables = cls.variables
 
-        filename_pattern = f'**/{cls.filename}'
+        filename_pattern = f'runs/*/{cls.filename}'
         filenames = list(directory.glob(filename_pattern))
-        LOGGER.debug(f'found {len(filenames)} files matching "{filename_pattern}"')
+
+        if len(filenames) > 0:
+            LOGGER.info(f'found {len(filenames)} files matching "{filename_pattern}"')
+        else:
+            LOGGER.warning(f'could not find any output files in "{directory}"')
 
         drop_variables = cls.drop_variables
 
-        with xarray.open_dataset(filenames[0], drop_variables=drop_variables) as sample_dataset:
+        with xarray.open_dataset(
+            filenames[0], drop_variables=drop_variables
+        ) as sample_dataset:
             drop_variables.extend(
                 variable_name
                 for variable_name in sample_dataset.variables
@@ -568,11 +574,6 @@ def combine_outputs(
             directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
         )
     )
-
-    if len(output_data) > 0:
-        LOGGER.info(f'found {len(list(output_data.values())[0]["run"])} run(s)')
-    else:
-        LOGGER.warning(f'could not find any output files in "{directory}"')
 
     # generate subset
     for basename, file_data in output_data.items():
