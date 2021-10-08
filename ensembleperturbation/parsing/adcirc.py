@@ -64,7 +64,7 @@ class AdcircOutput(ABC):
         if variables is None:
             variables = cls.variables
 
-        filename_pattern = f'runs/*/{cls.filename}'
+        filename_pattern = f'*/{cls.filename}'
         filenames = list(directory.glob(filename_pattern))
 
         if len(filenames) > 0:
