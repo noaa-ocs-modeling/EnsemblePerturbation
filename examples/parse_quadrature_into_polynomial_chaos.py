@@ -37,8 +37,8 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    sample_times = elevations['time']
-    sample_nodes = elevations['node']
+    sample_times = elevations['time'][::10]
+    sample_nodes = elevations['node'][::1000]
     samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
 
     print(samples.shape)
