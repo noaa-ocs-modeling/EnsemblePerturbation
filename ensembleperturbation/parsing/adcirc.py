@@ -66,9 +66,8 @@ class AdcircOutput(ABC):
 
         filename_pattern = f'*/{cls.filename}'
         filenames = list(directory.glob(filename_pattern))
-
         if len(filenames) > 0:
-            LOGGER.info(f'found {len(filenames)} files matching "{filename_pattern}"')
+            LOGGER.info(f'found {len(filenames)} files matching "{directory / filename_pattern}"')
         else:
             LOGGER.warning(f'could not find any output files in "{directory}"')
 
