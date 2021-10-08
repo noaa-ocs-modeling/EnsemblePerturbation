@@ -78,16 +78,17 @@ class AdcircOutput(ABC):
                 and variable_name not in ['node', 'time', 'x', 'y', 'depth']
             )
 
-        dataset = xarray.open_mfdataset(
-            filenames,
-            drop_variables=drop_variables,
-            combine='nested',
-            concat_dim=xarray.DataArray(
-                [filename.parent.name for filename in filenames], dims=['run'], name='run',
-            ),
-            parallel=parallel,
-            lock=False,
-        )
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            dataset = xarray.open_mfdataset(
+                filenames,
+                drop_variables=drop_variables,
+                combine='nested',
+                concat_dim=xarray.DataArray(
+                    [filename.parent.name for filename in filenames], dims=['run'], name='run',
+                ),
+                parallel=parallel,
+                lock=False,
+            )
 
         if 'depth' in dataset:
             dataset = dataset.assign_coords(
@@ -595,8 +596,7 @@ def combine_outputs(
             )
 
             if subset is not None:
-                with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-                    file_data = file_data.sel(node=subset)
+                file_data = file_data.sel(node=subset)
 
                 LOGGER.info(
                     f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
