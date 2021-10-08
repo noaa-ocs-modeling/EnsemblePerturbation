@@ -64,7 +64,7 @@ class AdcircOutput(ABC):
         if variables is None:
             variables = cls.variables
 
-        filename_pattern = f'**/{cls.filename}'
+        filename_pattern = f'runs/vortex_4_variable_perturbation_??/{cls.filename}'
         filenames = list(directory.glob(filename_pattern))
         LOGGER.debug(f'found {len(filenames)} files matching "{filename_pattern}"')
 
