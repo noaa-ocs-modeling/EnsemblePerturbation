@@ -4,21 +4,38 @@ from adcircpy.forcing import BestTrackForcing
 import chaospy
 import geopandas
 from matplotlib import pyplot
+import xarray
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 
 if __name__ == '__main__':
-    plot = False
+    plot = True
     input_directory = Path.cwd()
 
-    datasets = combine_outputs(
-        input_directory,
-        file_data_variables=['fort.63.nc'],
-        maximum_depth=0,
-        only_inundated=True,
-        parallel=True,
-    )
+    filenames = ['perturbations.nc', 'fort.63.nc']
+
+    datasets = {}
+    existing_filenames = []
+    for filename in filenames:
+        filename = input_directory / filename
+        if filename.exists():
+            datasets[filename.name] = xarray.open_dataset(filename)
+            existing_filenames.append(filename.name)
+
+    for filename in existing_filenames:
+        filenames.remove(filename)
+
+    if len(filenames) > 0:
+        datasets.update(
+            combine_outputs(
+                input_directory,
+                file_data_variables=filenames,
+                maximum_depth=0,
+                only_inundated=True,
+                parallel=True,
+            )
+        )
 
     perturbations = datasets['perturbations.nc']
     elevations = datasets['fort.63.nc']
@@ -31,22 +48,23 @@ if __name__ == '__main__':
     distribution = chaospy.J(
         *(
             variables[variable_name].chaospy_distribution()
-            for variable_name in perturbations['variable']
+            for variable_name in perturbations['variable'].values
         )
     )
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    sample_times = elevations['time'][::10]
-    sample_nodes = elevations['node'][::1000]
-    samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+    # sample_times = elevations['time'][::10]
+    # sample_nodes = elevations['node'][::1000]
+    # samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+    samples = elevations['zeta']
 
-    print(samples.shape)
+    print(f'sample size: {samples.shape}')
 
     if plot:
         figure = pyplot.figure()
         figure.suptitle(
-            f'standard deviation of max elevation across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
+            f'standard deviation of {len(samples["node"])} max elevation(s) across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
         )
         axis = figure.add_subplot(1, 1, 1)
 
