@@ -98,7 +98,8 @@ if __name__ == '__main__':
             print(f'saving surrogate model to "{surrogate_filename}"')
             surrogate_model.dump(surrogate_file)
     else:
-        surrogate_model = chaospy.load(surrogate_filename)
+        print(f'loading surrogate model from "{surrogate_filename}"')
+        surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
     # for surrogate_model in surrogate_models:
     mean = chaospy.E(poly=surrogate_model, dist=distribution)
