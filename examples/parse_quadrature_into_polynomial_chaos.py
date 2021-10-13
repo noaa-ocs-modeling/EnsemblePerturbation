@@ -7,11 +7,14 @@ from matplotlib import pyplot
 import xarray
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
-from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
+from ensembleperturbation.perturbation.atcf import \
+    VortexPerturbedVariable
 
 if __name__ == '__main__':
-    plot = False
+    plot_storm = False
+    plot_mean = True
     input_directory = Path.cwd()
+    output_filename = input_directory / 'surrogate.npy'
 
     filenames = ['perturbations.nc', 'fort.63.nc']
 
@@ -59,7 +62,7 @@ if __name__ == '__main__':
     samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
     # samples = elevations['zeta']
 
-    if plot:
+    if plot_storm:
         figure = pyplot.figure()
         figure.suptitle(
             f'standard deviation of {len(samples["node"])} max elevation(s) across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
@@ -90,29 +93,15 @@ if __name__ == '__main__':
         weights=perturbations['weights'].values,
         solves=samples,
     )
-    print(surrogate_model)
-
-    # surrogate_models = {}
-    # with ProcessPoolExecutorStackTraced() as process_pool:
-    #     partial_fit_quadrature = partial(
-    #         chaospy.fit_quadrature,
-    #         orth=polynomials,
-    #         nodes=ensemble_perturbations.iloc[:, :-1].values,
-    #         weights=ensemble_perturbations.iloc[:, -1].values,
-    #     )
-    #     futures = {
-    #         process_pool.submit(partial_fit_quadrature, solves=grid_node): index
-    #         for index, grid_node in enumerate(samples.T)
-    #     }
-    #
-    #     for completed_future in concurrent.futures.as_completed(futures):
-    #         surrogate_models[futures[completed_future]] = completed_future.result()
+    with open(output_filename, 'wb') as output_file:
+        print(f'saving surrogate model to "{output_filename}"')
+        surrogate_model.dump(output_file)
 
     # for surrogate_model in surrogate_models:
     mean = chaospy.E(poly=surrogate_model, dist=distribution)
     deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
 
-    if plot:
+    if plot_mean:
         pyplot.plot(samples['time'], mean)
         pyplot.fill_between(
             samples['time'], mean - deviation, mean + deviation, alpha=0.5,
