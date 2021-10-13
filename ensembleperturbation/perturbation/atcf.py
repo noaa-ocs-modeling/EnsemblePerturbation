@@ -1000,7 +1000,7 @@ class VortexPerturber:
         perturbations: Union[int, List[float], List[Dict[str, float]]],
         variables: [VortexVariable],
         directory: PathLike = None,
-        quadrature: bool = True,
+        quadrature: bool = False,
         overwrite: bool = False,
         continue_numbering: bool = False,
         parallel: bool = True,
@@ -1042,6 +1042,8 @@ class VortexPerturber:
         else:
             weights = None
 
+        variable_names = [variable.name for variable in variables]
+
         # extract original dataframe
         original_data = self.forcing.data
 
@@ -1050,7 +1052,8 @@ class VortexPerturber:
         self.write_perturbed_track(
             filename=original_filename,
             dataframe=original_data,
-            perturbation={variable: 0 for variable in variables},
+            perturbation={variable: 0 for variable in variable_names},
+            variables=variables,
             weight=1,
         )
         if self.__filename is None:
@@ -1090,19 +1093,24 @@ class VortexPerturber:
 
         futures = []
 
-        variables = [variable.name for variable in variables]
         for perturbation_index, output_filename in enumerate(output_filenames):
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
                 perturbation = perturbations[perturbation_index]
 
                 if perturbation is None:
-                    perturbation = {variable: None for variable in variables}
+                    perturbation = {variable: None for variable in variable_names}
                 elif not isinstance(perturbation, Mapping):
-                    perturbation = {variable: perturbation for variable in variables}
+                    perturbation = {variable: perturbation for variable in variable_names}
 
                 perturbation = {
-                    variable.name if isinstance(variable, VortexVariable) else variable: alpha
+                    variable.name
+                    if (
+                        issubclass(variable, VortexVariable)
+                        if isinstance(variable, type)
+                        else isinstance(variable, VortexVariable)
+                    )
+                    else variable: alpha
                     for variable, alpha in perturbation.items()
                 }
 
@@ -1110,7 +1118,7 @@ class VortexPerturber:
                     'filename': output_filename,
                     'dataframe': original_data,
                     'perturbation': perturbation,
-                    'variables': variables,
+                    'variables': variable_names,
                 }
 
                 if weights is not None:
@@ -1196,7 +1204,10 @@ class VortexPerturber:
         )
 
         for variable in variables:
-            alpha = perturbation[variable.name]
+            if variable.name in perturbation:
+                alpha = perturbation[variable.name]
+            else:
+                alpha = 0
 
             if alpha is None or alpha > 0:
                 # Make the random pertubations based on the historical forecast errors
