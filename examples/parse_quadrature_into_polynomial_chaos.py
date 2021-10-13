@@ -113,9 +113,9 @@ if __name__ == '__main__':
     deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
 
     if plot:
-        pyplot.plot(samples['times'], mean)
+        pyplot.plot(samples['time'], mean)
         pyplot.fill_between(
-            samples['times'], mean - deviation, mean + deviation, alpha=0.5,
+            samples['time'], mean - deviation, mean + deviation, alpha=0.5,
         )
         pyplot.show()
 
