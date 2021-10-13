@@ -10,7 +10,7 @@ from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 
 if __name__ == '__main__':
-    plot = True
+    plot = False
     input_directory = Path.cwd()
 
     filenames = ['perturbations.nc', 'fort.63.nc']
@@ -54,12 +54,10 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    # sample_times = elevations['time'][::10]
-    # sample_nodes = elevations['node'][::1000]
-    # samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
-    samples = elevations['zeta']
-
-    print(f'sample size: {samples.shape}')
+    sample_times = elevations['time'][::10]
+    sample_nodes = elevations['node'][::1000]
+    samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+    # samples = elevations['zeta']
 
     if plot:
         figure = pyplot.figure()
@@ -85,13 +83,13 @@ if __name__ == '__main__':
     )
 
     # create surrogate models for selected nodes
+    print(f'fitting surrogate to {samples.shape} samples')
     surrogate_model = chaospy.fit_quadrature(
         orth=polynomials,
-        nodes=perturbations['perturbations'].values.T,
+        nodes=perturbations['perturbations'].T.values,
         weights=perturbations['weights'].values,
-        solves=samples.T,
+        solves=samples,
     )
-
     print(surrogate_model)
 
     # surrogate_models = {}
@@ -115,9 +113,9 @@ if __name__ == '__main__':
     deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
 
     if plot:
-        pyplot.plot(sample_times, mean)
+        pyplot.plot(samples['times'], mean)
         pyplot.fill_between(
-            sample_times, mean - deviation, mean + deviation, alpha=0.5,
+            samples['times'], mean - deviation, mean + deviation, alpha=0.5,
         )
         pyplot.show()
 
