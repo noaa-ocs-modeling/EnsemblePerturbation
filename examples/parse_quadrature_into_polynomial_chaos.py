@@ -7,8 +7,7 @@ from matplotlib import pyplot
 import xarray
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
-from ensembleperturbation.perturbation.atcf import \
-    VortexPerturbedVariable
+from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 
 if __name__ == '__main__':
     plot_storm = False
@@ -102,14 +101,21 @@ if __name__ == '__main__':
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
     # for surrogate_model in surrogate_models:
-    mean = chaospy.E(poly=surrogate_model, dist=distribution)
-    deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
+    prediction = chaospy.E(poly=surrogate_model, dist=distribution)
+    prediction_deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
 
     if plot_mean:
-        pyplot.plot(samples['time'], mean)
-        pyplot.fill_between(
-            samples['time'], mean - deviation, mean + deviation, alpha=0.5,
-        )
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+        for index, node_prediction in enumerate(prediction.T):
+            node_std = prediction_deviation[:, index]
+            axis.plot(samples['time'].values, node_prediction)
+            axis.fill_between(
+                samples['time'].values,
+                node_prediction - node_std,
+                node_prediction + node_std,
+                alpha=0.5,
+            )
         pyplot.show()
 
     c_1 = [1, 0.9, 0.07]
