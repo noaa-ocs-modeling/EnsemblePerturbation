@@ -102,20 +102,26 @@ if __name__ == '__main__':
 
     # for surrogate_model in surrogate_models:
     prediction = chaospy.E(poly=surrogate_model, dist=distribution)
-    prediction_deviation = chaospy.Std(poly=surrogate_model, dist=distribution)
+    prediction_std = chaospy.Std(poly=surrogate_model, dist=distribution)
 
     if plot_mean:
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
-        for index, node_prediction in enumerate(prediction.T):
-            node_std = prediction_deviation[:, index]
-            axis.plot(samples['time'].values, node_prediction)
+        for node_index in range(prediction.shape[1]):
+            node = samples['node'].isel(node=node_index)['node'].values
+            node_prediction = prediction[:, node_index]
+            node_std = prediction_std[:, node_index]
+            axis.plot(samples['time'].values, node_prediction, label=node)
             axis.fill_between(
                 samples['time'].values,
                 node_prediction - node_std,
                 node_prediction + node_std,
                 alpha=0.5,
             )
+        # axis.legend()
+        figure.suptitle(
+            f'surrogate-predicted results for {prediction.shape[1]} nodes over {prediction.shape[0]} times'
+        )
         pyplot.show()
 
     c_1 = [1, 0.9, 0.07]
