@@ -14,7 +14,7 @@ from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 if __name__ == '__main__':
     plot_storm = False
     plot_results = False
-    plot_percentile = True
+    plot_percentile = False
     input_directory = Path.cwd()
     surrogate_filename = input_directory / 'surrogate.npy'
 
@@ -59,10 +59,10 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    sample_times = elevations['time'][::10]
-    sample_nodes = elevations['node'][::1000]
-    samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
-    # samples = elevations['zeta']
+    # sample_times = elevations['time'][::10]
+    # sample_nodes = elevations['node'][::1000]
+    # samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
+    samples = elevations['zeta']
 
     if plot_storm:
         mean_figure = pyplot.figure()
@@ -176,14 +176,19 @@ if __name__ == '__main__':
         pyplot.show()
 
     percentiles = [90]
-    prediction_percentile = chaospy.Perc(
-        poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
-    )
+    percentile_filename = input_directory / 'percentiles.npy'
+    if not percentile_filename.exists():
+        predicted_percentiles = chaospy.Perc(
+            poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
+        )
+        numpy.save(str(percentile_filename), predicted_percentiles)
+    else:
+        predicted_percentiles = numpy.load(str(percentile_filename), allow_pickle=True)
 
     if plot_percentile:
         percentile_figure = pyplot.figure()
 
-        for percentile_index, percentile_output in enumerate(prediction_percentile):
+        for percentile_index, percentile_output in enumerate(predicted_percentiles):
             axis = percentile_figure.add_subplot(len(percentiles), 1, percentile_index + 1)
 
             percentile = percentiles[percentile_index]
