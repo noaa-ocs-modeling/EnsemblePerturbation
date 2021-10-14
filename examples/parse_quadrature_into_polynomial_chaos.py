@@ -10,6 +10,9 @@ import xarray
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
+from ensembleperturbation.utilities import get_logger
+
+LOGGER = get_logger('parse_quadrature')
 
 if __name__ == '__main__':
     plot_storm = False
@@ -63,6 +66,7 @@ if __name__ == '__main__':
     # sample_nodes = elevations['node'][::1000]
     # samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
     samples = elevations['zeta']
+    LOGGER.info(f'sample: {samples.shape}')
 
     if plot_storm:
         mean_figure = pyplot.figure()
@@ -89,7 +93,7 @@ if __name__ == '__main__':
         )
 
         # create surrogate models for selected nodes
-        print(f'fitting surrogate to {samples.shape} samples')
+        LOGGER.info(f'fitting surrogate to {samples.shape} samples')
         surrogate_model = chaospy.fit_quadrature(
             orth=polynomials,
             nodes=perturbations['perturbations'].T.values,
@@ -97,19 +101,19 @@ if __name__ == '__main__':
             solves=samples,
         )
         with open(surrogate_filename, 'wb') as surrogate_file:
-            print(f'saving surrogate model to "{surrogate_filename}"')
+            LOGGER.info(f'saving surrogate model to "{surrogate_filename}"')
             surrogate_model.dump(surrogate_file)
     else:
-        print(f'loading surrogate model from "{surrogate_filename}"')
+        LOGGER.info(f'loading surrogate model from "{surrogate_filename}"')
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
-    # for surrogate_model in surrogate_models:
-    predicted_mean = chaospy.E(poly=surrogate_model, dist=distribution)
-    predicted_std = chaospy.Std(poly=surrogate_model, dist=distribution)
-    reference_mean = samples.mean('run')
-    reference_std = samples.std('run')
-
     if plot_results:
+        LOGGER.info(f'running surrogate')
+        predicted_mean = chaospy.E(poly=surrogate_model, dist=distribution)
+        predicted_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+        reference_mean = samples.mean('run')
+        reference_std = samples.std('run')
+
         mean_figure = pyplot.figure()
         mean_figure.suptitle(
             f'surrogate-predicted and modeled means for {predicted_mean.shape[1]} nodes over {predicted_mean.shape[0]} times'
@@ -178,11 +182,14 @@ if __name__ == '__main__':
     percentiles = [90]
     percentile_filename = input_directory / 'percentiles.npy'
     if not percentile_filename.exists():
+        LOGGER.info(f'calculating {len(percentiles)} percentiles: {percentiles}')
         predicted_percentiles = chaospy.Perc(
             poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
         )
+        LOGGER.info(f'saving percentiles to "{percentile_filename}"')
         numpy.save(str(percentile_filename), predicted_percentiles)
     else:
+        LOGGER.info(f'loading percentiles from "{percentile_filename}"')
         predicted_percentiles = numpy.load(str(percentile_filename), allow_pickle=True)
 
     if plot_percentile:
@@ -198,9 +205,7 @@ if __name__ == '__main__':
                 axis.plot(samples['time'].values, node_percentile)
 
             percentile_figure.suptitle(
-                f'{percentile} percentile for {predicted_mean.shape[1]} nodes over {predicted_mean.shape[0]} times'
+                f'{percentile} percentile for {percentile_output.shape[1]} nodes over {percentile_output.shape[0]} times'
             )
 
         pyplot.show()
-
-    print('done')
