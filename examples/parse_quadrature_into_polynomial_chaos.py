@@ -94,12 +94,18 @@ if __name__ == '__main__':
 
         # create surrogate models for selected nodes
         LOGGER.info(f'fitting surrogate to {samples.shape} samples')
-        surrogate_model = chaospy.fit_quadrature(
-            orth=polynomials,
-            nodes=perturbations['perturbations'].T.values,
-            weights=perturbations['weights'].values,
-            solves=samples,
-        )
+        try:
+            surrogate_model = chaospy.fit_quadrature(
+                orth=polynomials,
+                nodes=perturbations['perturbations'].T.values,
+                weights=perturbations['weights'].values,
+                solves=samples,
+            )
+        except AssertionError:
+            raise AssertionError(
+                f'{perturbations["perturbations"].T.shape[1]} != {len(perturbations["weights"])} != {len(samples)}'
+            )
+
         with open(surrogate_filename, 'wb') as surrogate_file:
             LOGGER.info(f'saving surrogate model to "{surrogate_filename}"')
             surrogate_model.dump(surrogate_file)
