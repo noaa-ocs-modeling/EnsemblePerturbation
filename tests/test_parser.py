@@ -31,13 +31,11 @@ def test_combine_outputs():
         'maxvel.63.nc': ['vel_max'],
     }
 
-    output_filename = output_directory / 'outputs.h5'
-
     combine_outputs(
         input_directory,
         file_data_variables=file_data_types,
         maximum_depth=5.0,
-        output_filename=output_filename,
+        output_directory=output_directory,
     )
 
     check_reference_directory(output_directory, reference_directory)

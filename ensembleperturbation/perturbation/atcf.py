@@ -290,6 +290,28 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         return vortex_dataframe
 
+    def storm_errors(self, data_frame: DataFrame) -> DataFrame:
+        """
+        Historical forecast errors of the given storm, based on initial intensity.
+
+        :param data_frame: storm data frame
+        :return: errors based on intensity classification
+        """
+
+        intial_intensity = data_frame[MaximumSustainedWindSpeed.name].iloc[0]
+
+        if not isinstance(intial_intensity, Quantity):
+            intial_intensity *= units.knot
+
+        if intial_intensity < 50 * units.knot:
+            storm_classification = '<50kt'  # weak
+        elif intial_intensity <= 95 * units.knot:
+            storm_classification = '50-95kt'  # medium
+        else:
+            storm_classification = '>95kt'  # strong
+
+        return self.historical_forecast_errors[storm_classification]
+
 
 class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     name = 'max_sustained_wind_speed'
@@ -482,6 +504,32 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
             },
             unit=units.nautical_mile,
         )
+
+    def storm_errors(self, data_frame: DataFrame) -> DataFrame:
+        """
+        Historical forecast errors of the given storm, based on initial size.
+
+        :param data_frame: storm data frame
+        :return: errors based on size classification
+        """
+
+        initial_radius = data_frame[self.name].iloc[0]
+
+        if not isinstance(initial_radius, Quantity):
+            initial_radius *= units.us_statute_mile
+
+        if initial_radius < 15 * units.us_statute_mile:
+            storm_classification = '<15sm'  # very small
+        elif initial_radius < 25 * units.us_statute_mile:
+            storm_classification = '15-25sm'  # small
+        elif initial_radius < 35 * units.us_statute_mile:
+            storm_classification = '25-35sm'  # medium
+        elif initial_radius <= 45 * units.us_statute_mile:
+            storm_classification = '35-45sm'  # large
+        else:
+            storm_classification = '>45sm'  # very large
+
+        return self.historical_forecast_errors[storm_classification]
 
 
 class CrossTrack(VortexPerturbedVariable):
@@ -952,7 +1000,7 @@ class VortexPerturber:
         perturbations: Union[int, List[float], List[Dict[str, float]]],
         variables: [VortexVariable],
         directory: PathLike = None,
-        quadrature: bool = True,
+        quadrature: bool = False,
         overwrite: bool = False,
         continue_numbering: bool = False,
         parallel: bool = True,
@@ -994,23 +1042,22 @@ class VortexPerturber:
         else:
             weights = None
 
-        # write out original fort.22
+        variable_names = [variable.name for variable in variables]
+
+        # extract original dataframe
+        original_data = self.forcing.data
+
+        # write out original `fort.22`
         original_filename = directory / 'original.22'
-        self.forcing.write(original_filename, overwrite=True)
+        self.write_perturbed_track(
+            filename=original_filename,
+            dataframe=original_data,
+            perturbation={variable: 0 for variable in variable_names},
+            variables=variables,
+            weight=1,
+        )
         if self.__filename is None:
             self.__filename = original_filename
-
-        # Get the initial intensity and size
-        storm_strength = storm_intensity_class(
-            self.compute_initial(MaximumSustainedWindSpeed.name),
-        )
-        storm_size = storm_size_class(self.compute_initial(RadiusOfMaximumWinds.name))
-
-        print(f'Initial storm strength: {storm_strength}')
-        print(f'Initial storm size: {storm_size}')
-
-        # extracting original dataframe
-        original_data = self.forcing.data
 
         LOGGER.info(f'writing {len(perturbations)} perturbations')
 
@@ -1046,19 +1093,24 @@ class VortexPerturber:
 
         futures = []
 
-        variables = [variable.name for variable in variables]
         for perturbation_index, output_filename in enumerate(output_filenames):
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
                 perturbation = perturbations[perturbation_index]
 
                 if perturbation is None:
-                    perturbation = {variable: None for variable in variables}
+                    perturbation = {variable: None for variable in variable_names}
                 elif not isinstance(perturbation, Mapping):
-                    perturbation = {variable: perturbation for variable in variables}
+                    perturbation = {variable: perturbation for variable in variable_names}
 
                 perturbation = {
-                    variable.name if isinstance(variable, VortexVariable) else variable: alpha
+                    variable.name
+                    if (
+                        issubclass(variable, VortexVariable)
+                        if isinstance(variable, type)
+                        else isinstance(variable, VortexVariable)
+                    )
+                    else variable: alpha
                     for variable, alpha in perturbation.items()
                 }
 
@@ -1066,9 +1118,7 @@ class VortexPerturber:
                     'filename': output_filename,
                     'dataframe': original_data,
                     'perturbation': perturbation,
-                    'variables': variables,
-                    'storm_size': storm_size,
-                    'storm_strength': storm_strength,
+                    'variables': variable_names,
                 }
 
                 if weights is not None:
@@ -1100,8 +1150,6 @@ class VortexPerturber:
         dataframe: DataFrame,
         perturbation: {str: float},
         variables: [VortexPerturbedVariable],
-        storm_size: str,
-        storm_strength: str,
         weight: float = None,
     ) -> Path:
         if not isinstance(filename, Path):
@@ -1156,92 +1204,93 @@ class VortexPerturber:
         )
 
         for variable in variables:
-            alpha = perturbation[variable.name]
-
-            # Make the random pertubations based on the historical forecast errors
-            # Interpolate from the given VT to the storm_VT
-            if isinstance(variable, RadiusOfMaximumWinds):
-                storm_classification = storm_size
+            if variable.name in perturbation:
+                alpha = perturbation[variable.name]
             else:
-                storm_classification = storm_strength
+                alpha = 0
 
-            validation_hours = self.validation_times / timedelta(hours=1)
+            if alpha is None or alpha > 0:
+                # Make the random pertubations based on the historical forecast errors
+                # Interpolate from the given VT to the storm_VT
 
-            historical_forecast_errors = variable.historical_forecast_errors[
-                storm_classification
-            ]
-            try:
-                # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
-                historical_forecast_errors = historical_forecast_errors.pint.dequantify()
-            except:
-                pass
-            validation_time_errors = DataFrame(
-                data={
-                    column: interp(
-                        x=validation_hours,
-                        xp=historical_forecast_errors.index,
-                        fp=historical_forecast_errors.loc[:, column],
-                    )
-                    for column in historical_forecast_errors.columns
-                },
-                index=validation_hours,
-            )
+                # Get the historical forecasting errors from initial storm state (intensity or size)
+                historical_forecast_errors = variable.storm_errors(self.forcing.data)
+                try:
+                    # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
+                    historical_forecast_errors = historical_forecast_errors.pint.dequantify()
+                except:
+                    pass
 
-            # get the random perturbation sample
-            if variable.perturbation_type == PerturbationType.GAUSSIAN:
-                if alpha is None:
-                    alpha = gauss(0, 1)
-                    perturbation[variable.name] = alpha
-
-                LOGGER.debug(f'gaussian alpha = {alpha}')
-                perturbed_values = (validation_time_errors.iloc[:, 0] * alpha / 0.7979).values
-                if (
-                    variable.unit is not None
-                    and variable.unit != variable.unit._REGISTRY.dimensionless
-                ):
-                    perturbed_values *= variable.unit
-
-                # add the error to the variable with bounds to some physical constraints
-                dataframe = variable.perturb(
-                    dataframe,
-                    values=perturbed_values,
-                    times=self.validation_times,
-                    inplace=True,
+                validation_hours = self.validation_times / timedelta(hours=1)
+                validation_time_errors = DataFrame(
+                    data={
+                        column: interp(
+                            x=validation_hours,
+                            xp=historical_forecast_errors.index,
+                            fp=historical_forecast_errors.loc[:, column],
+                        )
+                        for column in historical_forecast_errors.columns
+                    },
+                    index=validation_hours,
                 )
-            elif variable.perturbation_type == PerturbationType.UNIFORM:
-                if alpha is None:
-                    alpha = uniform(-1, 1)
-                    perturbation[variable.name] = alpha
 
-                LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
-                perturbed_values = numpy.mean(
-                    numpy.stack(
-                        (
-                            validation_time_errors.iloc[:, 0] * (1 - alpha),
-                            validation_time_errors.iloc[:, 1] * (1 + alpha),
+                # get the random perturbation sample
+                if variable.perturbation_type == PerturbationType.GAUSSIAN:
+                    if alpha is None:
+                        alpha = gauss(0, 1)
+                        perturbation[variable.name] = alpha
+
+                    LOGGER.debug(f'gaussian alpha = {alpha}')
+                    perturbed_values = (
+                        validation_time_errors.iloc[:, 0] * alpha / 0.7979
+                    ).values
+                    if (
+                        variable.unit is not None
+                        and variable.unit != variable.unit._REGISTRY.dimensionless
+                    ):
+                        perturbed_values *= variable.unit
+
+                    # add the error to the variable with bounds to some physical constraints
+                    dataframe = variable.perturb(
+                        dataframe,
+                        values=perturbed_values,
+                        times=self.validation_times,
+                        inplace=True,
+                    )
+                elif variable.perturbation_type == PerturbationType.UNIFORM:
+                    if alpha is None:
+                        alpha = uniform(-1, 1)
+                        perturbation[variable.name] = alpha
+
+                    LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
+                    perturbed_values = numpy.mean(
+                        numpy.stack(
+                            (
+                                validation_time_errors.iloc[:, 0] * (1 - alpha),
+                                validation_time_errors.iloc[:, 1] * (1 + alpha),
+                            ),
+                            axis=1,
                         ),
                         axis=1,
-                    ),
-                    axis=1,
-                )
-                if variable.unit is not None and variable.unit != units.dimensionless:
-                    perturbed_values *= variable.unit
+                    )
+                    if variable.unit is not None and variable.unit != units.dimensionless:
+                        perturbed_values *= variable.unit
 
-                # subtract the error from the variable with physical constraint bounds
-                dataframe = variable.perturb(
-                    dataframe,
-                    values=perturbed_values,
-                    times=self.validation_times,
-                    inplace=True,
-                )
-            else:
-                raise NotImplementedError(
-                    f'perturbation type "{variable.perturbation_type}" is not recognized'
-                )
+                    # subtract the error from the variable with physical constraint bounds
+                    dataframe = variable.perturb(
+                        dataframe,
+                        values=perturbed_values,
+                        times=self.validation_times,
+                        inplace=True,
+                    )
+                else:
+                    raise NotImplementedError(
+                        f'perturbation type "{variable.perturbation_type}" is not recognized'
+                    )
 
-            if isinstance(variable, MaximumSustainedWindSpeed):
-                # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
-                dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
+                if isinstance(variable, MaximumSustainedWindSpeed):
+                    # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
+                    dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
         # remove units from data frame
         for column in dataframe:
@@ -1266,10 +1315,6 @@ class VortexPerturber:
     def validation_times(self) -> [timedelta]:
         """ get the validation time of storm """
         return self.forcing.datetime - self.forcing.start_date
-
-    def compute_initial(self, var: str) -> float:
-        """ the initial value of the input variable var (Vmax or Rmax) """
-        return self.forcing.data[var].iloc[0]
 
     @property
     def holland_B(self) -> float:
@@ -1314,48 +1359,6 @@ class VortexPerturber:
         instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
         instance.__filename = filename
         return instance
-
-
-def storm_intensity_class(max_sustained_wind_speed: float) -> str:
-    """
-    Category for Vmax based intensity
-
-    :param max_sustained_wind_speed: maximum sustained wind speed, in knots
-    :return: intensity classification
-    """
-
-    if not isinstance(max_sustained_wind_speed, Quantity):
-        max_sustained_wind_speed *= units.knot
-
-    if max_sustained_wind_speed < 50 * units.knot:
-        return '<50kt'  # weak
-    elif max_sustained_wind_speed <= 95 * units.knot:
-        return '50-95kt'  # medium
-    else:
-        return '>95kt'  # strong
-
-
-def storm_size_class(radius_of_maximum_winds: float) -> str:
-    """
-    Category for Rmax based size
-
-    :param radius_of_maximum_winds: radius of maximum winds, in nautical miles
-    :return: size classification
-    """
-
-    if not isinstance(radius_of_maximum_winds, Quantity):
-        radius_of_maximum_winds *= units.nautical_mile
-
-    if radius_of_maximum_winds < 15 * units.us_statute_mile:
-        return '<15sm'  # very small
-    elif radius_of_maximum_winds < 25 * units.us_statute_mile:
-        return '15-25sm'  # small
-    elif radius_of_maximum_winds < 35 * units.us_statute_mile:
-        return '25-35sm'  # medium
-    elif radius_of_maximum_winds <= 45 * units.us_statute_mile:
-        return '35-45sm'  # large
-    else:
-        return '>45sm'  # very large
 
 
 def quadrature_perturbations(

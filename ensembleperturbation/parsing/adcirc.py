@@ -23,7 +23,7 @@ LOGGER = get_logger('parsing.adcirc')
 class AdcircOutput(ABC):
     filename: PathLike
     variables: [str]
-    drop_variables: [str] = ['neta']
+    drop_variables: [str] = ['neta', 'max_nvdll']
     nodata: float = -99999.0
 
     @classmethod
@@ -71,7 +71,9 @@ class AdcircOutput(ABC):
                 f'found {len(filenames)} files matching "{directory / filename_pattern}"'
             )
         else:
-            LOGGER.warning(f'could not find any output files in "{directory}"')
+            raise FileNotFoundError(
+                f'could not find any files matching "{directory / filename_pattern}"'
+            )
 
         drop_variables = cls.drop_variables
 
@@ -515,9 +517,12 @@ def parse_adcirc_outputs(
 
     output_tree = {}
     for basename, output_class in file_outputs.items():
-        output_tree[basename] = output_class.read_directory(
-            directory, variables=output_class.variables, parallel=parallel,
-        )
+        try:
+            output_tree[basename] = output_class.read_directory(
+                directory, variables=output_class.variables, parallel=parallel,
+            )
+        except (ValueError, FileNotFoundError) as error:
+            LOGGER.warning(error)
 
     return output_tree
 
