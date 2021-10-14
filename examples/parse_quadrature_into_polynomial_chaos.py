@@ -99,7 +99,7 @@ if __name__ == '__main__':
                 orth=polynomials,
                 nodes=perturbations['perturbations'].T.values,
                 weights=perturbations['weights'].values,
-                solves=samples,
+                solves=samples.sel(run=samples['run'] != 'original'),
             )
         except AssertionError:
             raise AssertionError(
