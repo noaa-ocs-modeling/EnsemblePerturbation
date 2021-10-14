@@ -4,6 +4,8 @@ from adcircpy.forcing import BestTrackForcing
 import chaospy
 import geopandas
 from matplotlib import pyplot
+from matplotlib.cm import get_cmap
+import numpy
 import xarray
 
 from ensembleperturbation.parsing.adcirc import combine_outputs
@@ -11,7 +13,8 @@ from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 
 if __name__ == '__main__':
     plot_storm = False
-    plot_mean = True
+    plot_results = False
+    plot_percentile = True
     input_directory = Path.cwd()
     surrogate_filename = input_directory / 'surrogate.npy'
 
@@ -62,11 +65,11 @@ if __name__ == '__main__':
     # samples = elevations['zeta']
 
     if plot_storm:
-        figure = pyplot.figure()
-        figure.suptitle(
+        mean_figure = pyplot.figure()
+        mean_figure.suptitle(
             f'standard deviation of {len(samples["node"])} max elevation(s) across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
         )
-        axis = figure.add_subplot(1, 1, 1)
+        axis = mean_figure.add_subplot(1, 1, 1)
 
         countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
         countries.plot(color='lightgrey', ax=axis)
@@ -101,32 +104,98 @@ if __name__ == '__main__':
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
     # for surrogate_model in surrogate_models:
-    prediction = chaospy.E(poly=surrogate_model, dist=distribution)
-    prediction_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+    predicted_mean = chaospy.E(poly=surrogate_model, dist=distribution)
+    predicted_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+    reference_mean = samples.mean('run')
+    reference_std = samples.std('run')
 
-    if plot_mean:
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
-        for node_index in range(prediction.shape[1]):
-            node = samples['node'].isel(node=node_index)['node'].values
-            node_prediction = prediction[:, node_index]
-            node_std = prediction_std[:, node_index]
-            axis.plot(samples['time'].values, node_prediction, label=node)
-            axis.fill_between(
+    if plot_results:
+        mean_figure = pyplot.figure()
+        mean_figure.suptitle(
+            f'surrogate-predicted and modeled means for {predicted_mean.shape[1]} nodes over {predicted_mean.shape[0]} times'
+        )
+
+        std_figure = pyplot.figure()
+        std_figure.suptitle(
+            f'surrogate-predicted and modeled standard deviations for {predicted_mean.shape[1]} nodes over {predicted_mean.shape[0]} times'
+        )
+
+        colors = [
+            get_cmap('gist_rainbow')(color_index / len(samples['node']))
+            for color_index in range(len(samples['node']))
+        ]
+
+        mean_value_axis = mean_figure.add_subplot(2, 1, 1)
+        mean_difference_axis = mean_figure.add_subplot(2, 1, 2)
+        std_value_axis = std_figure.add_subplot(2, 1, 1)
+        std_difference_axis = std_figure.add_subplot(2, 1, 2)
+
+        mean_value_axis.set_title('means')
+        std_value_axis.set_title('standard deviations')
+        mean_difference_axis.set_title('differences')
+        std_difference_axis.set_title('differences')
+
+        for node_index in range(len(samples['node'])):
+            color = colors[node_index]
+
+            predicted_node_mean = predicted_mean[:, node_index]
+            predicted_node_std = predicted_std[:, node_index]
+            reference_node_mean = reference_mean[:, node_index]
+            reference_node_std = reference_std[:, node_index]
+
+            mean_value_axis.plot(samples['time'].values, predicted_node_mean, '--', c=color)
+            mean_value_axis.plot(samples['time'].values, reference_node_mean, c=color)
+            mean_value_axis.fill_between(
                 samples['time'].values,
-                node_prediction - node_std,
-                node_prediction + node_std,
+                predicted_node_mean - predicted_node_std,
+                predicted_node_mean + predicted_node_std,
+                color=color,
                 alpha=0.5,
             )
-        # axis.legend()
-        figure.suptitle(
-            f'surrogate-predicted results for {prediction.shape[1]} nodes over {prediction.shape[0]} times'
-        )
+            mean_value_axis.fill_between(
+                samples['time'].values,
+                reference_node_mean - reference_node_std,
+                reference_node_mean + reference_node_std,
+                color=color,
+                alpha=0.25,
+            )
+
+            mean_difference_axis.plot(
+                samples['time'].values,
+                numpy.abs(reference_node_mean - predicted_node_mean),
+                c=color,
+            )
+
+            std_value_axis.plot(samples['time'].values, reference_node_std, c=color)
+            std_value_axis.plot(samples['time'].values, predicted_node_std, '--', c=color)
+
+            std_difference_axis.plot(
+                samples['time'].values, predicted_node_std - reference_node_std, c=color
+            )
+
         pyplot.show()
 
-    c_1 = [1, 0.9, 0.07]
+    percentiles = [90]
+    prediction_percentile = chaospy.Perc(
+        poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
+    )
 
-    y_1 = distribution.fwd(c_1)
-    assert distribution.inv(y_1) == c_1
+    if plot_percentile:
+        percentile_figure = pyplot.figure()
+
+        for percentile_index, percentile_output in enumerate(prediction_percentile):
+            axis = percentile_figure.add_subplot(len(percentiles), 1, percentile_index + 1)
+
+            percentile = percentiles[percentile_index]
+
+            for node_index in range(percentile_output.shape[1]):
+                node_percentile = percentile_output[:, node_index]
+                axis.plot(samples['time'].values, node_percentile)
+
+            percentile_figure.suptitle(
+                f'{percentile} percentile for {predicted_mean.shape[1]} nodes over {predicted_mean.shape[0]} times'
+            )
+
+        pyplot.show()
 
     print('done')
