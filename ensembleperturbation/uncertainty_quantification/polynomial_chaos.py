@@ -92,3 +92,59 @@ def evaluate_pc_sensitivity(
     # evaluating the sensitivities
     uqtk_cmd = 'pce_sens -f ' + parameter_filename + ' -x ' + pc_type
     os.system(uqtk_cmd)
+
+def evaluate_pc_pdf(
+    cfs=pcf,
+    parameter_filename: str = 'coeff.dat',
+    pc_type: str = 'HG',
+    multiindex_type: str = 'TO',
+    poly_order: int = 5,
+    pc_dimension: int = 1,
+    num_samples: int = 10000,
+    custom_xlabel='PDF of KL Mode-' + str(k + 1),
+    figname='PDF_mode-' + str(k + 1))
+):
+    """
+    evaluates the PDF of the surrogate output
+    
+    gen_mi function inputs (generates the multi-index files): 
+    -x "Multiindex type" 
+    -p "PC polynomial order" 
+    -q "PC dimension (number of parameters)" 
+    
+    pce_sens function inputs (generates the Sobol sensitivity indices): 
+    -x "PC type" 
+    -f "PC coefficient filename"
+    -m "Multiindex file (mindex.dat by default)"
+    """
+    # evaluate the multi-index file
+    uqtk_cmd = (
+        'gen_mi -x ' + multiindex_type + ' -p ' + str(poly_order) + ' -q ' + str(pc_dimension)
+    )
+    os.system(uqtk_cmd)
+
+    # evaluating the random variables for the PC expansion
+    uqtk_cmd = (
+        "pce_rv -w 'PCmi' -n " + str(num_samples)+ " -p " + str(pc_dimension) + " -f 'cfs' -m 'mi' -x " + pc_type + " > pcrv.log"
+    )
+    os.system(uqtk_cmd)
+
+    cmd=uqtkbin+"pdf_cl -i rvar.dat -g 1000 > pdfcl.log"
+    os.system(cmd)
+    xtarget=np.loadtxt('dens.dat')[:,:-1]
+    dens=np.loadtxt('dens.dat')[:,-1:]
+
+
+    #rv=np.loadtxt('rvar.dat')
+    #xtarget=np.linspace(rv.min(),rv.max(),100)
+    #kernlin=stats.kde.gaussian_kde(rv)
+    #dens=kernlin.evaluate(xtarget)
+
+    np.savetxt('pcdens.dat',np.vstack((xtarget,dens)).T)
+
+    figure(figsize=(12,8))
+    plot(xtarget,dens)
+    xlabel(custom_xlabel)
+    ylabel('PDF')
+
+    saveplot(figname)

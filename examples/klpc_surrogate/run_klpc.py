@@ -92,6 +92,7 @@ lambda_reg = 0  # regularization lambda
 neig = xi.shape[1]  # number of eigenvalues
 pc_dim = np_input.shape[1]  # dimension of the PC expansion
 sens_all = numpy.empty((neig, pc_dim, 2))
+num_samples = 1000 # number of times to sample the PC expansion to get PDF
 for k, qoi in enumerate(xi.transpose()):
     numpy.savetxt('qoi.dat', qoi)
 
@@ -107,7 +108,7 @@ for k, qoi in enumerate(xi.transpose()):
             lambda_regularization=lambda_reg,
         )
 
-        # Evaluates the constructed PC at the input for comparison
+        # Evaluates the constructed PC for the training data for comparison
         evaluate_pc_expansion(
             x_filename='xdata.dat',
             output_filename='ydata.dat',
@@ -127,7 +128,7 @@ for k, qoi in enumerate(xi.transpose()):
     pyplot.savefig('mode-' + str(k + 1))
     pyplot.close()
 
-    # Evaluates the constructed PC at the input for comparison
+    # Evaluates the Sobol sensitivities for the 3rd order polynomial
     evaluate_pc_sensitivity(
         parameter_filename='coeff' + str(k + 1) + '.dat',
         pc_type=pc_type,
@@ -137,13 +138,14 @@ for k, qoi in enumerate(xi.transpose()):
     sens_all[k, :, 0] = numpy.loadtxt('mainsens.dat')
     sens_all[k, :, 1] = numpy.loadtxt('totsens.dat')
 
-# print('eigen values = ' + str(eigval))
-# for vdx, variable in enumerate(dataframes[keys[0]].columns):
-#    tot_sens = tot_sens_all[:,vdx]
-#    main_sens = main_sens_all[:,vdx]
-#    print(variable + '-> main sensitivity')
-#    print(tot_sens)
-#    print(main_sens)
+    # Evaluates the constructued 
+    plot_pcpdf(
+        pctype=pc_type,
+        mindex=mindex,
+        cfs=pcf,
+        nsam=num_samples,
+        custom_xlabel='PDF of KL Mode-' + str(k + 1),
+        figname='PDF_mode-' + str(k + 1))
 
 sens_labels = ['main', 'total']
 for idx in [0, 1]:
