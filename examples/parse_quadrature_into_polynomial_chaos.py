@@ -84,9 +84,8 @@ if __name__ == '__main__':
 
         axis.scatter(samples['x'], samples['y'], c=samples.max('time').std('run'))
 
-        storm_name = 'florence2018'
-        storm = BestTrackForcing(storm_name)
-        storm.data.plot(x='longitude', y='latitude', label=storm_name, ax=axis)
+        storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
+        storm.data.plot(x='longitude', y='latitude', ax=axis)
 
         if save_plot:
             storm_figure.save_plot(input_directory / 'storm.png')
