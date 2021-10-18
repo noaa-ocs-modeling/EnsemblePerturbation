@@ -76,9 +76,10 @@ if __name__ == '__main__':
 
     if plot_storm:
         storm_figure = pyplot.figure()
-        storm_figure.suptitle(
-            f'standard deviation of {len(samples["node"])} max elevation(s) across {len(samples["run"])} run(s) and {len(samples["time"])} time(s)'
-        )
+        message = f'standard deviation of {len(samples["node"])} max elevation(s) across {len(samples["run"])} run(s)'
+        if 'time' in samples:
+            message = f'{message} and {len(samples["time"])} time(s)'
+        storm_figure.suptitle(message)
         axis = storm_figure.add_subplot(1, 1, 1)
 
         countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
