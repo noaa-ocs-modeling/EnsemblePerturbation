@@ -25,7 +25,7 @@ if __name__ == '__main__':
     input_directory = Path.cwd()
     surrogate_filename = input_directory / 'surrogate.npy'
 
-    filenames = ['perturbations.nc', 'fort.63.nc']
+    filenames = ['perturbations.nc', 'fort.63.nc', 'maxele.63.nc']
 
     datasets = {}
     existing_filenames = []
@@ -51,6 +51,7 @@ if __name__ == '__main__':
 
     perturbations = datasets['perturbations.nc']
     elevations = datasets['fort.63.nc']
+    max_elevations = datasets['maxele.63.nc']
 
     variables = {
         variable_class.name: variable_class()
@@ -69,8 +70,9 @@ if __name__ == '__main__':
     # sample_times = elevations['time'][::10]
     # sample_nodes = elevations['node'][::1000]
     # samples = elevations['zeta'].loc[{'time': sample_times, 'node': sample_nodes}]
-    samples = elevations['zeta']
-    LOGGER.info(f'sample: {samples.shape}')
+    # samples = elevations['zeta']
+    samples = max_elevations['zeta_max']
+    LOGGER.info(f'sample size: {samples.shape}')
 
     if plot_storm:
         storm_figure = pyplot.figure()
