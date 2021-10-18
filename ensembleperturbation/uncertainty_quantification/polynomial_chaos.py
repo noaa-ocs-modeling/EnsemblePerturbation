@@ -1,9 +1,12 @@
 import os
 
+from matplotlib import pyplot
+import numpy as np
+
 
 def build_pc_expansion(
-    x_filename: str = 'xdata.dat',
-    y_filename: str = 'qoi.dat',
+    x_filename: os.PathLike = 'xdata.dat',
+    y_filename: os.PathLike = 'qoi.dat',
     output_filename: str = None,
     pc_type: str = 'HG',
     poly_order: int = 5,
@@ -19,18 +22,7 @@ def build_pc_expansion(
     -o "Polynomial order"  
     -l "regularization lambda"
     """
-    uqtk_cmd = (
-        'regression -x '
-        + x_filename
-        + ' -y '
-        + y_filename
-        + ' -s '
-        + pc_type
-        + ' -o '
-        + str(poly_order)
-        + ' -l '
-        + str(lambda_regularization)
-    )
+    uqtk_cmd = f'regression -x {x_filename} -y {y_filename} -s {pc_type} -o {poly_order} -l {lambda_regularization}'
     os.system(uqtk_cmd)
     if output_filename is not None:
         os.rename('coeff.dat', output_filename)
@@ -38,9 +30,9 @@ def build_pc_expansion(
 
 
 def evaluate_pc_expansion(
-    x_filename: str = 'xdata.dat',
-    parameter_filename: str = 'coeff.dat',
-    output_filename: str = None,
+    x_filename: os.PathLike = 'xdata.dat',
+    parameter_filename: os.PathLike = 'coeff.dat',
+    output_filename: os.PathLike = None,
     pc_type: str = 'HG',
     poly_order: int = 5,
 ):
@@ -54,9 +46,7 @@ def evaluate_pc_expansion(
     -o "Polynomial order"  
     """
     assert x_filename == 'xdata.dat', 'x_filename needs to be xdata.dat'
-    uqtk_cmd = (
-        'pce_eval -f ' + parameter_filename + ' -s ' + pc_type + ' -o ' + str(poly_order)
-    )
+    uqtk_cmd = f'pce_eval -f {parameter_filename} -s {pc_type} -o {poly_order}'
     os.system(uqtk_cmd)
     if output_filename is not None:
         os.rename('ydata.dat', output_filename)
@@ -64,7 +54,7 @@ def evaluate_pc_expansion(
 
 
 def evaluate_pc_sensitivity(
-    parameter_filename: str = 'coeff.dat',
+    parameter_filename: os.PathLike = 'coeff.dat',
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
     poly_order: int = 5,
@@ -84,25 +74,24 @@ def evaluate_pc_sensitivity(
     -m "Multiindex file (mindex.dat by default)"
     """
     # evaluate the multi-index file
-    uqtk_cmd = (
-        'gen_mi -x ' + multiindex_type + ' -p ' + str(poly_order) + ' -q ' + str(pc_dimension)
-    )
+    uqtk_cmd = f'gen_mi -x {multiindex_type} -p {poly_order} -q {pc_dimension}'
     os.system(uqtk_cmd)
 
     # evaluating the sensitivities
-    uqtk_cmd = 'pce_sens -f ' + parameter_filename + ' -x ' + pc_type
+    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type}'
     os.system(uqtk_cmd)
 
+
 def evaluate_pc_pdf(
-    cfs=pcf,
-    parameter_filename: str = 'coeff.dat',
+    uqtkbin: os.PathLike,
+    k: int = 0,
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
     poly_order: int = 5,
     pc_dimension: int = 1,
     num_samples: int = 10000,
-    custom_xlabel='PDF of KL Mode-' + str(k + 1),
-    figname='PDF_mode-' + str(k + 1))
+    custom_xlabel: str = None,
+    figname: str = None,
 ):
     """
     evaluates the PDF of the surrogate output
@@ -117,34 +106,40 @@ def evaluate_pc_pdf(
     -f "PC coefficient filename"
     -m "Multiindex file (mindex.dat by default)"
     """
+
     # evaluate the multi-index file
-    uqtk_cmd = (
-        'gen_mi -x ' + multiindex_type + ' -p ' + str(poly_order) + ' -q ' + str(pc_dimension)
-    )
+    uqtk_cmd = f'gen_mi -x {multiindex_type} -p {poly_order} -q {pc_dimension}'
     os.system(uqtk_cmd)
 
     # evaluating the random variables for the PC expansion
-    uqtk_cmd = (
-        "pce_rv -w 'PCmi' -n " + str(num_samples)+ " -p " + str(pc_dimension) + " -f 'cfs' -m 'mi' -x " + pc_type + " > pcrv.log"
-    )
+    uqtk_cmd = f"pce_rv -w 'PCmi' -n {num_samples} -p {pc_dimension} -f 'cfs' -m 'mi' -x {pc_type} > pcrv.log"
     os.system(uqtk_cmd)
 
-    cmd=uqtkbin+"pdf_cl -i rvar.dat -g 1000 > pdfcl.log"
+    cmd = f'{uqtkbin} pdf_cl -i rvar.dat -g 1000 > pdfcl.log'
     os.system(cmd)
-    xtarget=np.loadtxt('dens.dat')[:,:-1]
-    dens=np.loadtxt('dens.dat')[:,-1:]
+    xtarget = np.loadtxt('dens.dat')[:, :-1]
+    dens = np.loadtxt('dens.dat')[:, -1:]
 
+    # rv=np.loadtxt('rvar.dat')
+    # xtarget=np.linspace(rv.min(),rv.max(),100)
+    # kernlin=stats.kde.gaussian_kde(rv)
+    # dens=kernlin.evaluate(xtarget)
 
-    #rv=np.loadtxt('rvar.dat')
-    #xtarget=np.linspace(rv.min(),rv.max(),100)
-    #kernlin=stats.kde.gaussian_kde(rv)
-    #dens=kernlin.evaluate(xtarget)
+    np.savetxt('pcdens.dat', np.vstack((xtarget, dens)).T)
 
-    np.savetxt('pcdens.dat',np.vstack((xtarget,dens)).T)
+    pyplot.figure(figsize=(12, 8))
 
-    figure(figsize=(12,8))
-    plot(xtarget,dens)
-    xlabel(custom_xlabel)
-    ylabel('PDF')
+    pyplot.plot(xtarget, dens)
 
-    saveplot(figname)
+    if custom_xlabel is not None:
+        pyplot.xlabel(custom_xlabel)
+
+    pyplot.ylabel('PDF')
+
+    if figname is not None:
+        pyplot.suptitle(figname)
+        output_filename = f'{figname}.png'
+    else:
+        output_filename = 'pdf.png'
+
+    pyplot.savefig(output_filename, bbox_inches='tight')

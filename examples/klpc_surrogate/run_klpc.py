@@ -15,6 +15,7 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     build_pc_expansion,
     evaluate_pc_expansion,
+    evaluate_pc_pdf,
     evaluate_pc_sensitivity,
 )
 
@@ -92,7 +93,7 @@ lambda_reg = 0  # regularization lambda
 neig = xi.shape[1]  # number of eigenvalues
 pc_dim = np_input.shape[1]  # dimension of the PC expansion
 sens_all = numpy.empty((neig, pc_dim, 2))
-num_samples = 1000 # number of times to sample the PC expansion to get PDF
+num_samples = 1000  # number of times to sample the PC expansion to get PDF
 for k, qoi in enumerate(xi.transpose()):
     numpy.savetxt('qoi.dat', qoi)
 
@@ -102,7 +103,7 @@ for k, qoi in enumerate(xi.transpose()):
         build_pc_expansion(
             x_filename='xdata.dat',
             y_filename='qoi.dat',
-            output_filename='coeff' + str(k + 1) + '.dat',
+            output_filename=f'coeff{k + 1}.dat',
             pc_type=pc_type,
             poly_order=poly_order,
             lambda_regularization=lambda_reg,
@@ -112,7 +113,7 @@ for k, qoi in enumerate(xi.transpose()):
         evaluate_pc_expansion(
             x_filename='xdata.dat',
             output_filename='ydata.dat',
-            parameter_filename='coeff' + str(k + 1) + '.dat',
+            parameter_filename=f'coeff{k + 1}.dat',
             pc_type=pc_type,
             poly_order=poly_order,
         )
@@ -123,14 +124,14 @@ for k, qoi in enumerate(xi.transpose()):
     pyplot.plot([-2, 3], [-2, 3], 'k--', lw=1)
     pyplot.gca().set_xlabel('predicted')
     pyplot.gca().set_ylabel('actual')
-    pyplot.title('mode-' + str(k + 1))
+    pyplot.title(f'mode-{k + 1}')
     pyplot.legend()
-    pyplot.savefig('mode-' + str(k + 1))
+    pyplot.savefig(f'mode-{k + 1}')
     pyplot.close()
 
     # Evaluates the Sobol sensitivities for the 3rd order polynomial
     evaluate_pc_sensitivity(
-        parameter_filename='coeff' + str(k + 1) + '.dat',
+        parameter_filename=f'coeff{k + 1}.dat',
         pc_type=pc_type,
         pc_dimension=pc_dim,
         poly_order=poly_order,
@@ -138,14 +139,14 @@ for k, qoi in enumerate(xi.transpose()):
     sens_all[k, :, 0] = numpy.loadtxt('mainsens.dat')
     sens_all[k, :, 1] = numpy.loadtxt('totsens.dat')
 
-    # Evaluates the constructued 
-    plot_pcpdf(
-        pctype=pc_type,
-        mindex=mindex,
-        cfs=pcf,
-        nsam=num_samples,
-        custom_xlabel='PDF of KL Mode-' + str(k + 1),
-        figname='PDF_mode-' + str(k + 1))
+    # Evaluates the constructued
+    evaluate_pc_pdf(
+        k=k,
+        pc_type=pc_type,
+        num_samples=num_samples,
+        custom_xlabel=f'PDF of KL Mode-{k + 1}',
+        figname=f'PDF_mode-{k + 1}',
+    )
 
 sens_labels = ['main', 'total']
 for idx in [0, 1]:
