@@ -19,8 +19,8 @@ if __name__ == '__main__':
     plot_results = True
     plot_percentile = True
 
-    save_plot = True
-    show_plot = False
+    save_plot = False
+    show_plot = True
 
     input_directory = Path.cwd()
     surrogate_filename = input_directory / 'surrogate.npy'
@@ -85,7 +85,12 @@ if __name__ == '__main__':
         countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
         countries.plot(color='lightgrey', ax=axis)
 
-        axis.scatter(samples['x'], samples['y'], c=samples.max('time').std('run'))
+        if 'time' in samples:
+            max_samples = samples.max('time')
+        else:
+            max_samples = samples
+
+        axis.scatter(samples['x'], samples['y'], c=max_samples.std('run'))
 
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
         storm.data.plot(x='longitude', y='latitude', ax=axis)
