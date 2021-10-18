@@ -88,7 +88,7 @@ if __name__ == '__main__':
         storm.data.plot(x='longitude', y='latitude', ax=axis)
 
         if save_plot:
-            storm_figure.save_plot(input_directory / 'storm.png')
+            storm_figure.savefig(input_directory / 'storm.png', bbox_inches='tight')
 
     if not surrogate_filename.exists():
         # expand polynomials with polynomial chaos
@@ -124,8 +124,8 @@ if __name__ == '__main__':
         reference_mean = samples.mean('run')
         reference_std = samples.std('run')
 
-        storm_figure = pyplot.figure()
-        storm_figure.suptitle(
+        mean_figure = pyplot.figure()
+        mean_figure.suptitle(
             f'surrogate-predicted and modeled means for {predicted_mean.shape[1]} nodes over {predicted_mean.shape[0]} times'
         )
 
@@ -139,8 +139,8 @@ if __name__ == '__main__':
             for color_index in range(len(samples['node']))
         ]
 
-        mean_value_axis = storm_figure.add_subplot(2, 1, 1)
-        mean_difference_axis = storm_figure.add_subplot(2, 1, 2)
+        mean_value_axis = mean_figure.add_subplot(2, 1, 1)
+        mean_difference_axis = mean_figure.add_subplot(2, 1, 2)
         std_value_axis = std_figure.add_subplot(2, 1, 1)
         std_difference_axis = std_figure.add_subplot(2, 1, 2)
 
@@ -188,10 +188,8 @@ if __name__ == '__main__':
             )
 
         if save_plot:
-            mean_value_axis.save_plot(input_directory / 'mean.png')
-            mean_difference_axis.save_plot(input_directory / 'mean_difference.png')
-            std_value_axis.save_plot(input_directory / 'std.png')
-            std_difference_axis.save_plot(input_directory / 'std_difference.png')
+            mean_figure.savefig(input_directory / 'mean.png', bbox_inches='tight')
+            std_figure.savefig(input_directory / 'std.png', bbox_inches='tight')
 
     percentiles = [90]
     percentile_filename = input_directory / 'percentiles.npy'
@@ -223,7 +221,7 @@ if __name__ == '__main__':
             )
 
         if save_plot:
-            percentile_figure.save(input_directory / 'percentile.png')
+            percentile_figure.savefig(input_directory / 'percentiles.png', bbox_inches='tight')
 
     if show_plot:
         pyplot.show()
