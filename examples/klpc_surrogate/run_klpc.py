@@ -110,14 +110,13 @@ for k, qoi in enumerate(xi.transpose()):
         )
 
         # Evaluates the constructed PC for the training data for comparison
-        evaluate_pc_expansion(
+        qoi_pc = evaluate_pc_expansion(
             x_filename='xdata.dat',
             output_filename='ydata.dat',
             parameter_filename=f'coeff{k + 1}.dat',
             pc_type=pc_type,
             poly_order=poly_order,
         )
-        qoi_pc = numpy.loadtxt('ydata.dat')
 
         # shows comparison of predicted against "real" result
         pyplot.plot(qoi, qoi_pc, 'o', label='poly order = ' + str(poly_order))
@@ -130,19 +129,21 @@ for k, qoi in enumerate(xi.transpose()):
     pyplot.close()
 
     # Evaluates the Sobol sensitivities for the 3rd order polynomial
-    evaluate_pc_sensitivity(
+    main_sens, joint_sens, total_sens = evaluate_pc_sensitivity(
         parameter_filename=f'coeff{k + 1}.dat',
         pc_type=pc_type,
         pc_dimension=pc_dim,
         poly_order=poly_order,
     )
-    sens_all[k, :, 0] = numpy.loadtxt('mainsens.dat')
-    sens_all[k, :, 1] = numpy.loadtxt('totsens.dat')
+    sens_all[k, :, 0] = main_sens
+    sens_all[k, :, 1] = total_sens
 
     # Evaluates the constructued
-    evaluate_pc_pdf(
-        k=k,
+    pdf_xvalue, pdf_prob = evaluate_pc_pdf(
+        parameter_filename=f'coeff{k + 1}.dat',
         pc_type=pc_type,
+        pc_dimension=pc_dim,
+        poly_order=poly_order,
         num_samples=num_samples,
         custom_xlabel=f'PDF of KL Mode-{k + 1}',
         figname=f'PDF_mode-{k + 1}',
@@ -157,20 +158,3 @@ for idx in [0, 1]:
     pyplot.legend(lineObjects, dataframes[keys[0]].columns)
     pyplot.savefig(sens_labels[idx] + '_sensitivity')
     pyplot.close()
-
-# now do something with our qoi_pcs
-# WHAT NEEDS TO BE DONE: Depends on your final goals, but the surrogate xi_pc and the associated ypred can be evaluated a lot more than 40 times and can be used for sensitivity analysis, moment extraction and model calibration. Essentially you will have a KL+PC spatiotemporal surrogate approximation of your model.
-# poly_order = 3
-# update the input matrix
-# np_input = np_input
-# numpy.savetxt('xdata.dat', np_input) #because pce_eval expects xdata.dat as input
-# for k in range(neig):
-#
-#    # Evaluates the constructed PC at the input for comparison
-#    evaluate_pc_expansion(x_filename='xdata.dat',parameter_filename='coeff' + str(k+1) + '.dat',
-#                          output_filename='ydata.dat',pc_type=pc_type,poly_order=poly_order)
-#    qoi_pc = numpy.loadtxt('ydata.dat')
-#
-# evaluate the fit of the KL prediction
-# ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
-# ypred = karhunen_loeve_prediction(ymean, kl_modes, eigval, xi_pc, ymodel)

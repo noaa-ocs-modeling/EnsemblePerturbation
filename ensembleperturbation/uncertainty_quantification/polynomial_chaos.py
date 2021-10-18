@@ -48,16 +48,17 @@ def evaluate_pc_expansion(
     assert x_filename == 'xdata.dat', 'x_filename needs to be xdata.dat'
     uqtk_cmd = f'pce_eval -f {parameter_filename} -s {pc_type} -o {poly_order}'
     os.system(uqtk_cmd)
+    qoi_pc = np.loadtxt('ydata.dat')
     if output_filename is not None:
         os.rename('ydata.dat', output_filename)
-    return
+    return qoi_pc
 
 
 def evaluate_pc_sensitivity(
     parameter_filename: os.PathLike = 'coeff.dat',
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
-    poly_order: int = 5,
+    poly_order: int = 3,
     pc_dimension: int = 1,
 ):
     """
@@ -80,16 +81,19 @@ def evaluate_pc_sensitivity(
     # evaluating the sensitivities
     uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type}'
     os.system(uqtk_cmd)
-
+    main_sensitivity = np.loadtxt('mainsens.dat')
+    joint_sensitivity = np.loadtxt('jointsens.dat')
+    total_sensitivity = np.loadtxt('totsens.dat')
+    return main_sensitivity, joint_sensitivity, total_sensitivity
 
 def evaluate_pc_pdf(
-    uqtkbin: os.PathLike,
-    k: int = 0,
+    parameter_filename: os.PathLike = 'coeff.dat',
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
-    poly_order: int = 5,
+    poly_order: int = 3,
     pc_dimension: int = 1,
-    num_samples: int = 10000,
+    num_samples: int = 1000,
+    pdf_bins: int = 100,
     custom_xlabel: str = None,
     figname: str = None,
 ):
@@ -101,45 +105,45 @@ def evaluate_pc_pdf(
     -p "PC polynomial order" 
     -q "PC dimension (number of parameters)" 
     
-    pce_sens function inputs (generates the Sobol sensitivity indices): 
+    pce_rv function inputs (generates the random variable): 
     -x "PC type" 
+    -n "num samples" 
+    -o "PC polynomial order" 
+    -p "PC dimension (number of parameters)" 
     -f "PC coefficient filename"
-    -m "Multiindex file (mindex.dat by default)"
+    -w "type of random variable"
+    
+    pdf_cl function inputs (generates the pdf): 
+    -i "input random variable filename" (rvar.dat from pce_rv) 
+    -g "number of bins in the pdf" 
     """
 
     # evaluate the multi-index file
     uqtk_cmd = f'gen_mi -x {multiindex_type} -p {poly_order} -q {pc_dimension}'
     os.system(uqtk_cmd)
 
-    # evaluating the random variables for the PC expansion
-    uqtk_cmd = f"pce_rv -w 'PCmi' -n {num_samples} -p {pc_dimension} -f 'cfs' -m 'mi' -x {pc_type} > pcrv.log"
+    # evaluating the PC-related random variables
+    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m mindex.dat -w PCmi'
     os.system(uqtk_cmd)
 
-    cmd = f'{uqtkbin} pdf_cl -i rvar.dat -g 1000 > pdfcl.log'
-    os.system(cmd)
+    # evaluating the PDF of the PC expansion
+    uqtk_cmd = f'pdf_cl -i rvar.dat -g {pdf_bins}'
+    os.system(uqtk_cmd)
     xtarget = np.loadtxt('dens.dat')[:, :-1]
-    dens = np.loadtxt('dens.dat')[:, -1:]
-
-    # rv=np.loadtxt('rvar.dat')
-    # xtarget=np.linspace(rv.min(),rv.max(),100)
-    # kernlin=stats.kde.gaussian_kde(rv)
-    # dens=kernlin.evaluate(xtarget)
-
-    np.savetxt('pcdens.dat', np.vstack((xtarget, dens)).T)
-
-    pyplot.figure(figsize=(12, 8))
-
-    pyplot.plot(xtarget, dens)
-
-    if custom_xlabel is not None:
-        pyplot.xlabel(custom_xlabel)
-
-    pyplot.ylabel('PDF')
+    probability = np.loadtxt('dens.dat')[:, -1:]
 
     if figname is not None:
+        pyplot.figure(figsize=(12, 8))
+
+        pyplot.plot(xtarget, probability)
+
+        if custom_xlabel is not None:
+            pyplot.xlabel(custom_xlabel)
+
+        pyplot.ylabel('PDF')
+
         pyplot.suptitle(figname)
         output_filename = f'{figname}.png'
-    else:
-        output_filename = 'pdf.png'
+        pyplot.savefig(output_filename, bbox_inches='tight')
 
-    pyplot.savefig(output_filename, bbox_inches='tight')
+    return xtarget, probability
