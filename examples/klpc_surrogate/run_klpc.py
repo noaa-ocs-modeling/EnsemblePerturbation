@@ -90,11 +90,14 @@ for example in range(0, ymodel.shape[1], 5):
 # Build PC for each mode in xi (each mode has nens values)
 pc_type = 'HG'  # Hermite-Gauss chaos
 lambda_reg = 0  # regularization lambda
-neig = xi.shape[1]  # number of eigenvalues
+neig = xi.shape[1] # number of eigenvalues
 pc_dim = np_input.shape[1]  # dimension of the PC expansion
-sens_all = numpy.empty((neig, pc_dim, 2))
-num_samples = 1000  # number of times to sample the PC expansion to get PDF
-for k, qoi in enumerate(xi.transpose()):
+num_samples = 1000 # number of times to sample the PC expansion to get PDF
+pdf_bins = 1000    # number of PDF bins
+sens_types = ['main', 'total']             # List of sensitivity types to keep
+distribution_all = numpy.empty((neig, pdf_bins, 3)) # Storing PDF/CDF of each KL mode
+sens_all = numpy.empty((neig, pc_dim, 3))  # Storing Sensitivities of each KL mode
+for mode, qoi in enumerate(xi.transpose()):
     numpy.savetxt('qoi.dat', qoi)
 
     # compare accuracy of 2nd or 3rd order polynomials
@@ -103,7 +106,7 @@ for k, qoi in enumerate(xi.transpose()):
         build_pc_expansion(
             x_filename='xdata.dat',
             y_filename='qoi.dat',
-            output_filename=f'coeff{k + 1}.dat',
+            output_filename=f'coeff{mode + 1}.dat',
             pc_type=pc_type,
             poly_order=poly_order,
             lambda_regularization=lambda_reg,
@@ -113,7 +116,7 @@ for k, qoi in enumerate(xi.transpose()):
         qoi_pc = evaluate_pc_expansion(
             x_filename='xdata.dat',
             output_filename='ydata.dat',
-            parameter_filename=f'coeff{k + 1}.dat',
+            parameter_filename=f'coeff{mode + 1}.dat',
             pc_type=pc_type,
             poly_order=poly_order,
         )
@@ -123,38 +126,70 @@ for k, qoi in enumerate(xi.transpose()):
     pyplot.plot([-2, 3], [-2, 3], 'k--', lw=1)
     pyplot.gca().set_xlabel('predicted')
     pyplot.gca().set_ylabel('actual')
-    pyplot.title(f'mode-{k + 1}')
+    pyplot.title(f'mode-{mode + 1}')
     pyplot.legend()
-    pyplot.savefig(f'mode-{k + 1}')
+    pyplot.savefig(f'mode-{mode + 1}')
     pyplot.close()
 
-    # Evaluates the Sobol sensitivities for the 3rd order polynomial
+    # Evaluates the Sobol sensitivities for the 3rd order PC
     main_sens, joint_sens, total_sens = evaluate_pc_sensitivity(
-        parameter_filename=f'coeff{k + 1}.dat',
+        parameter_filename=f'coeff{mode + 1}.dat',
         pc_type=pc_type,
         pc_dimension=pc_dim,
         poly_order=poly_order,
     )
-    sens_all[k, :, 0] = main_sens
-    sens_all[k, :, 1] = total_sens
+    sens_all[mode, :, 0] = main_sens
+    sens_all[mode, :, 1] = total_sens
 
-    # Evaluates the constructued
+    # Evaluates the PDF of the constructed 3rd order PC
     pdf_xvalue, pdf_prob = evaluate_pc_pdf(
-        parameter_filename=f'coeff{k + 1}.dat',
+        parameter_filename=f'coeff{mode + 1}.dat',
         pc_type=pc_type,
         pc_dimension=pc_dim,
         poly_order=poly_order,
         num_samples=num_samples,
-        custom_xlabel=f'PDF of KL Mode-{k + 1}',
-        figname=f'PDF_mode-{k + 1}',
+        pdf_bins=pdf_bins,
     )
+    distribution_all[mode, :, 0] = pdf_xvalue
+    distribution_all[mode, :, 1] = pdf_prob
+    distribution_all[mode, :, 2] = numpy.cumsum(pdf_prob)*numpy.diff(pdf_xvalue)[0]
 
-sens_labels = ['main', 'total']
-for idx in [0, 1]:
-    lineObjects = pyplot.plot(sens_all[:, :, idx].squeeze())
+# Plotting the sensitivities
+for sdx,sens_label in enumerate(sens_types):
+    lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
     pyplot.gca().set_xlabel('mode number')
     pyplot.gca().set_ylabel('Sobol sensitivty')
-    pyplot.title(sens_labels[idx] + '_sensitivity')
+    pyplot.title(sens_label + '_sensitivity')
     pyplot.legend(lineObjects, dataframes[keys[0]].columns)
-    pyplot.savefig(sens_labels[idx] + '_sensitivity')
+    pyplot.savefig(sens_label + '_sensitivity')
     pyplot.close()
+
+# Plotting the PDFs of each mode
+for mode in range(neig):
+    pyplot.plot(
+        distribution_all[mode, :, 0].squeeze(),
+        distribution_all[mode, :, 1].squeeze(),
+        label=f'KL Mode-{mode+1}'
+    )
+pyplot.gca().set_xlabel('x')
+pyplot.gca().set_ylabel('P')
+pyplot.title('PDF of PC surrogate for each KL mode')
+pyplot.legend()
+pyplot.grid()
+pyplot.savefig('KLPC_PDFs')
+pyplot.close()
+
+# Plotting the CDFs of each mode
+for mode in range(neig):
+    pyplot.plot(
+        distribution_all[mode, :, 0].squeeze(),
+        distribution_all[mode, :, 2].squeeze(),
+        label=f'KL Mode-{mode+1}'
+    )
+pyplot.gca().set_xlabel('x')
+pyplot.gca().set_ylabel('P')
+pyplot.title('CFD of PC surrogate for each KL mode')
+pyplot.legend()
+pyplot.grid()
+pyplot.savefig('KLPC_CDFs')
+pyplot.close()

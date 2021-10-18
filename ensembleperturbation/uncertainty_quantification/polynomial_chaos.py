@@ -129,8 +129,8 @@ def evaluate_pc_pdf(
     # evaluating the PDF of the PC expansion
     uqtk_cmd = f'pdf_cl -i rvar.dat -g {pdf_bins}'
     os.system(uqtk_cmd)
-    xtarget = np.loadtxt('dens.dat')[:, :-1]
-    probability = np.loadtxt('dens.dat')[:, -1:]
+    xtarget = np.loadtxt('dens.dat')[:, :-1].squeeze()
+    probability = np.loadtxt('dens.dat')[:, -1:].squeeze()
 
     if figname is not None:
         pyplot.figure(figsize=(12, 8))
