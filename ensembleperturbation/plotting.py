@@ -374,7 +374,7 @@ def plot_points(
 
     if 'c' in kwargs:
         pyplot.colorbar(sc)
-    
+
     if title is not None:
         pyplot.title(title)
 
@@ -385,6 +385,7 @@ def plot_points(
         pyplot.show()
     else:
         pyplot.close()
+
 
 # def plot_geoarray(array: numpy.array, transform: Affine = None,
 #                   nodata: float = None, axis: pyplot.Axes = None,

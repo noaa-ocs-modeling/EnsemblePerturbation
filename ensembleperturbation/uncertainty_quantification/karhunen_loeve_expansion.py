@@ -87,36 +87,31 @@ def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
     }
     return kl_dict
 
+
 def karhunen_loeve_percentiles(
-    percentiles: np.ndarray, 
-    kl_dict: dict, 
-    pc_dicts: list,
+    percentiles: np.ndarray, kl_dict: dict, pc_dicts: list,
 ):
     """
     Get the desired percentiles for the full KL expansion 
     in which each mode has a PC (polynomial chaos) surrogate
     
-    """  
- 
+    """
+
     # get the samples of each percentile for each mode
-    samples = np.empty((len(percentiles),len(kl_dict['eigenvalues']))) 
-    for pcx, pc_dict in enumerate(pc_dicts): 
-        samples[:, pcx] = np.interp(
-            percentiles*0.01,
-            pc_dict['cdf'],
-            pc_dict['x'],
-        ) 
+    samples = np.empty((len(percentiles), len(kl_dict['eigenvalues'])))
+    for pcx, pc_dict in enumerate(pc_dicts):
+        samples[:, pcx] = np.interp(percentiles * 0.01, pc_dict['cdf'], pc_dict['x'],)
 
-    # evaluate the height for each percentile using the kl prediction 
-    klpc_percentiles = karhunen_loeve_prediction(kl_dict,samples=samples)
-    return klpc_percentiles #: size (ngrid,npercentiles)
+    # evaluate the height for each percentileusing the kl prediction
+    klpc_percentiles = karhunen_loeve_prediction(kl_dict, samples=samples)
+    return klpc_percentiles  #: size (ngrid,npercentiles)
 
 
-def karhunen_loeve_prediction(kl_dict: dict, samples = None, ymodel = None):
+def karhunen_loeve_prediction(kl_dict: dict, samples=None, ymodel=None):
     """
     Evaluating the model prediction based on KL modes
     
-    """  
+    """
 
     if samples is None:
         samples = kl_dict['samples']
@@ -158,9 +153,7 @@ def karhunen_loeve_relative_diagonal(
     karhunen_loeve_modes: np.ndarray, eigen_values: np.ndarray, covariance: np.ndarray
 ):
     cumulative_sum = (
-        np.cumsum(
-            (karhunen_loeve_modes[:, :-1] * np.sqrt(eigen_values[:-1])) ** 2, axis=1
-        )
+        np.cumsum((karhunen_loeve_modes[:, :-1] * np.sqrt(eigen_values[:-1])) ** 2, axis=1)
         + 0.0
     )
     diagonal = np.diag(covariance).reshape(-1, 1) + 0.0

@@ -10,8 +10,8 @@ from ensembleperturbation.uncertainty_quantification.ensemble_array import (
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
-    karhunen_loeve_prediction,
     karhunen_loeve_percentiles,
+    karhunen_loeve_prediction,
 )
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     build_pc_expansion,
@@ -59,7 +59,7 @@ print(ymodel.shape)
 # neig = 0.90 # gives us 4 modes
 neig = 0.95  # gives  us 6 modes
 
-## Evaluating the KL mode 
+## Evaluating the KL mode
 # Components of the dictionary:
 # mean_vector is the average field                                        : size (ngrid,)
 # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
@@ -92,12 +92,12 @@ pc_type = 'HG'  # Hermite-Gauss chaos
 lambda_reg = 0  # regularization lambda
 neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
 pc_dim = np_input.shape[1]  # dimension of the PC expansion
-num_samples = 1000 # number of times to sample the PC expansion to get PDF
-pdf_bins = 1000    # number of PDF bins
-sens_types = ['main', 'total']             # List of sensitivity types to keep
-pc_distributions = [None] * neig           # Storing PDF/CDF dictionary of each KL mode
+num_samples = 1000  # number of times to sample the PC expansion to get PDF
+pdf_bins = 1000  # number of PDF bins
+sens_types = ['main', 'total']  # List of sensitivity types to keep
+pc_distributions = [None] * neig  # Storing PDF/CDF dictionary of each KL mode
 sens_all = numpy.empty((neig, pc_dim, 3))  # Storing Sensitivities of each KL mode
-percentiles = numpy.array([10, 50, 90])    # List of percentiles to extract
+percentiles = numpy.array([10, 50, 90])  # List of percentiles to extract
 for mode, qoi in enumerate(kl_dict['samples'].transpose()):
     numpy.savetxt('qoi.dat', qoi)
 
@@ -170,7 +170,7 @@ for pc_key in pc_keys:
         pyplot.plot(
             pc_distributions[mode]['x'],
             pc_distributions[mode][pc_key],
-            label=f'KL Mode-{mode+1}'
+            label=f'KL Mode-{mode+1}',
         )
     pyplot.gca().set_xlabel('x')
     pyplot.gca().set_ylabel('P')
@@ -182,9 +182,7 @@ for pc_key in pc_keys:
 
 # Evaluate the percentile of the full KLPC surrogate of zeta_max
 zeta_max_percentiles = karhunen_loeve_percentiles(
-    percentiles=percentiles, 
-    kl_dict=kl_dict, 
-    pc_dicts=pc_distributions,
+    percentiles=percentiles, kl_dict=kl_dict, pc_dicts=pc_distributions,
 )
 
 # plot scatter points to show zeta_max percentiles

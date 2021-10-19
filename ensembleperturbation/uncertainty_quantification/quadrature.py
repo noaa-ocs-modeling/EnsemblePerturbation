@@ -20,7 +20,11 @@ def fit_surrogate_to_quadrature(
             orth=polynomials, nodes=perturbations.T, weights=weights, solves=samples,
         )
     except AssertionError:
-        if len(perturbations['run']) != len(weights) != len(samples):
+        if (
+            len(perturbations['run']) != len(weights)
+            or len(weights) != len(samples)
+            or len(samples) != len(perturbations['run'])
+        ):
             raise AssertionError(
                 f'{len(perturbations["run"])} != {len(weights)} != {len(samples)}'
             )
