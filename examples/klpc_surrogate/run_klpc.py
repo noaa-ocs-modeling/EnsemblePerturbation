@@ -58,16 +58,17 @@ print(ymodel.shape)
 # neig = 0.90 # gives us 4 modes
 neig = 0.95  # gives  us 6 modes
 
-## Evaluating the KL modes
-# ymean is the average field                                                 : size (ngrid,)
-# kl_modes is the KL modes ('principal directions')                          : size (ngrid,neig)
-# eigval is the eigenvalue vector                                            : size (neig,)
-# xi are the samples for the KL coefficients                                 : size (nens, neig)
-ymean, kl_modes, eigval, xi = karhunen_loeve_expansion(ymodel, neig=neig, plot=False)
+## Evaluating the KL mode 
+# Components of the dictionary:
+# mean_vector is the average field                                        : size (ngrid,)
+# modes is the KL modes ('principal directions')                          : size (ngrid,neig)
+# eigenvalues is the eigenvalue vector                                    : size (neig,)
+# samples are the samples for the KL coefficients                         : size (nens, neig)
+kl_dict = karhunen_loeve_expansion(ymodel, neig=neig, plot=False)
 
 # evaluate the fit of the KL prediction
 # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
-ypred = karhunen_loeve_prediction(ymean, kl_modes, eigval, xi, ymodel)
+ypred = karhunen_loeve_prediction(kl_dict)
 
 # plot scatter points to compare ymodel and ypred spatially
 for example in range(0, ymodel.shape[1], 5):
@@ -90,14 +91,14 @@ for example in range(0, ymodel.shape[1], 5):
 # Build PC for each mode in xi (each mode has nens values)
 pc_type = 'HG'  # Hermite-Gauss chaos
 lambda_reg = 0  # regularization lambda
-neig = xi.shape[1] # number of eigenvalues
+neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
 pc_dim = np_input.shape[1]  # dimension of the PC expansion
 num_samples = 1000 # number of times to sample the PC expansion to get PDF
 pdf_bins = 1000    # number of PDF bins
 sens_types = ['main', 'total']             # List of sensitivity types to keep
-distribution_all = numpy.empty((neig, pdf_bins, 3)) # Storing PDF/CDF of each KL mode
+pc_distribution = [None] * neig            # Storing PDF/CDF dictionary of each KL mode
 sens_all = numpy.empty((neig, pc_dim, 3))  # Storing Sensitivities of each KL mode
-for mode, qoi in enumerate(xi.transpose()):
+for mode, qoi in enumerate(kl_dict['samples'].transpose()):
     numpy.savetxt('qoi.dat', qoi)
 
     # compare accuracy of 2nd or 3rd order polynomials
@@ -142,7 +143,7 @@ for mode, qoi in enumerate(xi.transpose()):
     sens_all[mode, :, 1] = total_sens
 
     # Evaluates the PDF/CDF of the constructed 3rd order PC
-    xvalue, pdf, cdf = evaluate_pc_distribution_function(
+    pc_distribution[mode] = evaluate_pc_distribution_function(
         parameter_filename=f'coeff{mode + 1}.dat',
         pc_type=pc_type,
         pc_dimension=pc_dim,
@@ -150,9 +151,6 @@ for mode, qoi in enumerate(xi.transpose()):
         num_samples=num_samples,
         pdf_bins=pdf_bins,
     )
-    distribution_all[mode, :, 0] = xvalue
-    distribution_all[mode, :, 1] = pdf
-    distribution_all[mode, :, 2] = cdf
 
 # Plotting the sensitivities
 for sdx,sens_label in enumerate(sens_types):
@@ -165,17 +163,19 @@ for sdx,sens_label in enumerate(sens_types):
     pyplot.close()
 
 # Plotting the PDF/CDFs of each mode
-for pdx,df in enumerate(['PDF','CDF']):
+pc_keys = [*pc_distribution[0]]
+pc_keys.remove('x')
+for pc_key in pc_keys:
     for mode in range(neig):
         pyplot.plot(
-            distribution_all[mode, :, 0].squeeze(),
-            distribution_all[mode, :, pdx+1].squeeze(),
+            pc_distribution[mode]['x'],
+            pc_distribution[mode][pc_key],
             label=f'KL Mode-{mode+1}'
         )
     pyplot.gca().set_xlabel('x')
     pyplot.gca().set_ylabel('P')
-    pyplot.title(df + ' of PC surrogate for each KL mode')
+    pyplot.title(pc_key + ' of PC surrogate for each KL mode')
     pyplot.legend()
     pyplot.grid()
-    pyplot.savefig('KLPC_' + df)
+    pyplot.savefig('KLPC_' + pc_key)
     pyplot.close()

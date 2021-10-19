@@ -147,4 +147,10 @@ def evaluate_pc_distribution_function(
         output_filename = f'{figname}.png'
         pyplot.savefig(output_filename, bbox_inches='tight')
 
-    return xtarget, pdf, cdf
+    # entering the PDF/CDF into a dictionary
+    distribution_dict = {
+        'x': xtarget,
+        'pdf': pdf,
+        'cdf': cdf,
+    }
+    return distribution_dict

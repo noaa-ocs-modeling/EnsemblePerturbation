@@ -1,5 +1,5 @@
 from matplotlib import pyplot
-import numpy
+import numpy as np
 
 
 def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
@@ -14,8 +14,8 @@ def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
         assert neig <= 1.0 and neig >= 0.0, 'specify 0.0 <= neig <= 1.0'
 
     # evaluate weights and eigen values
-    mean_vector = numpy.mean(ymodel, axis=1)
-    covariance = numpy.cov(ymodel)
+    mean_vector = np.mean(ymodel, axis=1)
+    covariance = np.cov(ymodel)
 
     weights = trapezoidal_rule_weights(length=ngrid)
 
@@ -78,14 +78,47 @@ def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
         pyplot.savefig('KLmodes.png')
         pyplot.close()
 
-    return mean_vector, modes, eigen_values, xi
+    # return KL dictionary
+    kl_dict = {
+        'mean_vector': mean_vector,
+        'modes': modes,
+        'eigenvalues': eigen_values,
+        'samples': xi,
+    }
+    return kl_dict
+
+def karhunen_loeve_percentiles(
+    percentiles: np.ndarray, 
+    kl_dict: dict, 
+    pc_dicts: list,
+):
+    """
+    Get the desired percentiles for the full KL expansion 
+    in which each mode has a PC (polynomial chaos) surrogate
+    
+    """  
+ 
+    # get the samples of each percentile for each mode
+    samples = np.empty(len(pc_dicts),len(kl_dict['eigenvalues'])) 
+    for pcx, pc_dict in enumerate(pc_dicts): 
+        samples[pcx,:] = np.interp(percentiles,pc_dict['x'],pc_dist['cdf']) 
+ 
+    # evaluate the height using the kl prediction 
+    klpc_percentiles = karhunen_loeve_prediction(kl_dict,samples=samples)
+    return klpc_percentiles
 
 
-def karhunen_loeve_prediction(mean_vector, modes, eigen_values, xi, ymodel=None):
-    # evaluating the model prediction based on neig modes
-    # now ypred is ngrid x nens just like ymodel
-    ypred = mean_vector + numpy.dot(
-        numpy.dot(xi, numpy.diag(numpy.sqrt(eigen_values))), modes.T
+def karhunen_loeve_prediction(kl_dict: dict, samples = None, ymodel = None):
+    """
+    Evaluating the model prediction based on KL modes
+    
+    """  
+
+    if samples is None:
+        samples = kl_dict['samples']
+
+    ypred = kl_dict['mean_vector'] + np.dot(
+        np.dot(samples, np.diag(np.sqrt(kl_dict['eigenvalues']))), kl_dict['modes'].T
     )
     ypred = ypred.T
 
@@ -102,36 +135,36 @@ def karhunen_loeve_prediction(mean_vector, modes, eigen_values, xi, ymodel=None)
 
 def trapezoidal_rule_weights(length: int):
     # Set trapesoidal rule weights
-    weights = numpy.full(length, fill_value=1)
+    weights = np.full(length, fill_value=1)
     weights[[0, -1]] = 0.5
-    return numpy.sqrt(weights)
+    return np.sqrt(weights)
 
 
 def karhunen_loeve_eigen_values(
-    covariance: numpy.ndarray, weights: numpy.ndarray
-) -> (numpy.ndarray, numpy.ndarray):
-    return numpy.linalg.eigh(numpy.outer(weights, weights) * covariance)
+    covariance: np.ndarray, weights: np.ndarray
+) -> (np.ndarray, np.ndarray):
+    return np.linalg.eigh(np.outer(weights, weights) * covariance)
 
 
-def karhunen_loeve_modes(eigen_vectors: numpy.ndarray, weights: numpy.ndarray):
+def karhunen_loeve_modes(eigen_vectors: np.ndarray, weights: np.ndarray):
     return eigen_vectors / weights.reshape(-1, 1)  # ngrid, neig
 
 
 def karhunen_loeve_relative_diagonal(
-    karhunen_loeve_modes: numpy.ndarray, eigen_values: numpy.ndarray, covariance: numpy.ndarray
+    karhunen_loeve_modes: np.ndarray, eigen_values: np.ndarray, covariance: np.ndarray
 ):
     cumulative_sum = (
-        numpy.cumsum(
-            (karhunen_loeve_modes[:, :-1] * numpy.sqrt(eigen_values[:-1])) ** 2, axis=1
+        np.cumsum(
+            (karhunen_loeve_modes[:, :-1] * np.sqrt(eigen_values[:-1])) ** 2, axis=1
         )
         + 0.0
     )
-    diagonal = numpy.diag(covariance).reshape(-1, 1) + 0.0
+    diagonal = np.diag(covariance).reshape(-1, 1) + 0.0
     return cumulative_sum / diagonal
 
 
 def karhunen_loeve_coefficient_samples(
-    data: numpy.ndarray, eigen_values: numpy.ndarray, eigen_vectors: numpy.ndarray,
+    data: np.ndarray, eigen_values: np.ndarray, eigen_vectors: np.ndarray,
 ):
     """
     get samples for the Karhunen–Loève coefficients from the given data
@@ -142,7 +175,7 @@ def karhunen_loeve_coefficient_samples(
     :return: samples for the Karhunen–Loève coefficients
     """
     # nens, neig
-    return numpy.dot(
-        data.T - numpy.mean(data, axis=1),
+    return np.dot(
+        data.T - np.mean(data, axis=1),
         eigen_vectors * trapezoidal_rule_weights(data.shape[0]).reshape(-1, 1),
-    ) / numpy.sqrt(eigen_values)
+    ) / np.sqrt(eigen_values)
