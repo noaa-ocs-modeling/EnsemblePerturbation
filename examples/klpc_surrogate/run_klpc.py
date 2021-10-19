@@ -14,8 +14,8 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 )
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     build_pc_expansion,
-    evaluate_pc_expansion,
     evaluate_pc_distribution_function,
+    evaluate_pc_expansion,
     evaluate_pc_sensitivity,
 )
 
@@ -90,12 +90,12 @@ for example in range(0, ymodel.shape[1], 5):
 # Build PC for each mode in xi (each mode has nens values)
 pc_type = 'HG'  # Hermite-Gauss chaos
 lambda_reg = 0  # regularization lambda
-neig = xi.shape[1] # number of eigenvalues
+neig = xi.shape[1]  # number of eigenvalues
 pc_dim = np_input.shape[1]  # dimension of the PC expansion
-num_samples = 1000 # number of times to sample the PC expansion to get PDF
-pdf_bins = 1000    # number of PDF bins
-sens_types = ['main', 'total']             # List of sensitivity types to keep
-distribution_all = numpy.empty((neig, pdf_bins, 3)) # Storing PDF/CDF of each KL mode
+num_samples = 1000  # number of times to sample the PC expansion to get PDF
+pdf_bins = 1000  # number of PDF bins
+sens_types = ['main', 'total']  # List of sensitivity types to keep
+distribution_all = numpy.empty((neig, pdf_bins, 3))  # Storing PDF/CDF of each KL mode
 sens_all = numpy.empty((neig, pc_dim, 3))  # Storing Sensitivities of each KL mode
 for mode, qoi in enumerate(xi.transpose()):
     numpy.savetxt('qoi.dat', qoi)
@@ -155,7 +155,7 @@ for mode, qoi in enumerate(xi.transpose()):
     distribution_all[mode, :, 2] = cdf
 
 # Plotting the sensitivities
-for sdx,sens_label in enumerate(sens_types):
+for sdx, sens_label in enumerate(sens_types):
     lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
     pyplot.gca().set_xlabel('mode number')
     pyplot.gca().set_ylabel('Sobol sensitivty')
@@ -165,12 +165,12 @@ for sdx,sens_label in enumerate(sens_types):
     pyplot.close()
 
 # Plotting the PDF/CDFs of each mode
-for pdx,df in enumerate(['PDF','CDF']):
+for pdx, df in enumerate(['PDF', 'CDF']):
     for mode in range(neig):
         pyplot.plot(
             distribution_all[mode, :, 0].squeeze(),
-            distribution_all[mode, :, pdx+1].squeeze(),
-            label=f'KL Mode-{mode+1}'
+            distribution_all[mode, :, pdx + 1].squeeze(),
+            label=f'KL Mode-{mode+1}',
         )
     pyplot.gca().set_xlabel('x')
     pyplot.gca().set_ylabel('P')

@@ -86,6 +86,7 @@ def evaluate_pc_sensitivity(
     total_sensitivity = np.loadtxt('totsens.dat')
     return main_sensitivity, joint_sensitivity, total_sensitivity
 
+
 def evaluate_pc_distribution_function(
     parameter_filename: os.PathLike = 'coeff.dat',
     pc_type: str = 'HG',
@@ -131,7 +132,7 @@ def evaluate_pc_distribution_function(
     os.system(uqtk_cmd)
     xtarget = np.loadtxt('dens.dat')[:, :-1].squeeze()
     pdf = np.loadtxt('dens.dat')[:, -1:].squeeze()
-    cdf = np.cumsum(pdf)*np.diff(xtarget)[0]
+    cdf = np.cumsum(pdf) * np.diff(xtarget)[0]
 
     if figname is not None:
         pyplot.figure(figsize=(12, 8))
