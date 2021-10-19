@@ -139,7 +139,7 @@ def plot_nodes_across_runs(
 
 if __name__ == '__main__':
     plot_results = True
-    plot_percentile = True
+    plot_percentile = False
 
     save_plots = True
     show_plots = True
@@ -199,7 +199,7 @@ if __name__ == '__main__':
         & (elevations['x'] < subset_bounds[2])
         & (elevations['y'] > subset_bounds[1])
         & (elevations['y'] < subset_bounds[3]),
-    )[::100]
+    )
     samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
     # samples = max_elevations['zeta_max'].sel({'node': subsetted_nodes})
@@ -240,24 +240,6 @@ if __name__ == '__main__':
         LOGGER.info(f'loading surrogate model from "{surrogate_filename}"')
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
-    percentiles = [90]
-    percentile_filename = input_directory / 'percentiles.nc'
-    if not percentile_filename.exists():
-        predicted_percentiles = get_percentiles(
-            samples=samples,
-            percentiles=percentiles,
-            surrogate_model=surrogate_model,
-            distribution=distribution,
-        )
-
-        predicted_percentiles = predicted_percentiles.to_dataset(name='percentiles')
-
-        LOGGER.info(f'saving percentiles to "{percentile_filename}"')
-        predicted_percentiles.to_netcdf(percentile_filename)
-    else:
-        LOGGER.info(f'loading percentiles from "{percentile_filename}"')
-        predicted_percentiles = xarray.open_dataset(percentile_filename)
-
     if plot_results:
         LOGGER.info(f'running surrogate on {samples.shape} samples')
         predicted_mean = chaospy.E(poly=surrogate_model, dist=distribution)
@@ -291,6 +273,24 @@ if __name__ == '__main__':
         )
 
     if plot_percentile:
+        percentiles = [90]
+        percentile_filename = input_directory / 'percentiles.nc'
+        if not percentile_filename.exists():
+            predicted_percentiles = get_percentiles(
+                samples=samples,
+                percentiles=percentiles,
+                surrogate_model=surrogate_model,
+                distribution=distribution,
+            )
+
+            predicted_percentiles = predicted_percentiles.to_dataset(name='percentiles')
+
+            LOGGER.info(f'saving percentiles to "{percentile_filename}"')
+            predicted_percentiles.to_netcdf(percentile_filename)
+        else:
+            LOGGER.info(f'loading percentiles from "{percentile_filename}"')
+            predicted_percentiles = xarray.open_dataset(percentile_filename)
+
         percentiles = xarray.Dataset(
             {
                 str(float(percentile.values)): predicted_percentiles['percentiles'].sel(
