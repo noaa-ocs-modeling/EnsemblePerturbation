@@ -99,13 +99,17 @@ def karhunen_loeve_percentiles(
     """  
  
     # get the samples of each percentile for each mode
-    samples = np.empty(len(pc_dicts),len(kl_dict['eigenvalues'])) 
+    samples = np.empty((len(percentiles),len(kl_dict['eigenvalues']))) 
     for pcx, pc_dict in enumerate(pc_dicts): 
-        samples[pcx,:] = np.interp(percentiles,pc_dict['x'],pc_dist['cdf']) 
- 
-    # evaluate the height using the kl prediction 
+        samples[:, pcx] = np.interp(
+            percentiles*0.01,
+            pc_dict['cdf'],
+            pc_dict['x'],
+        ) 
+
+    # evaluate the height for each percentile using the kl prediction 
     klpc_percentiles = karhunen_loeve_prediction(kl_dict,samples=samples)
-    return klpc_percentiles
+    return klpc_percentiles #: size (ngrid,npercentiles)
 
 
 def karhunen_loeve_prediction(kl_dict: dict, samples = None, ymodel = None):
