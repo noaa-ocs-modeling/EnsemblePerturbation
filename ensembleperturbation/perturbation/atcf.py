@@ -1036,7 +1036,7 @@ class VortexPerturber:
             directory.mkdir(parents=True, exist_ok=True)
 
         if quadrature:
-            perturbations, weights = quadrature_perturbations(
+            perturbations, weights = perturb_along_quadrature(
                 variables=variables, maximum=len(perturbations),
             )
         else:
@@ -1361,7 +1361,7 @@ class VortexPerturber:
         return instance
 
 
-def quadrature_perturbations(
+def perturb_along_quadrature(
     variables: [VortexPerturbedVariable], maximum: int = None
 ) -> (numpy.ndarray, numpy.ndarray):
     """
