@@ -279,7 +279,6 @@ if __name__ == '__main__':
         plot_nodes_across_runs(
             node_results,
             title=f'surrogate-predicted and modeled elevations for {len(node_results["node"])} nodes',
-            node_colors='std',
             storm=storm,
             output_filename=input_directory / 'elevations.png' if save_plots else None,
         )
@@ -298,7 +297,6 @@ if __name__ == '__main__':
         plot_nodes_across_runs(
             percentiles,
             title=f'surrogate-predicted and modeled percentiles for {len(percentiles["node"])} nodes',
-            node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
         )
