@@ -86,7 +86,7 @@ def evaluate_pc_sensitivity(
     total_sensitivity = np.loadtxt('totsens.dat')
     return main_sensitivity, joint_sensitivity, total_sensitivity
 
-def evaluate_pc_pdf(
+def evaluate_pc_distribution_function(
     parameter_filename: os.PathLike = 'coeff.dat',
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
@@ -98,7 +98,7 @@ def evaluate_pc_pdf(
     figname: str = None,
 ):
     """
-    evaluates the PDF of the surrogate output
+    evaluates the PDF & CDF of the surrogate output
     
     gen_mi function inputs (generates the multi-index files): 
     -x "Multiindex type" 
@@ -130,12 +130,13 @@ def evaluate_pc_pdf(
     uqtk_cmd = f'pdf_cl -i rvar.dat -g {pdf_bins}'
     os.system(uqtk_cmd)
     xtarget = np.loadtxt('dens.dat')[:, :-1].squeeze()
-    probability = np.loadtxt('dens.dat')[:, -1:].squeeze()
+    pdf = np.loadtxt('dens.dat')[:, -1:].squeeze()
+    cdf = np.cumsum(pdf)*np.diff(xtarget)[0]
 
     if figname is not None:
         pyplot.figure(figsize=(12, 8))
 
-        pyplot.plot(xtarget, probability)
+        pyplot.plot(xtarget, pdf)
 
         if custom_xlabel is not None:
             pyplot.xlabel(custom_xlabel)
@@ -146,4 +147,4 @@ def evaluate_pc_pdf(
         output_filename = f'{figname}.png'
         pyplot.savefig(output_filename, bbox_inches='tight')
 
-    return xtarget, probability
+    return xtarget, pdf, cdf

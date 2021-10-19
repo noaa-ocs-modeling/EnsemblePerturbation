@@ -15,7 +15,7 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     build_pc_expansion,
     evaluate_pc_expansion,
-    evaluate_pc_pdf,
+    evaluate_pc_distribution_function,
     evaluate_pc_sensitivity,
 )
 
@@ -141,8 +141,8 @@ for mode, qoi in enumerate(xi.transpose()):
     sens_all[mode, :, 0] = main_sens
     sens_all[mode, :, 1] = total_sens
 
-    # Evaluates the PDF of the constructed 3rd order PC
-    pdf_xvalue, pdf_prob = evaluate_pc_pdf(
+    # Evaluates the PDF/CDF of the constructed 3rd order PC
+    xvalue, pdf, cdf = evaluate_pc_distribution_function(
         parameter_filename=f'coeff{mode + 1}.dat',
         pc_type=pc_type,
         pc_dimension=pc_dim,
@@ -150,9 +150,9 @@ for mode, qoi in enumerate(xi.transpose()):
         num_samples=num_samples,
         pdf_bins=pdf_bins,
     )
-    distribution_all[mode, :, 0] = pdf_xvalue
-    distribution_all[mode, :, 1] = pdf_prob
-    distribution_all[mode, :, 2] = numpy.cumsum(pdf_prob)*numpy.diff(pdf_xvalue)[0]
+    distribution_all[mode, :, 0] = xvalue
+    distribution_all[mode, :, 1] = pdf
+    distribution_all[mode, :, 2] = cdf
 
 # Plotting the sensitivities
 for sdx,sens_label in enumerate(sens_types):
@@ -164,32 +164,18 @@ for sdx,sens_label in enumerate(sens_types):
     pyplot.savefig(sens_label + '_sensitivity')
     pyplot.close()
 
-# Plotting the PDFs of each mode
-for mode in range(neig):
-    pyplot.plot(
-        distribution_all[mode, :, 0].squeeze(),
-        distribution_all[mode, :, 1].squeeze(),
-        label=f'KL Mode-{mode+1}'
-    )
-pyplot.gca().set_xlabel('x')
-pyplot.gca().set_ylabel('P')
-pyplot.title('PDF of PC surrogate for each KL mode')
-pyplot.legend()
-pyplot.grid()
-pyplot.savefig('KLPC_PDFs')
-pyplot.close()
-
-# Plotting the CDFs of each mode
-for mode in range(neig):
-    pyplot.plot(
-        distribution_all[mode, :, 0].squeeze(),
-        distribution_all[mode, :, 2].squeeze(),
-        label=f'KL Mode-{mode+1}'
-    )
-pyplot.gca().set_xlabel('x')
-pyplot.gca().set_ylabel('P')
-pyplot.title('CFD of PC surrogate for each KL mode')
-pyplot.legend()
-pyplot.grid()
-pyplot.savefig('KLPC_CDFs')
-pyplot.close()
+# Plotting the PDF/CDFs of each mode
+for pdx,df in enumerate(['PDF','CDF']):
+    for mode in range(neig):
+        pyplot.plot(
+            distribution_all[mode, :, 0].squeeze(),
+            distribution_all[mode, :, pdx+1].squeeze(),
+            label=f'KL Mode-{mode+1}'
+        )
+    pyplot.gca().set_xlabel('x')
+    pyplot.gca().set_ylabel('P')
+    pyplot.title(df + ' of PC surrogate for each KL mode')
+    pyplot.legend()
+    pyplot.grid()
+    pyplot.savefig('KLPC_' + df)
+    pyplot.close()
