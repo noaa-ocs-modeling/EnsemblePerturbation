@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    subsetted_times = elevations['time'][::10]
+    subsetted_times = elevations['time']
     subsetted_nodes = elevations['node'][::1000]
     samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
