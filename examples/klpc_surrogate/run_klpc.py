@@ -14,8 +14,8 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 )
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     build_pc_expansion,
-    evaluate_pc_expansion,
     evaluate_pc_distribution_function,
+    evaluate_pc_expansion,
     evaluate_pc_sensitivity,
 )
 
@@ -153,7 +153,7 @@ for mode, qoi in enumerate(kl_dict['samples'].transpose()):
     )
 
 # Plotting the sensitivities
-for sdx,sens_label in enumerate(sens_types):
+for sdx, sens_label in enumerate(sens_types):
     lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
     pyplot.gca().set_xlabel('mode number')
     pyplot.gca().set_ylabel('Sobol sensitivty')
