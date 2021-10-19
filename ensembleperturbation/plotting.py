@@ -336,6 +336,7 @@ def plot_points(
     axis: pyplot.Axes = None,
     show: bool = False,
     save_filename: str = None,
+    title: str = None,
     **kwargs
 ):
     """
@@ -353,6 +354,8 @@ def plot_points(
         whether to show the plot
     save_filename
         whether to save the plot
+    title
+        whether to add a title to the plot
     """
 
     if type(points) is MultiPoint:
@@ -371,13 +374,17 @@ def plot_points(
 
     if 'c' in kwargs:
         pyplot.colorbar(sc)
+    
+    if title is not None:
+        pyplot.title(title)
 
     if save_filename is not None:
         pyplot.savefig(save_filename)
 
     if show:
         pyplot.show()
-
+    else:
+        pyplot.close()
 
 # def plot_geoarray(array: numpy.array, transform: Affine = None,
 #                   nodata: float = None, axis: pyplot.Axes = None,

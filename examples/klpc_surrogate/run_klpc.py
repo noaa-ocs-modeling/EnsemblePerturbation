@@ -79,7 +79,6 @@ for example in range(0, ymodel.shape[1], 5):
         save_filename='modeled_zmax' + str(example),
         vmax=3.0,
     )
-    pyplot.close()
 
     # plot_coastline()
     plot_points(
@@ -87,7 +86,6 @@ for example in range(0, ymodel.shape[1], 5):
         save_filename='predicted_zmax' + str(example),
         vmax=3.0,
     )
-    pyplot.close()
 
 # Build PC for each mode in xi (each mode has nens values)
 pc_type = 'HG'  # Hermite-Gauss chaos
@@ -194,6 +192,6 @@ for pdx, perc in enumerate(percentiles):
     plot_points(
         numpy.hstack((points_subset, zeta_max_percentiles[:, [pdx]])),
         save_filename='zmax_' + str(perc) + '_percentile',
-        vmax=3.0,
+        title=str(perc) + ' percentile maximum elevation',
+        vmax=4.0,
     )
-    pyplot.close()
