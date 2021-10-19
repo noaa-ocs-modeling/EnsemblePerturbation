@@ -6,6 +6,7 @@ from adcircpy.forcing.winds.best_track import VortexForcing
 import chaospy
 import geopandas
 from matplotlib import cm, gridspec, pyplot
+import numpy
 from shapely.geometry import LineString, Point
 import xarray
 
@@ -46,10 +47,11 @@ def plot_nodes_across_runs(
     elif not isinstance(storm, VortexForcing):
         storm = BestTrackForcing(storm)
 
-    edge_colors = [
-        cm.get_cmap('gist_rainbow')(color_index / len(nodes['node']))
-        for color_index in range(len(nodes['node']))
-    ]
+    edge_colors = cm.get_cmap('gist_rainbow')(
+        numpy.arange(len(nodes['node'])) / len(nodes['node'])
+    )
+
+    map_axis = figure.add_subplot(grid[:, 0])
 
     if node_colors is None:
         node_colors = edge_colors
@@ -57,9 +59,10 @@ def plot_nodes_across_runs(
         node_colors = nodes[node_colors]
         if len(node_colors.dims) > 1:
             node_colors = node_colors.mean([dim for dim in node_colors.dims if dim != 'node'])
-        node_colors = node_colors.values
+        node_colors = cm.get_cmap('plasma')(
+            node_colors - node_colors.min() / (node_colors.max() - node_colors.min())
+        )
 
-    map_axis = figure.add_subplot(grid[:, 0])
     countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
         x='longitude',
@@ -71,12 +74,8 @@ def plot_nodes_across_runs(
 
     nodes.plot.scatter(x='x', y='y', c=node_colors, edgecolors=edge_colors)
 
-    map_axis.set_xlim(
-        map_bounds[0] - abs(map_bounds[0] * 0.1), map_bounds[2] + abs(map_bounds[2] * 0.1)
-    )
-    map_axis.set_ylim(
-        map_bounds[1] - abs(map_bounds[1] * 0.1), map_bounds[3] + abs(map_bounds[3] * 0.1)
-    )
+    map_axis.set_xlim(map_bounds[0], map_bounds[2])
+    map_axis.set_ylim(map_bounds[1], map_bounds[3])
 
     for variable_index, (variable_name, variable) in enumerate(nodes.data_vars.items()):
         variable_axis = figure.add_subplot(grid[variable_index, 1])
@@ -101,7 +100,7 @@ def plot_nodes_across_runs(
             if 'time' in nodes.dims:
                 for node_index in range(len(nodes['node'])):
                     node_data = source_data.isel(node=node_index)
-                    node_color = node_colors[node_index]
+                    node_color = edge_colors[node_index]
                     node_data.plot.line(
                         x='time', c=node_color, ax=variable_axis, **kwargs,
                     )
@@ -126,7 +125,7 @@ def plot_nodes_across_runs(
                     kwargs['edgecolor'] = 'k'
 
                 source_data.to_series().plot.bar(
-                    x='node', color=node_colors, ax=variable_axis, **kwargs
+                    x='node', color=edge_colors, ax=variable_axis, **kwargs
                 )
 
         variable_axis.set_title(variable_name)
@@ -299,7 +298,7 @@ if __name__ == '__main__':
         plot_nodes_across_runs(
             percentiles,
             title=f'surrogate-predicted and modeled percentiles for {len(percentiles["node"])} nodes',
-            node_colors='90',
+            node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
         )
