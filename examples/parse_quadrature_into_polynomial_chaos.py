@@ -6,7 +6,7 @@ from adcircpy.forcing.winds.best_track import VortexForcing
 import chaospy
 import geopandas
 from geopandas import GeoDataFrame
-from matplotlib import cm, colors, gridspec, pyplot
+from matplotlib import cm, gridspec, pyplot
 import numpy
 from shapely.geometry import LineString
 import xarray
