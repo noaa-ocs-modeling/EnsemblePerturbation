@@ -139,10 +139,10 @@ def plot_nodes_across_runs(
 
 if __name__ == '__main__':
     plot_results = True
-    plot_percentile = False
+    plot_percentile = True
 
     save_plots = True
-    show_plots = True
+    show_plots = False
 
     storm_name = None
 
@@ -193,16 +193,16 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    subsetted_times = elevations['time'][::10]
+    #subsetted_times = elevations['time'][::10]
     subsetted_nodes = elevations['node'].sel(
         node=(elevations['x'] > subset_bounds[0])
         & (elevations['x'] < subset_bounds[2])
         & (elevations['y'] > subset_bounds[1])
         & (elevations['y'] < subset_bounds[3]),
     )
-    samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
+    #samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
-    # samples = max_elevations['zeta_max'].sel({'node': subsetted_nodes})
+    samples = max_elevations['zeta_max'].sel({'node': subsetted_nodes})
     # samples = max_elevations['zeta_max']
     LOGGER.info(f'sample size: {samples.shape}')
 
