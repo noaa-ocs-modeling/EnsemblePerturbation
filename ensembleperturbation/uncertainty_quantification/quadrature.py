@@ -40,7 +40,7 @@ def get_percentiles(
     surrogate_model: numpoly.PolyLike,
     distribution: chaospy.Distribution,
 ) -> xarray.DataArray:
-    LOGGER.info(f'calculating {len(percentiles)} percentiles: {percentiles}')
+    LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
     predicted_percentiles = chaospy.Perc(
         poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
     )
