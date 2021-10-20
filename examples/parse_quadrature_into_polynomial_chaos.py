@@ -193,14 +193,14 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    #subsetted_times = elevations['time'][::10]
+    # subsetted_times = elevations['time'][::10]
     subsetted_nodes = elevations['node'].sel(
         node=(elevations['x'] > subset_bounds[0])
         & (elevations['x'] < subset_bounds[2])
         & (elevations['y'] > subset_bounds[1])
         & (elevations['y'] < subset_bounds[3]),
     )
-    #samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
+    # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
     samples = max_elevations['zeta_max'].sel({'node': subsetted_nodes})
     # samples = max_elevations['zeta_max']
@@ -273,37 +273,37 @@ if __name__ == '__main__':
         )
 
     if plot_percentile:
-        percentiles = [90]
+        percentiles = [10, 50, 90]
         percentile_filename = input_directory / 'percentiles.nc'
         if not percentile_filename.exists():
-            predicted_percentiles = get_percentiles(
+            node_percentiles = get_percentiles(
                 samples=samples,
                 percentiles=percentiles,
                 surrogate_model=surrogate_model,
                 distribution=distribution,
             )
 
-            predicted_percentiles = predicted_percentiles.to_dataset(name='percentiles')
+            node_percentiles = node_percentiles.to_dataset(name='percentiles')
 
             LOGGER.info(f'saving percentiles to "{percentile_filename}"')
-            predicted_percentiles.to_netcdf(percentile_filename)
+            node_percentiles.to_netcdf(percentile_filename)
         else:
             LOGGER.info(f'loading percentiles from "{percentile_filename}"')
-            predicted_percentiles = xarray.open_dataset(percentile_filename)
+            node_percentiles = xarray.open_dataset(percentile_filename)
 
-        percentiles = xarray.Dataset(
+        node_percentiles = xarray.Dataset(
             {
-                str(float(percentile.values)): predicted_percentiles['percentiles'].sel(
+                str(float(percentile.values)): node_percentiles['percentiles'].sel(
                     percentile=percentile
                 )
-                for percentile in predicted_percentiles['percentile']
+                for percentile in node_percentiles['percentile']
             },
-            coords=predicted_percentiles.coords,
+            coords=node_percentiles.coords,
         )
 
         plot_nodes_across_runs(
-            percentiles,
-            title=f'surrogate-predicted and modeled percentiles for {len(percentiles["node"])} nodes',
+            node_percentiles,
+            title=f'{len(percentiles)} surrogate-predicted percentile(s) for {len(node_percentiles["node"])} nodes',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
         )
