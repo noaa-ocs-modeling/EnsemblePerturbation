@@ -52,24 +52,33 @@ def plot_nodes_across_runs(
     map_title = f'{len(nodes["node"])} nodes'
 
     if node_colors is None:
-        cmap = cm.get_cmap('gist_rainbow')
-        node_colors = cmap(numpy.arange(len(nodes['node'])) / len(nodes['node']))
+        color_map = cm.get_cmap('gist_rainbow')
+        color_values = numpy.arange(len(nodes['node'])) / len(nodes['node'])
+        node_colors = color_map(color_values)
     elif isinstance(node_colors, str):
-        cmap = cm.get_cmap('viridis')
+        color_map = cm.get_cmap('cool')
         map_title = f'{map_title} colored by "{node_colors}"'
-        node_values = nodes[node_colors]
-        if len(node_values.dims) > 1:
-            node_values = node_values.mean([dim for dim in node_values.dims if dim != 'node'])
-        min_value = numpy.min(node_values.values)
-        max_value = numpy.max(node_values.values)
+        color_values = nodes[node_colors]
+        if len(color_values.dims) > 1:
+            color_values = color_values.mean(
+                [dim for dim in color_values.dims if dim != 'node']
+            )
+        min_value = numpy.min(color_values.values)
+        max_value = numpy.max(color_values.values)
         colorbar = figure.colorbar(
             mappable=cm.ScalarMappable(
-                cmap=cmap, norm=colors.Normalize(vmin=min_value, vmax=max_value),
+                cmap=color_map, norm=colors.Normalize(vmin=min_value, vmax=max_value),
             ),
             ax=map_axis,
         )
         colorbar.set_label(node_colors)
-        node_colors = cmap(node_values - min_value / (max_value - min_value))
+        color_values = (color_values - min_value) / (max_value - min_value)
+        node_colors = color_map(color_values)
+    else:
+        color_map = cm.get_cmap('cool')
+        min_value = numpy.min(node_colors)
+        max_value = numpy.max(node_colors)
+        color_values = (node_colors - min_value) / (max_value - min_value)
 
     countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
@@ -106,10 +115,15 @@ def plot_nodes_across_runs(
             sources = [None]
 
         for source in sources:
+            if source == 'model':
+                color_map = cm.get_cmap('cool')
+            elif source == 'surrogate':
+                color_map = cm.get_cmap('hot')
+            node_colors = color_map(color_values)
+
             kwargs = {}
 
             if source == 'surrogate':
-                kwargs['alpha'] = 0.3
                 kwargs['linestyle'] = '--'
 
             if 'source' in nodes.dims:
@@ -132,9 +146,7 @@ def plot_nodes_across_runs(
                             node_data + std_data,
                             color=node_color,
                             **{
-                                key: value
-                                if key != 'alpha'
-                                else (0.3 if source == 'surrogate' else 0.6)
+                                key: value if key != 'alpha' else 0.3
                                 for key, value in kwargs.items()
                             },
                         )
