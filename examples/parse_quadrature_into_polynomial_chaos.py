@@ -114,8 +114,8 @@ def plot_nodes_across_runs(
         else:
             sources = [None]
 
-        for source in sources:
-            if source == 'model':
+        for source_index, source in enumerate(sources):
+            if source is None or source == 'model':
                 color_map = cm.get_cmap('cool')
             elif source == 'surrogate':
                 color_map = cm.get_cmap('hot')
@@ -156,9 +156,12 @@ def plot_nodes_across_runs(
                 # if source == 'surrogate':
                 #     kwargs['edgecolor'] = 'k'
 
+                bar_width = 0.01
+                bar_offset = bar_width * (source_index + 0.5 - len(sources) / 2)
+
                 variable_axis.bar(
-                    x=source_data['distance_to_track'],
-                    width=0.01,
+                    x=source_data['distance_to_track'] + bar_offset,
+                    width=bar_width,
                     height=source_data.values,
                     color=node_colors,
                     **kwargs,
@@ -178,7 +181,7 @@ if __name__ == '__main__':
     plot_percentile = True
 
     save_plots = True
-    show_plots = True
+    show_plots = False
 
     storm_name = None
 
@@ -227,7 +230,7 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    subset_bounds = None  # (-83, 32, -75, 37)
+    subset_bounds = (-83, 25, -72, 42)
     subsetted_nodes = ElevationTimeSeriesOutput.subset(
         elevations, bounds=subset_bounds, only_inundated=True
     )['node']
