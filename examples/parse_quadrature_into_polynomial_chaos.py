@@ -195,7 +195,7 @@ if __name__ == '__main__':
     for filename in filenames:
         filename = input_directory / filename
         if filename.exists():
-            datasets[filename.name] = xarray.open_dataset(filename, chunks='auto')
+            datasets[filename.name] = xarray.open_dataset(filename, chunks=-1)
             existing_filenames.append(filename.name)
 
     for filename in existing_filenames:
