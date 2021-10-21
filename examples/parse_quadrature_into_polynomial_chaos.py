@@ -315,14 +315,22 @@ if __name__ == '__main__':
         percentiles = [10, 50, 90]
         percentile_filename = input_directory / 'percentiles.nc'
         if not percentile_filename.exists():
-            node_percentiles = get_percentiles(
+            surrogate_percentiles = get_percentiles(
                 samples=samples,
                 percentiles=percentiles,
                 surrogate_model=surrogate_model,
                 distribution=distribution,
             )
 
-            node_percentiles = node_percentiles.to_dataset(name='percentiles')
+            modeled_percentiles = samples.quantile(
+                dim='run', q=surrogate_percentiles['quantile'] / 100
+            )
+
+            node_percentiles = xarray.combine_nested(
+                [surrogate_percentiles, modeled_percentiles], concat_dim='source'
+            ).assign_coords(source=['surrogate', 'model'])
+
+            node_percentiles = node_percentiles.to_dataset(name='quantiles')
 
             LOGGER.info(f'saving percentiles to "{percentile_filename}"')
             node_percentiles.to_netcdf(percentile_filename)
@@ -332,10 +340,10 @@ if __name__ == '__main__':
 
         node_percentiles = xarray.Dataset(
             {
-                str(float(percentile.values)): node_percentiles['percentiles'].sel(
-                    percentile=percentile
+                str(float(percentile.values)): node_percentiles['quantiles'].sel(
+                    quantile=percentile
                 )
-                for percentile in node_percentiles['percentile']
+                for percentile in node_percentiles['quantile']
             },
             coords=node_percentiles.coords,
         )

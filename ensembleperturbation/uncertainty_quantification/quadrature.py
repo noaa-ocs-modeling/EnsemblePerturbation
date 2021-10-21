@@ -48,10 +48,10 @@ def get_percentiles(
     predicted_percentiles = xarray.DataArray(
         predicted_percentiles,
         coords={
-            'percentile': percentiles,
+            'quantile': percentiles,
             **{coord: values for coord, values in samples.coords.items() if coord != 'run'},
         },
-        dims=('percentile', *(dim for dim in samples.dims if dim != 'run')),
+        dims=('quantile', *(dim for dim in samples.dims if dim != 'run')),
     )
 
     return predicted_percentiles
