@@ -6,7 +6,7 @@ from adcircpy.forcing.winds.best_track import VortexForcing
 import chaospy
 import geopandas
 from geopandas import GeoDataFrame
-from matplotlib import cm, gridspec, pyplot
+from matplotlib import cm, colors, gridspec, pyplot
 import numpy
 from shapely.geometry import LineString
 import xarray
@@ -57,11 +57,19 @@ def plot_nodes_across_runs(
     elif isinstance(node_colors, str):
         cmap = cm.get_cmap('viridis')
         map_title = f'{map_title} colored by "{node_colors}"'
-        node_colors = nodes[node_colors]
-        if len(node_colors.dims) > 1:
-            node_colors = node_colors.mean([dim for dim in node_colors.dims if dim != 'node'])
+        node_values = nodes[node_colors]
+        if len(node_values.dims) > 1:
+            node_values = node_values.mean([dim for dim in node_values.dims if dim != 'node'])
+        colorbar = figure.colorbar(
+            mappable=cm.ScalarMappable(
+                cmap=cmap,
+                norm=colors.Normalize(vmin=node_values.min(), vmax=node_values.max()),
+            ),
+            ax=map_axis,
+        )
+        colorbar.set_label(node_colors)
         node_colors = cmap(
-            node_colors - node_colors.min() / (node_colors.max() - node_colors.min())
+            node_values - node_values.min() / (node_values.max() - node_values.min())
         )
 
     countries.plot(color='lightgrey', ax=map_axis)
@@ -73,14 +81,25 @@ def plot_nodes_across_runs(
         legend=storm_name is not None,
     )
 
-    nodes.plot.scatter(x='x', y='y', c=node_colors)
+    nodes.plot.scatter(x='x', y='y', c=node_colors, s=2)
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
     map_axis.set_title(map_title)
 
+    shared_axis = None
     for variable_index, (variable_name, variable) in enumerate(nodes.data_vars.items()):
-        variable_axis = figure.add_subplot(grid[variable_index, 1])
+        axis_kwargs = {}
+        if shared_axis is not None:
+            axis_kwargs['sharex'] = shared_axis
+
+        variable_axis = figure.add_subplot(grid[variable_index, 1], **axis_kwargs)
+
+        if shared_axis is None:
+            shared_axis = variable_axis
+
+        if variable_index < len(nodes.data_vars) - 1:
+            variable_axis.get_xaxis().set_visible(False)
 
         if 'source' in nodes.dims:
             sources = ['model', 'surrogate']
@@ -128,7 +147,7 @@ def plot_nodes_across_runs(
 
                 variable_axis.bar(
                     x=source_data['distance_to_track'],
-                    width=0.02,
+                    width=0.01,
                     height=source_data.values,
                     color=node_colors,
                     **kwargs,
@@ -137,8 +156,6 @@ def plot_nodes_across_runs(
         variable_axis.set_title(variable_name)
         variable_axis.tick_params(axis='x', which='both', labelsize=6)
         variable_axis.set(xlabel=None)
-
-    pyplot.colorbar(cmap=cmap, mappable=cm.ScalarMappable(cmap=cmap))
 
     if output_filename is not None:
         figure.set_size_inches(12, 12 / 1.61803398875)
