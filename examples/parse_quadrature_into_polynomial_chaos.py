@@ -233,11 +233,11 @@ if __name__ == '__main__':
     subset_bounds = (-83, 25, -72, 42)
     subsetted_nodes = ElevationTimeSeriesOutput.subset(
         elevations, bounds=subset_bounds, only_inundated=True
-    )['node']
+    )
     # subsetted_times = elevations['time'][::10]
     # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
-    samples = max_elevations['zeta_max'].sel({'node': subsetted_nodes})
+    samples = max_elevations['zeta_max'].sel(node=subsetted_nodes)
     # samples = max_elevations['zeta_max']
     LOGGER.info(f'sample size: {samples.shape}')
 
