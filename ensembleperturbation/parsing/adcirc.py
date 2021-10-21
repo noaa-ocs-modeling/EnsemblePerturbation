@@ -324,13 +324,13 @@ class FieldOutput(AdcircOutput, ABC):
         if bounds is not None:
             LOGGER.debug(f'filtering within bounds {bounds}')
             if bounds[0] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['x'] > bounds[0])
+                subset = xarray.ufuncs.logical_and(subset, dataset['x'] > bounds[0])
             if bounds[2] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['x'] < bounds[2])
+                subset = xarray.ufuncs.logical_and(subset, dataset['x'] < bounds[2])
             if bounds[1] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['y'] > bounds[1])
+                subset = xarray.ufuncs.logical_and(subset, dataset['y'] > bounds[1])
             if bounds[3] is not None:
-                subset = xarray.ufuncs.logical_and(dataset['y'] < bounds[3])
+                subset = xarray.ufuncs.logical_and(subset, dataset['y'] < bounds[3])
 
         if maximum_depth is not None:
             LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
@@ -406,7 +406,7 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
         only_inundated: bool = False,
         **kwargs,
     ) -> Dataset:
-        subset = super().subset(dataset, maximum_depth=maximum_depth)
+        subset = super().subset(dataset, bounds=bounds, maximum_depth=maximum_depth)
 
         if only_inundated:
             dry_subset = dataset['zeta'].isnull()
