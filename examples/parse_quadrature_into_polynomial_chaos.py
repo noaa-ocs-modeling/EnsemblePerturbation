@@ -60,17 +60,16 @@ def plot_nodes_across_runs(
         node_values = nodes[node_colors]
         if len(node_values.dims) > 1:
             node_values = node_values.mean([dim for dim in node_values.dims if dim != 'node'])
+        min_value = numpy.min(node_values.values)
+        max_value = numpy.max(node_values.values)
         colorbar = figure.colorbar(
             mappable=cm.ScalarMappable(
-                cmap=cmap,
-                norm=colors.Normalize(vmin=node_values.min(), vmax=node_values.max()),
+                cmap=cmap, norm=colors.Normalize(vmin=min_value, vmax=max_value),
             ),
             ax=map_axis,
         )
         colorbar.set_label(node_colors)
-        node_colors = cmap(
-            node_values - node_values.min() / (node_values.max() - node_values.min())
-        )
+        node_colors = cmap(node_values - min_value / (max_value - min_value))
 
     countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
