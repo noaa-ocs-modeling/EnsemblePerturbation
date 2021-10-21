@@ -181,7 +181,7 @@ if __name__ == '__main__':
     for filename in filenames:
         filename = input_directory / filename
         if filename.exists():
-            datasets[filename.name] = xarray.open_dataset(filename)
+            datasets[filename.name] = xarray.open_dataset(filename, chunks='auto')
             existing_filenames.append(filename.name)
 
     for filename in existing_filenames:
@@ -216,7 +216,7 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
-    subset_bounds = None # (-83, 32, -75, 37)
+    subset_bounds = None  # (-83, 32, -75, 37)
     subsetted_nodes = ElevationTimeSeriesOutput.subset(
         elevations, bounds=subset_bounds, only_inundated=True
     )['node']
