@@ -325,6 +325,7 @@ if __name__ == '__main__':
             modeled_percentiles = samples.quantile(
                 dim='run', q=surrogate_percentiles['quantile'] / 100
             )
+            modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
 
             node_percentiles = xarray.combine_nested(
                 [surrogate_percentiles, modeled_percentiles], concat_dim='source'
