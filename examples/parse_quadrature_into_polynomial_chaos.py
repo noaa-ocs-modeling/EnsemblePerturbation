@@ -1,3 +1,4 @@
+import math
 from os import PathLike
 from pathlib import Path
 
@@ -176,7 +177,98 @@ def plot_nodes_across_runs(
         figure.savefig(output_filename, dpi=300, bbox_inches='tight')
 
 
+def plot_perturbed_variables(
+    perturbations: xarray.Dataset, title: str = None, output_filename: PathLike = None,
+):
+    figure = pyplot.figure()
+    if title is None:
+        title = f'{len(perturbations["run"])} pertubation(s) of {len(perturbations["variable"])} variable(s)'
+    figure.suptitle(title)
+
+    variables = perturbations['variable'].values
+    num_variables = len(variables)
+    num_plots = int(num_variables * (num_variables - 1) / 2)
+
+    grid_length = math.ceil(num_plots ** 0.5)
+    grid = gridspec.GridSpec(grid_length, grid_length, figure=figure, wspace=0, hspace=0)
+
+    shared_grid_columns = {'x': {}, 'y': {}}
+    for plot_index in range(num_plots):
+        original_index = plot_index
+        if plot_index >= num_variables:
+            # TODO fix this
+            plot_index = (plot_index % num_variables) + 1 if original_index % 2 else 3
+
+        variable = variables[plot_index]
+
+        if original_index % 2 == 0:
+            shared_grid_columns['x'][variable] = None
+        else:
+            shared_grid_columns['y'][variable] = None
+
+    color_map_axis = figure.add_subplot(grid[-1, -1])
+    color_map_axis.set_visible(False)
+    color_map = cm.get_cmap('jet')
+    min_value = numpy.min(perturbations['weights'].values)
+    max_value = numpy.max(perturbations['weights'].values)
+    normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+    colorbar = pyplot.colorbar(
+        mappable=cm.ScalarMappable(cmap=color_map, norm=normalization,),
+        orientation='horizontal',
+        ax=color_map_axis,
+    )
+    colorbar.set_label('weight')
+
+    for column_index in range(grid_length):
+        column_variable = list(shared_grid_columns['y'])[column_index]
+        for row_index in range(grid_length - column_index):
+            row_variable = list(shared_grid_columns['x'])[row_index]
+
+            sharex = shared_grid_columns['x'][row_variable]
+            sharey = shared_grid_columns['y'][column_variable]
+
+            variable_axis = figure.add_subplot(
+                grid[row_index, column_index], sharex=sharex, sharey=sharey,
+            )
+
+            if sharex is None:
+                shared_grid_columns['x'][row_variable] = variable_axis
+            if sharey is None:
+                shared_grid_columns['y'][column_variable] = variable_axis
+
+            variable_axis.scatter(
+                perturbations['perturbations'].sel(variable=column_variable),
+                perturbations['perturbations'].sel(variable=row_variable),
+                c=perturbations['weights'],
+                cmap=color_map,
+                norm=normalization,
+            )
+
+            if row_index == 0:
+                variable_axis.set_xlabel(column_variable)
+                variable_axis.xaxis.set_label_position('top')
+                variable_axis.xaxis.tick_top()
+                if row_index == grid_length - column_index - 1:
+                    variable_axis.secondary_xaxis('bottom')
+            elif row_index != grid_length - column_index - 1:
+                variable_axis.xaxis.set_visible(False)
+
+            if column_index == 0:
+                variable_axis.set_ylabel(row_variable)
+                if row_index == grid_length - column_index - 1:
+                    variable_axis.secondary_yaxis('right')
+            elif row_index == grid_length - column_index - 1:
+                variable_axis.yaxis.tick_right()
+            else:
+                variable_axis.yaxis.set_visible(False)
+
+    if output_filename is not None:
+        figure.set_size_inches(12, 12 / 1.61803398875)
+        figure.savefig(output_filename, dpi=300, bbox_inches='tight')
+
+
 if __name__ == '__main__':
+    plot_perturbations = True
     plot_results = True
     plot_percentile = True
 
@@ -215,6 +307,11 @@ if __name__ == '__main__':
     perturbations = datasets['perturbations.nc']
     elevations = datasets['fort.63.nc']
     max_elevations = datasets['maxele.63.nc']
+
+    if plot_perturbations:
+        plot_perturbed_variables(
+            perturbations, output_filename=input_directory / 'perturbations.png'
+        )
 
     variables = {
         variable_class.name: variable_class()
