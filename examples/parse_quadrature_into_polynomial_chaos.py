@@ -377,25 +377,25 @@ if __name__ == '__main__':
 
     if plot_results:
         LOGGER.info(f'running surrogate on {samples.shape} samples')
-        predicted_mean = chaospy.E(poly=surrogate_model, dist=distribution)
-        predicted_std = chaospy.Std(poly=surrogate_model, dist=distribution)
-        reference_mean = samples.mean('run')
-        reference_std = samples.std('run')
+        surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
+        surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+        modeled_mean = samples.mean('run')
+        modeled_std = samples.std('run')
 
-        predicted_mean = xarray.DataArray(
-            predicted_mean, coords=reference_mean.coords, dims=reference_mean.dims,
+        surrogate_mean = xarray.DataArray(
+            surrogate_mean, coords=modeled_mean.coords, dims=modeled_mean.dims,
         )
-        predicted_std = xarray.DataArray(
-            predicted_std, coords=reference_std.coords, dims=reference_std.dims,
+        surrogate_std = xarray.DataArray(
+            surrogate_std, coords=modeled_std.coords, dims=modeled_std.dims,
         )
 
         node_results = xarray.Dataset(
             {
                 'mean': xarray.combine_nested(
-                    [predicted_mean, reference_mean], concat_dim='source'
+                    [surrogate_mean, modeled_mean], concat_dim='source'
                 ).assign_coords({'source': ['surrogate', 'model']}),
                 'std': xarray.combine_nested(
-                    [predicted_std, reference_std], concat_dim='source'
+                    [surrogate_std, modeled_std], concat_dim='source'
                 ).assign_coords({'source': ['surrogate', 'model']}),
             }
         )
