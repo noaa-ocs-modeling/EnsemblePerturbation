@@ -41,12 +41,12 @@ def get_percentiles(
     distribution: chaospy.Distribution,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
-    predicted_percentiles = chaospy.Perc(
+    surrogate_percentiles = chaospy.Perc(
         poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
     )
 
-    predicted_percentiles = xarray.DataArray(
-        predicted_percentiles,
+    surrogate_percentiles = xarray.DataArray(
+        surrogate_percentiles,
         coords={
             'quantile': percentiles,
             **{coord: values for coord, values in samples.coords.items() if coord != 'run'},
@@ -54,4 +54,4 @@ def get_percentiles(
         dims=('quantile', *(dim for dim in samples.dims if dim != 'run')),
     )
 
-    return predicted_percentiles
+    return surrogate_percentiles
