@@ -397,6 +397,7 @@ if __name__ == '__main__':
                 'std': xarray.combine_nested(
                     [surrogate_std, modeled_std], concat_dim='source'
                 ).assign_coords({'source': ['surrogate', 'model']}),
+                'difference': xarray.ufuncs.fabs(surrogate_std - modeled_std),
             }
         )
 
@@ -429,6 +430,10 @@ if __name__ == '__main__':
             ).assign_coords(source=['surrogate', 'model'])
 
             node_percentiles = node_percentiles.to_dataset(name='quantiles')
+
+            node_percentiles.assign(
+                difference=xarray.ufuncs.fabs(surrogate_percentiles - modeled_percentiles)
+            )
 
             LOGGER.info(f'saving percentiles to "{percentile_filename}"')
             node_percentiles.to_netcdf(percentile_filename)
