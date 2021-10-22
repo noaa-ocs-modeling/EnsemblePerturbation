@@ -56,6 +56,9 @@ def plot_nodes_across_runs(
         color_map = cm.get_cmap('gist_rainbow')
         color_values = numpy.arange(len(nodes['node'])) / len(nodes['node'])
         node_colors = color_map(color_values)
+        min_value = numpy.min(color_values.values)
+        max_value = numpy.max(color_values.values)
+        normalization = colors.Normalize(vmin=min_value, vmax=max_value)
     elif isinstance(node_colors, str):
         color_map = cm.get_cmap('cool')
         map_title = f'{map_title} colored by "{node_colors}"'
@@ -66,11 +69,9 @@ def plot_nodes_across_runs(
             )
         min_value = numpy.min(color_values.values)
         max_value = numpy.max(color_values.values)
+        normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
         colorbar = figure.colorbar(
-            mappable=cm.ScalarMappable(
-                cmap=color_map, norm=colors.Normalize(vmin=min_value, vmax=max_value),
-            ),
-            ax=map_axis,
+            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization,), ax=map_axis,
         )
         colorbar.set_label(node_colors)
         color_values = (color_values - min_value) / (max_value - min_value)
@@ -80,6 +81,7 @@ def plot_nodes_across_runs(
         min_value = numpy.min(node_colors)
         max_value = numpy.max(node_colors)
         color_values = (node_colors - min_value) / (max_value - min_value)
+        normalization = colors.Normalize(vmin=min_value, vmax=max_value)
 
     countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
@@ -90,7 +92,7 @@ def plot_nodes_across_runs(
         legend=storm_name is not None,
     )
 
-    nodes.plot.scatter(x='x', y='y', c=node_colors, s=2)
+    nodes.plot.scatter(x='x', y='y', c=node_colors, s=2, norm=normalization)
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
@@ -122,7 +124,7 @@ def plot_nodes_across_runs(
                 color_map = cm.get_cmap('hot')
             node_colors = color_map(color_values)
 
-            kwargs = {}
+            kwargs = {'norm': normalization}
 
             if source == 'surrogate':
                 kwargs['linestyle'] = '--'
@@ -146,10 +148,8 @@ def plot_nodes_across_runs(
                             node_data - std_data,
                             node_data + std_data,
                             color=node_color,
-                            **{
-                                key: value if key != 'alpha' else 0.3
-                                for key, value in kwargs.items()
-                            },
+                            alpha=0.3,
+                            **kwargs,
                         )
             else:
                 # if variable_name == 'mean' and 'std' in nodes.data_vars:
@@ -213,7 +213,7 @@ def plot_perturbed_variables(
     max_value = numpy.max(perturbations['weights'].values)
     normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
     colorbar = pyplot.colorbar(
-        mappable=cm.ScalarMappable(cmap=color_map, norm=normalization,),
+        mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
         orientation='horizontal',
         ax=color_map_axis,
     )
