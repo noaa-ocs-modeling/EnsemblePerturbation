@@ -231,9 +231,11 @@ if __name__ == '__main__':
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
-    subsetted_nodes = ElevationTimeSeriesOutput.subset(
-        elevations, bounds=subset_bounds, only_inundated=True
-    )
+    subsetted_nodes = elevations.sel(
+        node=ElevationTimeSeriesOutput.subset(
+            elevations, bounds=subset_bounds, only_inundated=True
+        )
+    )['node']
     # subsetted_times = elevations['time'][::10]
     # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
