@@ -12,7 +12,7 @@ import numpy
 from shapely.geometry import LineString
 import xarray
 
-from ensembleperturbation.parsing.adcirc import combine_outputs, ElevationTimeSeriesOutput
+from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.uncertainty_quantification.quadrature import (
     fit_surrogate_to_quadrature,
@@ -328,11 +328,9 @@ if __name__ == '__main__':
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
-    subsetted_nodes = elevations.sel(
-        node=ElevationTimeSeriesOutput.subset(
-            elevations, bounds=subset_bounds, only_inundated=True
-        )
-    )['node']
+    subsetted_nodes = elevations['node'].sel(
+        node=FieldOutput.subset(elevations['node'], bounds=subset_bounds,)
+    )
     # subsetted_times = elevations['time'][::10]
     # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
