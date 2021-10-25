@@ -53,35 +53,37 @@ def plot_nodes_across_runs(
     map_title = f'{len(nodes["node"])} nodes'
 
     if node_colors is None:
-        color_map = cm.get_cmap('gist_rainbow')
-        color_values = numpy.arange(len(nodes['node'])) / len(nodes['node'])
+        color_map = cm.get_cmap('jet')
+        color_values = numpy.arange(len(nodes['node']))
+        normalization = colors.Normalize(
+            vmin=numpy.min(color_values), vmax=numpy.max(color_values)
+        )
+        color_values = normalization(color_values)
         node_colors = color_map(color_values)
-        min_value = numpy.min(color_values.values)
-        max_value = numpy.max(color_values.values)
-        normalization = colors.Normalize(vmin=min_value, vmax=max_value)
     elif isinstance(node_colors, str):
-        color_map = cm.get_cmap('cool')
-        map_title = f'{map_title} colored by "{node_colors}"'
+        color_map = cm.get_cmap('jet')
+        map_title = f'"{node_colors}" of {map_title}'
         color_values = nodes[node_colors]
         if len(color_values.dims) > 1:
             color_values = color_values.mean(
                 [dim for dim in color_values.dims if dim != 'node']
             )
-        min_value = numpy.min(color_values.values)
-        max_value = numpy.max(color_values.values)
-        normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+        normalization = colors.LogNorm(
+            vmin=numpy.min(color_values.values), vmax=numpy.max(color_values.values)
+        )
         colorbar = figure.colorbar(
             mappable=cm.ScalarMappable(cmap=color_map, norm=normalization,), ax=map_axis,
         )
         colorbar.set_label(node_colors)
-        color_values = (color_values - min_value) / (max_value - min_value)
+        color_values = normalization(color_values)
         node_colors = color_map(color_values)
     else:
-        color_map = cm.get_cmap('cool')
-        min_value = numpy.min(node_colors)
-        max_value = numpy.max(node_colors)
-        color_values = (node_colors - min_value) / (max_value - min_value)
-        normalization = colors.Normalize(vmin=min_value, vmax=max_value)
+        color_map = cm.get_cmap('jet')
+        normalization = colors.Normalize(
+            vmin=numpy.min(node_colors), vmax=numpy.max(node_colors)
+        )
+        color_values = normalization(node_colors)
+        node_colors = color_map(color_values)
 
     countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
@@ -112,24 +114,26 @@ def plot_nodes_across_runs(
         if variable_index < len(nodes.data_vars) - 1:
             variable_axis.get_xaxis().set_visible(False)
 
-        if 'source' in nodes.dims:
-            sources = ['model', 'surrogate']
+        if 'source' in variable.dims:
+            sources = variable['source']
         else:
             sources = [None]
 
         for source_index, source in enumerate(sources):
-            if source is None or source == 'model':
-                color_map = cm.get_cmap('cool')
+            if source is None:
+                color_map = cm.get_cmap('jet')
+                variable_node_colors = color_map(color_values)
+            elif source == 'model':
+                color_map = cm.get_cmap('jet')
+                variable_node_colors = color_map(color_values)
             elif source == 'surrogate':
-                color_map = cm.get_cmap('hot')
-            node_colors = color_map(color_values)
+                variable_node_colors = 'grey'
 
-            kwargs = {'norm': normalization}
-
+            kwargs = {}
             if source == 'surrogate':
                 kwargs['linestyle'] = '--'
 
-            if 'source' in nodes.dims:
+            if 'source' in variable.dims:
                 source_data = variable.sel(source=source)
             else:
                 source_data = variable
@@ -137,12 +141,14 @@ def plot_nodes_across_runs(
             if 'time' in nodes.dims:
                 for node_index in range(len(nodes['node'])):
                     node_data = source_data.isel(node=node_index)
-                    node_color = node_colors[node_index]
+                    node_color = variable_node_colors[node_index]
                     node_data.plot.line(
                         x='time', c=node_color, ax=variable_axis, **kwargs,
                     )
                     if variable_name == 'mean' and 'std' in nodes.data_vars:
-                        std_data = nodes['std'].sel(source=source).isel(node=node_index)
+                        std_data = nodes['std'].isel(node=node_index)
+                        if 'source' in std_data.dims:
+                            std_data = std_data.sel(source=source)
                         variable_axis.fill_between(
                             samples['time'],
                             node_data - std_data,
@@ -152,11 +158,6 @@ def plot_nodes_across_runs(
                             **kwargs,
                         )
             else:
-                # if variable_name == 'mean' and 'std' in nodes.data_vars:
-                #     kwargs['yerr'] = nodes['std'].sel(source=source)
-                # if source == 'surrogate':
-                #     kwargs['edgecolor'] = 'k'
-
                 bar_width = 0.01
                 bar_offset = bar_width * (source_index + 0.5 - len(sources) / 2)
 
@@ -164,13 +165,14 @@ def plot_nodes_across_runs(
                     x=source_data['distance_to_track'] + bar_offset,
                     width=bar_width,
                     height=source_data.values,
-                    color=node_colors,
+                    color=variable_node_colors,
                     **kwargs,
                 )
 
         variable_axis.set_title(variable_name)
         variable_axis.tick_params(axis='x', which='both', labelsize=6)
         variable_axis.set(xlabel=None)
+        variable_axis.set_yscale('symlog')
 
     if output_filename is not None:
         figure.set_size_inches(12, 12 / 1.61803398875)
@@ -431,8 +433,8 @@ if __name__ == '__main__':
 
             node_percentiles = node_percentiles.to_dataset(name='quantiles')
 
-            node_percentiles.assign(
-                difference=xarray.ufuncs.fabs(surrogate_percentiles - modeled_percentiles)
+            node_percentiles = node_percentiles.assign(
+                differences=xarray.ufuncs.fabs(surrogate_percentiles - modeled_percentiles)
             )
 
             LOGGER.info(f'saving percentiles to "{percentile_filename}"')
@@ -441,19 +443,37 @@ if __name__ == '__main__':
             LOGGER.info(f'loading percentiles from "{percentile_filename}"')
             node_percentiles = xarray.open_dataset(percentile_filename)
 
-        node_percentiles = xarray.Dataset(
-            {
-                str(float(percentile.values)): node_percentiles['quantiles'].sel(
-                    quantile=percentile
-                )
-                for percentile in node_percentiles['quantile']
-            },
-            coords=node_percentiles.coords,
+        plot_nodes_across_runs(
+            xarray.Dataset(
+                {
+                    str(float(percentile.values)): node_percentiles['quantiles'].sel(
+                        quantile=percentile
+                    )
+                    for percentile in node_percentiles['quantile']
+                },
+                coords=node_percentiles.coords,
+            ),
+            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes',
+            node_colors='90.0',
+            storm=storm,
+            output_filename=input_directory / 'percentiles.png' if save_plots else None,
         )
 
         plot_nodes_across_runs(
-            node_percentiles,
-            title=f'{len(percentiles)} surrogate-predicted percentile(s) for {len(node_percentiles["node"])} nodes',
+            xarray.Dataset(
+                {
+                    str(float(percentile.values)): node_percentiles['differences'].sel(
+                        quantile=percentile
+                    )
+                    for percentile in node_percentiles['quantile']
+                },
+                coords={
+                    coord_name: coord
+                    for coord_name, coord in node_percentiles.coords.items()
+                    if coord_name != 'source'
+                },
+            ),
+            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
