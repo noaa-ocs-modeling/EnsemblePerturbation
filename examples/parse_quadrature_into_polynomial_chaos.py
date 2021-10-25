@@ -288,8 +288,8 @@ def plot_perturbed_variables(
 
 if __name__ == '__main__':
     plot_perturbations = True
-    plot_results = False
-    plot_percentile = False
+    plot_results = True
+    plot_percentile = True
 
     save_plots = False
     show_plots = True
