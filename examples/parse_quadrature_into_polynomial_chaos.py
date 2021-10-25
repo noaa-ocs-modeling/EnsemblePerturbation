@@ -45,6 +45,7 @@ def plot_nodes_across_runs(
         float(samples.coords['y'].max().values),
     ]
 
+    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
     if storm is None:
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
     elif not isinstance(storm, VortexForcing):
@@ -96,8 +97,7 @@ def plot_nodes_across_runs(
         color_values = normalization(node_colors)
         node_colors = color_map(color_values)
 
-    map_axis.coastlines('110m', 'grey')
-
+    countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
         x='longitude',
         y='latitude',
