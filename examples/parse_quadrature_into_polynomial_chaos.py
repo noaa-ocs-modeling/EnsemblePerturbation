@@ -68,20 +68,26 @@ def plot_nodes_across_runs(
             color_values = color_values.mean(
                 [dim for dim in color_values.dims if dim != 'node']
             )
-        normalization = colors.LogNorm(
-            vmin=numpy.min(color_values.values), vmax=numpy.max(color_values.values)
-        )
+        min_value = numpy.min(color_values.values)
+        max_value = numpy.max(color_values.values)
+        try:
+            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+        except ValueError:
+            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
         colorbar = figure.colorbar(
-            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization,), ax=map_axis,
+            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization), ax=map_axis,
         )
         colorbar.set_label(node_colors)
         color_values = normalization(color_values)
         node_colors = color_map(color_values)
     else:
         color_map = cm.get_cmap('jet')
-        normalization = colors.Normalize(
-            vmin=numpy.min(node_colors), vmax=numpy.max(node_colors)
-        )
+        min_value = numpy.min(node_colors.values)
+        max_value = numpy.max(node_colors.values)
+        try:
+            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+        except ValueError:
+            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
         color_values = normalization(node_colors)
         node_colors = color_map(color_values)
 
@@ -172,7 +178,7 @@ def plot_nodes_across_runs(
         variable_axis.set_title(variable_name)
         variable_axis.tick_params(axis='x', which='both', labelsize=6)
         variable_axis.set(xlabel=None)
-        variable_axis.set_yscale('symlog')
+        # variable_axis.set_yscale('symlog')
 
     if output_filename is not None:
         figure.set_size_inches(12, 12 / 1.61803398875)
@@ -213,8 +219,11 @@ def plot_perturbed_variables(
     color_map = cm.get_cmap('jet')
     min_value = numpy.min(perturbations['weights'].values)
     max_value = numpy.max(perturbations['weights'].values)
-    normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
-    colorbar = pyplot.colorbar(
+    try:
+        normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+    except ValueError:
+        normalization = colors.Normalize(vmin=min_value, vmax=max_value)
+    colorbar = figure.colorbar(
         mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
         orientation='horizontal',
         ax=color_map_axis,
@@ -332,7 +341,7 @@ if __name__ == '__main__':
     subset_bounds = (-83, 25, -72, 42)
     subsetted_nodes = elevations['node'].sel(
         node=FieldOutput.subset(elevations['node'], bounds=subset_bounds,)
-    )
+    )[::2000]
     # subsetted_times = elevations['time'][::10]
     # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
