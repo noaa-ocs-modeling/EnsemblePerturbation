@@ -72,11 +72,14 @@ def plot_nodes_across_runs(
         max_value = numpy.max(color_values.values)
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+            colorbar = figure.colorbar(
+                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization), ax=map_axis,
+            )
         except ValueError:
             normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-        colorbar = figure.colorbar(
-            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization), ax=map_axis,
-        )
+            colorbar = figure.colorbar(
+                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization), ax=map_axis,
+            )
         colorbar.set_label(node_colors)
         color_values = normalization(color_values)
         node_colors = color_map(color_values)
@@ -221,13 +224,18 @@ def plot_perturbed_variables(
     max_value = numpy.max(perturbations['weights'].values)
     try:
         normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+        colorbar = figure.colorbar(
+            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
+            orientation='horizontal',
+            ax=color_map_axis,
+        )
     except ValueError:
         normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-    colorbar = figure.colorbar(
-        mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
-        orientation='horizontal',
-        ax=color_map_axis,
-    )
+        colorbar = figure.colorbar(
+            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
+            orientation='horizontal',
+            ax=color_map_axis,
+        )
     colorbar.set_label('weight')
 
     for column_index in range(grid_length):
@@ -341,7 +349,7 @@ if __name__ == '__main__':
     subset_bounds = (-83, 25, -72, 42)
     subsetted_nodes = elevations['node'].sel(
         node=FieldOutput.subset(elevations['node'], bounds=subset_bounds,)
-    )[::2000]
+    )
     # subsetted_times = elevations['time'][::10]
     # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
     # samples = elevations['zeta']
