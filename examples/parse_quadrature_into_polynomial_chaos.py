@@ -239,21 +239,21 @@ def plot_perturbed_variables(
     colorbar.set_label('weight')
 
     for column_index in range(grid_length):
-        column_variable = list(shared_grid_columns['y'])[column_index]
+        column_variable = list(shared_grid_columns['x'])[column_index]
         for row_index in range(grid_length - column_index):
-            row_variable = list(shared_grid_columns['x'])[row_index]
+            row_variable = list(shared_grid_columns['y'])[row_index]
 
-            sharex = shared_grid_columns['x'][row_variable]
-            sharey = shared_grid_columns['y'][column_variable]
+            sharex = shared_grid_columns['x'][column_variable]
+            sharey = shared_grid_columns['y'][row_variable]
 
             variable_axis = figure.add_subplot(
                 grid[row_index, column_index], sharex=sharex, sharey=sharey,
             )
 
             if sharex is None:
-                shared_grid_columns['x'][row_variable] = variable_axis
+                shared_grid_columns['x'][column_variable] = variable_axis
             if sharey is None:
-                shared_grid_columns['y'][column_variable] = variable_axis
+                shared_grid_columns['y'][row_variable] = variable_axis
 
             variable_axis.scatter(
                 perturbations['perturbations'].sel(variable=column_variable),
@@ -288,11 +288,11 @@ def plot_perturbed_variables(
 
 if __name__ == '__main__':
     plot_perturbations = True
-    plot_results = True
-    plot_percentile = True
+    plot_results = False
+    plot_percentile = False
 
-    save_plots = True
-    show_plots = False
+    save_plots = False
+    show_plots = True
 
     storm_name = None
 
