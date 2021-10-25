@@ -4,6 +4,7 @@ from pathlib import Path
 
 from adcircpy.forcing import BestTrackForcing
 from adcircpy.forcing.winds.best_track import VortexForcing
+import cartopy
 import chaospy
 import geopandas
 from geopandas import GeoDataFrame
@@ -31,6 +32,7 @@ def plot_nodes_across_runs(
     output_filename: PathLike = None,
 ):
     figure = pyplot.figure()
+    figure.set_size_inches(12, 12 / 1.61803398875)
     if title is not None:
         figure.suptitle(title)
 
@@ -43,13 +45,13 @@ def plot_nodes_across_runs(
         float(samples.coords['y'].max().values),
     ]
 
-    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
     if storm is None:
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
     elif not isinstance(storm, VortexForcing):
         storm = BestTrackForcing(storm)
 
-    map_axis = figure.add_subplot(grid[:, 0])
+    map_crs = cartopy.crs.PlateCarree()
+    map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
     map_title = f'{len(nodes["node"])} nodes'
 
     if node_colors is None:
@@ -94,7 +96,8 @@ def plot_nodes_across_runs(
         color_values = normalization(node_colors)
         node_colors = color_map(color_values)
 
-    countries.plot(color='lightgrey', ax=map_axis)
+    map_axis.coastlines('110m', 'grey')
+
     storm.data.plot(
         x='longitude',
         y='latitude',
@@ -103,7 +106,7 @@ def plot_nodes_across_runs(
         legend=storm_name is not None,
     )
 
-    nodes.plot.scatter(x='x', y='y', c=node_colors, s=2, norm=normalization)
+    nodes.plot.scatter(x='x', y='y', c=node_colors, s=2, norm=normalization, transform=map_crs)
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
@@ -184,7 +187,6 @@ def plot_nodes_across_runs(
         # variable_axis.set_yscale('symlog')
 
     if output_filename is not None:
-        figure.set_size_inches(12, 12 / 1.61803398875)
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
 
@@ -192,6 +194,7 @@ def plot_perturbed_variables(
     perturbations: xarray.Dataset, title: str = None, output_filename: PathLike = None,
 ):
     figure = pyplot.figure()
+    figure.set_size_inches(12, 12 / 1.61803398875)
     if title is None:
         title = f'{len(perturbations["run"])} pertubation(s) of {len(perturbations["variable"])} variable(s)'
     figure.suptitle(title)
@@ -282,7 +285,6 @@ def plot_perturbed_variables(
                 variable_axis.yaxis.set_visible(False)
 
     if output_filename is not None:
-        figure.set_size_inches(12, 12 / 1.61803398875)
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
 
@@ -348,7 +350,7 @@ if __name__ == '__main__':
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
     subsetted_nodes = elevations['node'].sel(
-        node=FieldOutput.subset(elevations['node'], bounds=subset_bounds,)
+        node=FieldOutput.subset(elevations['node'], bounds=subset_bounds)
     )
     # subsetted_times = elevations['time'][::10]
     # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
