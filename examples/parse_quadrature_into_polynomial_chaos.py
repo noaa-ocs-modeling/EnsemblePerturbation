@@ -295,8 +295,8 @@ if __name__ == '__main__':
     plot_results = True
     plot_percentile = True
 
-    save_plots = False
-    show_plots = True
+    save_plots = True
+    show_plots = False
 
     storm_name = None
 
@@ -497,7 +497,7 @@ if __name__ == '__main__':
             title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes',
             node_colors='90.0',
             storm=storm,
-            output_filename=input_directory / 'percentiles.png' if save_plots else None,
+            output_filename=input_directory / 'percentile_differences.png' if save_plots else None,
         )
 
     if show_plots:
