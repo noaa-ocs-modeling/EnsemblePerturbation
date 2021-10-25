@@ -185,7 +185,7 @@ def plot_nodes_across_runs(
 
     if output_filename is not None:
         figure.set_size_inches(12, 12 / 1.61803398875)
-        figure.savefig(output_filename, dpi=300, bbox_inches='tight')
+        figure.savefig(output_filename, bbox_inches='tight')
 
 
 def plot_perturbed_variables(
@@ -283,7 +283,7 @@ def plot_perturbed_variables(
 
     if output_filename is not None:
         figure.set_size_inches(12, 12 / 1.61803398875)
-        figure.savefig(output_filename, dpi=300, bbox_inches='tight')
+        figure.savefig(output_filename, bbox_inches='tight')
 
 
 if __name__ == '__main__':
