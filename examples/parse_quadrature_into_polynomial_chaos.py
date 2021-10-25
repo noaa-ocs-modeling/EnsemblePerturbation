@@ -51,7 +51,7 @@ def plot_nodes_across_runs(
         storm = BestTrackForcing(storm)
 
     map_crs = cartopy.crs.PlateCarree()
-    map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
+    map_axis = pyplot.subplot(grid[:, 0], projection=map_crs)
     map_title = f'{len(nodes["node"])} nodes'
 
     if node_colors is None:
