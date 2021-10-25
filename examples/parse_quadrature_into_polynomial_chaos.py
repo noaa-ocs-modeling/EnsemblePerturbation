@@ -51,7 +51,7 @@ def plot_nodes_across_runs(
         storm = BestTrackForcing(storm)
 
     map_crs = cartopy.crs.PlateCarree()
-    map_axis = pyplot.subplot(grid[:, 0], projection=map_crs)
+    map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
     map_title = f'{len(nodes["node"])} nodes'
 
     if node_colors is None:
@@ -106,7 +106,9 @@ def plot_nodes_across_runs(
         legend=storm_name is not None,
     )
 
-    nodes.plot.scatter(x='x', y='y', c=node_colors, s=2, norm=normalization, transform=map_crs)
+    map_axis.scatter(
+        x=nodes['x'], y=nodes['y'], c=node_colors, s=2, norm=normalization, transform=map_crs
+    )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
