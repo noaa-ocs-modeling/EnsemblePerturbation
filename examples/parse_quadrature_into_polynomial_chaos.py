@@ -359,7 +359,10 @@ if __name__ == '__main__':
     # samples = elevations['zeta']
     samples = max_elevations['zeta_max'].sel(node=subsetted_nodes)
     # samples = max_elevations['zeta_max']
+    samples = samples.sel(run=samples['run'] != 'original')
     LOGGER.info(f'sample size: {samples.shape}')
+
+    perturbations = perturbations.sel(run=perturbations['run'] != 'original')
 
     if storm_name is not None:
         storm = BestTrackForcing(storm_name)
@@ -497,7 +500,9 @@ if __name__ == '__main__':
             title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes',
             node_colors='90.0',
             storm=storm,
-            output_filename=input_directory / 'percentile_differences.png' if save_plots else None,
+            output_filename=input_directory / 'percentile_differences.png'
+            if save_plots
+            else None,
         )
 
     if show_plots:
