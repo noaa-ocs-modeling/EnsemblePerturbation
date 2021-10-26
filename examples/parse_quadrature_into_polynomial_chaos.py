@@ -331,6 +331,8 @@ if __name__ == '__main__':
     elevations = datasets['fort.63.nc']
     max_elevations = datasets['maxele.63.nc']
 
+    perturbations = perturbations.sel(run=perturbations['run'] != 'original')
+
     if plot_perturbations:
         plot_perturbed_variables(
             perturbations, output_filename=input_directory / 'perturbations.png'
@@ -361,8 +363,6 @@ if __name__ == '__main__':
     # samples = max_elevations['zeta_max']
     samples = samples.sel(run=samples['run'] != 'original')
     LOGGER.info(f'sample size: {samples.shape}')
-
-    perturbations = perturbations.sel(run=perturbations['run'] != 'original')
 
     if storm_name is not None:
         storm = BestTrackForcing(storm_name)
@@ -429,7 +429,7 @@ if __name__ == '__main__':
 
         plot_nodes_across_runs(
             node_results,
-            title=f'surrogate-predicted and modeled elevations for {len(node_results["node"])} nodes',
+            title=f'surrogate-predicted and modeled elevations for {len(node_results["node"])} nodes across {len(node_results["run"])} runs',
             node_colors='mean',
             storm=storm,
             output_filename=input_directory / 'elevations.png' if save_plots else None,
@@ -477,7 +477,7 @@ if __name__ == '__main__':
                 },
                 coords=node_percentiles.coords,
             ),
-            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes',
+            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes across {len(node_percentiles["run"])} runs',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
@@ -497,7 +497,7 @@ if __name__ == '__main__':
                     if coord_name != 'source'
                 },
             ),
-            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes',
+            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} nodes across {len(node_percentiles["run"])} runs',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentile_differences.png'
