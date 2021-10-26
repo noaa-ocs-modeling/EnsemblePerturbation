@@ -429,7 +429,7 @@ if __name__ == '__main__':
 
         plot_nodes_across_runs(
             node_results,
-            title=f'surrogate-predicted and modeled elevation(s) for {len(node_results["node"])} node(s) across {len(node_results["run"])} run(s)',
+            title=f'surrogate-predicted and modeled elevation(s) for {len(node_results["node"])} node(s) across {len(samples["run"])} run(s)',
             node_colors='mean',
             storm=storm,
             output_filename=input_directory / 'elevations.png' if save_plots else None,
@@ -477,7 +477,7 @@ if __name__ == '__main__':
                 },
                 coords=node_percentiles.coords,
             ),
-            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(node_percentiles["run"])} run(s)',
+            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(samples["run"])} run(s)',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
@@ -497,7 +497,7 @@ if __name__ == '__main__':
                     if coord_name != 'source'
                 },
             ),
-            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(node_percentiles["run"])} run(s)',
+            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(samples["run"])} run(s)',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentile_differences.png'
