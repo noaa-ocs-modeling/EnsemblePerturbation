@@ -65,7 +65,7 @@ neig = 0.95  # gives  us 6 modes
 # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
 # eigenvalues is the eigenvalue vector                                    : size (neig,)
 # samples are the samples for the KL coefficients                         : size (nens, neig)
-kl_dict = karhunen_loeve_expansion(ymodel, neig=neig, plot=False)
+kl_dict = karhunen_loeve_expansion(ymodel, neig=neig, plot=True)
 
 # evaluate the fit of the KL prediction
 # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
@@ -77,6 +77,7 @@ for example in range(0, ymodel.shape[1], 5):
     plot_points(
         numpy.hstack((points_subset, ymodel[:, [example]])),
         save_filename='modeled_zmax' + str(example),
+        title='modeled zmax, ensemble #' + str(example),
         vmax=3.0,
     )
 
@@ -84,6 +85,7 @@ for example in range(0, ymodel.shape[1], 5):
     plot_points(
         numpy.hstack((points_subset, ypred[:, [example]])),
         save_filename='predicted_zmax' + str(example),
+        title='predicted zmax, ensemble #' + str(example),
         vmax=3.0,
     )
 

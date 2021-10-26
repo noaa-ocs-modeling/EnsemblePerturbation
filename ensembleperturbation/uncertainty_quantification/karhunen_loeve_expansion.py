@@ -59,7 +59,7 @@ def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
         modes = modes[:, :neig]
 
     if plot:
-        pyplot.figure(figsize=(12, 9))
+        pyplot.figure()
         pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
         pyplot.gca().set_xlabel('x')
         pyplot.gca().set_ylabel('Eigenvalue')
