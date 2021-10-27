@@ -64,6 +64,7 @@ from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
+import xarray
 from xarray import Dataset
 
 from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
@@ -998,11 +999,12 @@ class VortexPerturber:
 
     def write(
         self,
-        perturbations: Union[int, List[float], List[Dict[str, float]]],
+        perturbations: Union[int, List[float], List[Dict[str, float]], None],
         variables: [VortexVariable],
         directory: PathLike = None,
-        quadrature: bool = False,
         sample_from_distribution: bool = False,
+        quadrature: bool = False,
+        weights: [float] = None,
         overwrite: bool = False,
         continue_numbering: bool = False,
         parallel: bool = True,
@@ -1011,7 +1013,9 @@ class VortexPerturber:
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
-        :param quadrature: create
+        :param sample_from_distribution: override given perturbations with random samples from the joint distribution
+        :param quadrature: add perturbations along quadrature
+        :param weights: weights to use with perturbations
         :param overwrite: overwrite existing files
         :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
         :param parallel: generate perturbations concurrently
@@ -1034,43 +1038,44 @@ class VortexPerturber:
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
 
-        if isinstance(perturbations, int):
-            num_perturbations = perturbations
-        else:
-            num_perturbations = len(perturbations)
-
-        weights = None
-        if quadrature or sample_from_distribution:
-            perturbations = []
-            distribution = distribution_from_variables(variables)
-            if quadrature:
-                quadrature_perturbations, weights = perturb_along_quadrature(
-                    distribution, maximum=num_perturbations,
-                )
-                perturbations.extend(quadrature_perturbations)
-            if sample_from_distribution:
-                perturbations.extend(distribution.sample(num_perturbations))
-        else:
-            perturbations = [None for _ in range(num_perturbations)]
-
         variable_names = [variable.name for variable in variables]
 
-        # extract original dataframe
-        original_data = self.forcing.data
-
-        # write out original `fort.22`
-        original_filename = directory / 'original.22'
-        self.write_perturbed_track(
-            filename=original_filename,
-            dataframe=original_data,
-            perturbation={variable: 0 for variable in variable_names},
-            variables=variables,
-            weight=1,
-        )
-        if self.__filename is None:
-            self.__filename = original_filename
-
-        LOGGER.info(f'writing {len(perturbations)} perturbations')
+        if isinstance(perturbations, int):
+            num_perturbations = perturbations
+            perturbations = numpy.full(
+                (num_perturbations, len(variables)), fill_value=numpy.nan
+            )
+        elif perturbations is None:
+            if not quadrature:
+                raise ValueError('cannot infer number of perturbations from given information')
+            num_perturbations = None
+        else:
+            if sample_from_distribution:
+                LOGGER.warning(
+                    'overwriting given perturbations with random samples from joint distribution'
+                )
+            num_perturbations = len(perturbations)
+            perturbations_array = []
+            for perturbation in perturbations:
+                if isinstance(perturbation, float):
+                    perturbation = numpy.full((len(variables),), fill_value=perturbation)
+                elif isinstance(perturbation, Mapping):
+                    perturbation_array = []
+                    for variable in variables:
+                        if variable in perturbation:
+                            variable_perturbation = perturbation[variable]
+                        elif variable.__class__ in perturbation:
+                            variable_perturbation = perturbation[variable.__class__]
+                        elif variable.name in perturbation:
+                            variable_perturbation = perturbation[variable.name]
+                        else:
+                            variable_perturbation = numpy.nan
+                        perturbation_array.append(variable_perturbation)
+                    perturbation = perturbation_array
+                else:
+                    perturbation = numpy.full((len(variables),), fill_value=numpy.nan)
+                perturbations_array.append(perturbation)
+            perturbations = numpy.array(perturbations_array)
 
         if continue_numbering:
             # TODO: figure out how to continue perturbations by-variable (i.e. keep track of multiple series with different variables but the same total number of variables)
@@ -1083,14 +1088,80 @@ class VortexPerturber:
         else:
             last_index = 0
 
-        # for each variable, perturb the values and write each to a new `fort.22`
-        output_filenames = [
-            directory
-            / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}.22'
-            for perturbation_number in range(
-                last_index + 1, len(perturbations) + last_index + 1
+        run_names = [
+            f'vortex_{len(variables)}_variable_perturbation_{index + 1}'
+            for index in range(last_index, last_index + num_perturbations)
+        ]
+
+        perturbations = [
+            xarray.DataArray(
+                perturbations,
+                coords={'run': run_names, 'variable': variable_names},
+                dims=('run', 'variable'),
             )
         ]
+
+        if weights is None:
+            weights = numpy.full((len(run_names),), fill_value=numpy.nan)
+        weights = [xarray.DataArray(weights, coords={'run': run_names}, dims=('run',))]
+
+        distribution = distribution_from_variables(variables)
+
+        if sample_from_distribution:
+            # overwrite given perturbations with random samples from joint distribution
+            perturbations[0] = xarray.DataArray(
+                distribution.sample(num_perturbations),
+                coords={'run': run_names, 'variable': variable_names},
+                dims=('variable', 'run'),
+            ).T
+
+        if quadrature:
+            quadrature_nodes, quadrature_weights = chaospy.generate_quadrature(
+                order=3, dist=distribution, rule='Gaussian',
+            )
+
+            quadrature_run_names = [
+                f'vortex_{quadrature_nodes.shape[0]}_variable_quadrature_{index + 1}'
+                for index in range(quadrature_nodes.shape[1])
+            ]
+
+            quadrature_nodes = xarray.DataArray(
+                quadrature_nodes,
+                coords={'run': quadrature_run_names, 'variable': variable_names},
+                dims=('variable', 'run'),
+            )
+            perturbations.append(quadrature_nodes.T)
+
+            weights.append(
+                xarray.DataArray(
+                    quadrature_weights, coords={'run': quadrature_run_names}, dims=('run',)
+                )
+            )
+
+        perturbations.append(
+            xarray.DataArray(
+                numpy.full((1, len(variables)), fill_value=0),
+                coords={'run': ['original'], 'variable': variable_names},
+                dims=('run', 'variable'),
+            )
+        )
+        weights.append(xarray.DataArray([1.0], coords={'run': ['original']}, dims=('run',)))
+
+        perturbations = xarray.merge(
+            [
+                xarray.combine_nested(perturbations, concat_dim='run').to_dataset(
+                    name='perturbations'
+                ),
+                xarray.combine_nested(weights, concat_dim='run').to_dataset(name='weights'),
+            ]
+        )
+
+        # extract original dataframe
+        original_data = self.forcing.data
+        if self.__filename is None:
+            self.__filename = directory / 'original.22'
+
+        LOGGER.info(f'writing {len(perturbations["run"])} perturbations')
 
         if parallel:
             process_pool = ProcessPoolExecutorStackTraced()
@@ -1102,19 +1173,26 @@ class VortexPerturber:
             temporary_directory = None
             original_data_pickle_filename = None
 
+        # for each variable, perturb the values and write each to a new `fort.22`
         futures = []
-
-        for perturbation_index, output_filename in enumerate(output_filenames):
+        for run_name in perturbations['run'].values:
+            output_filename = directory / (run_name + '.22')
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
-                perturbation = perturbations[perturbation_index]
+                perturbation = perturbations.sel(run=run_name)
 
-                if perturbation is None:
-                    perturbation = {variable: None for variable in variable_names}
-                elif not isinstance(perturbation, Mapping):
-                    perturbation = {variable: perturbation for variable in variable_names}
+                perturbation_values = perturbation['perturbations']
+                if isinstance(perturbation_values, xarray.DataArray):
+                    perturbation_values = {
+                        variable: float(perturbation_values.sel(variable=variable).values)
+                        for variable in variable_names
+                    }
+                elif not isinstance(perturbation_values, Mapping):
+                    perturbation_values = {
+                        variable: perturbation_values for variable in variable_names
+                    }
 
-                perturbation = {
+                perturbation_values = {
                     variable.name
                     if (
                         issubclass(variable, VortexVariable)
@@ -1122,18 +1200,16 @@ class VortexPerturber:
                         else isinstance(variable, VortexVariable)
                     )
                     else variable: alpha
-                    for variable, alpha in perturbation.items()
+                    for variable, alpha in perturbation_values.items()
                 }
 
                 write_kwargs = {
                     'filename': output_filename,
                     'dataframe': original_data,
-                    'perturbation': perturbation,
+                    'perturbation': perturbation_values,
                     'variables': variable_names,
+                    'weight': float(perturbation['weights'].values),
                 }
-
-                if weights is not None:
-                    write_kwargs['weight'] = weights[perturbation_index]
 
                 if parallel:
                     write_kwargs['dataframe'] = original_data_pickle_filename
@@ -1148,6 +1224,10 @@ class VortexPerturber:
             output_filenames = [
                 completed_future.result()
                 for completed_future in concurrent.futures.as_completed(futures)
+            ]
+        else:
+            output_filenames = [
+                directory / (run_name + '.22') for run_name in perturbations['run'].values
             ]
 
         if temporary_directory is not None:
@@ -1382,27 +1462,6 @@ def distribution_from_variables(variables: [VortexPerturbedVariable]) -> Distrib
         variables = [variable() for variable in VortexPerturbedVariable.__subclasses__()]
 
     return chaospy.J(*(variable.chaospy_distribution() for variable in variables))
-
-
-def perturb_along_quadrature(
-    distribution: Distribution, maximum: int = None,
-) -> (numpy.ndarray, numpy.ndarray):
-    """
-    Generate quadrature from variable distributions.
-
-    :param distribution: chaospy join distribution
-    :returns: array of nodes with size NxV, array of weights with size N
-    """
-
-    nodes, weights = chaospy.generate_quadrature(
-        order=3, dist=distribution, rule='Gaussian', n_max=maximum
-    )
-
-    perturbations = [
-        {variable: node[index] for index, variable in enumerate(variables)} for node in nodes.T
-    ]
-
-    return perturbations, weights
 
 
 def utm_crs_from_longitude(longitude: float) -> CRS:

@@ -112,8 +112,11 @@ class AdcircOutput(ABC):
     @classmethod
     @abstractmethod
     def subset(
-        cls, dataset: Dataset, bounds: (float, float, float, float) = None, **kwargs,
-    ) -> Dataset:
+        cls,
+        dataset: Union[Dataset, DataArray],
+        bounds: (float, float, float, float) = None,
+        **kwargs,
+    ) -> Union[Dataset, DataArray]:
         raise NotImplementedError
 
 
@@ -129,8 +132,11 @@ class StationTimeSeriesOutput(AdcircOutput, TimeSeriesOutput, ABC):
 
     @classmethod
     def subset(
-        cls, dataset: Dataset, bounds: (float, float, float, float) = None, **kwargs,
-    ) -> Dataset:
+        cls,
+        dataset: Union[Dataset, DataArray],
+        bounds: (float, float, float, float) = None,
+        **kwargs,
+    ) -> Union[Dataset, DataArray]:
         subset = ~dataset['station'].isnull()
 
         if bounds is not None:
@@ -314,11 +320,11 @@ class FieldOutput(AdcircOutput, ABC):
     @classmethod
     def subset(
         cls,
-        dataset: Dataset,
+        dataset: Union[Dataset, DataArray],
         bounds: (float, float, float, float) = None,
         maximum_depth: float = None,
         **kwargs,
-    ) -> Dataset:
+    ) -> Union[Dataset, DataArray]:
         subset = ~dataset['node'].isnull()
 
         if bounds is not None:
@@ -400,12 +406,12 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
     @classmethod
     def subset(
         cls,
-        dataset: Dataset,
+        dataset: Union[Dataset, DataArray],
         bounds: (float, float, float, float) = None,
         maximum_depth: float = None,
         only_inundated: bool = False,
         **kwargs,
-    ) -> Dataset:
+    ) -> Union[Dataset, DataArray]:
         subset = super().subset(dataset, bounds=bounds, maximum_depth=maximum_depth)
 
         if only_inundated:

@@ -32,7 +32,7 @@ def test_monovariate_besttrack_ensemble():
     # perturb variables one at a time
     for variable in variables:
         perturber.write(
-            perturbations=[-1.0, 1.0], variables=[variable], directory=output_directory,
+            perturbations=[-1.0, 1.0], variables=[variable], directory=output_directory
         )
 
     check_reference_directory(output_directory, reference_directory)
@@ -64,9 +64,9 @@ def test_multivariate_besttrack_ensemble():
             },
             0.75,
         ],
-        quadrature=False,
         variables=variables,
         directory=output_directory,
+        quadrature=False,
         overwrite=True,
         parallel=True,
     )
@@ -91,25 +91,25 @@ def test_original_file():
     perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory,
+        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
 
     assert open(run_1_directory / 'original.22').read() == original_data
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory,
+        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
 
     assert open(run_1_directory / 'original.22').read() == original_data
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory,
+        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory,
+        perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory
     )
 
     assert open(run_2_directory / 'original.22').read() == original_data
