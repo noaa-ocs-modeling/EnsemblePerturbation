@@ -32,7 +32,10 @@ def test_monovariate_besttrack_ensemble():
     # perturb variables one at a time
     for variable in variables:
         perturber.write(
-            perturbations=[-1.0, 1.0], variables=[variable], directory=output_directory
+            perturbations=[-1.0, 1.0],
+            variables=[variable],
+            directory=output_directory,
+            continue_numbering=True,
         )
 
     check_reference_directory(output_directory, reference_directory)
