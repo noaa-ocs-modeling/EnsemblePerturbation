@@ -20,7 +20,8 @@ def write_vortex_perturbations(
     modeled_start_time: datetime,
     modeled_duration: timedelta,
     forcings: [str],
-    quadrature: bool = True,
+    along_quadrature: bool = False,
+    sample_from_distribution: bool = False,
     overwrite: bool = False,
     parallel: bool = False,
 ):
@@ -80,7 +81,8 @@ def write_vortex_perturbations(
         perturbations=perturbations,
         variables=variables,
         directory=track_directory,
-        quadrature=quadrature,
+        quadrature=along_quadrature,
+        sample_from_distribution=sample_from_distribution,
         overwrite=overwrite,
         continue_numbering=True,
         parallel=parallel,
@@ -103,6 +105,7 @@ def main():
         extra_arguments={
             'perturbations': int,
             'quadrature': bool,
+            'sample': bool,
             'variables': [str],
             'serial': bool,
         }
@@ -115,7 +118,8 @@ def main():
         modeled_start_time=arguments['modeled_start_time'],
         modeled_duration=arguments['modeled_duration'],
         forcings=arguments['forcings'],
-        quadrature=arguments['quadrature'],
+        along_quadrature=arguments['quadrature'],
+        sample_from_distribution=arguments['sample'],
         overwrite=arguments['overwrite'],
         parallel=not arguments['serial'],
     )

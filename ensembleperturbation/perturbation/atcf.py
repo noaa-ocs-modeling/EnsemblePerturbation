@@ -51,6 +51,7 @@ import warnings
 
 from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
 import chaospy
+from chaospy import Distribution
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -1001,6 +1002,7 @@ class VortexPerturber:
         variables: [VortexVariable],
         directory: PathLike = None,
         quadrature: bool = False,
+        sample_from_distribution: bool = False,
         overwrite: bool = False,
         continue_numbering: bool = False,
         parallel: bool = True,
@@ -1015,9 +1017,6 @@ class VortexPerturber:
         :param parallel: generate perturbations concurrently
         :returns: written filenames
         """
-
-        if isinstance(perturbations, int):
-            perturbations = [None] * perturbations
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
@@ -1035,12 +1034,24 @@ class VortexPerturber:
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
 
-        if quadrature:
-            perturbations, weights = perturb_along_quadrature(
-                variables=variables, maximum=len(perturbations),
-            )
+        if isinstance(perturbations, int):
+            num_perturbations = perturbations
         else:
-            weights = None
+            num_perturbations = len(perturbations)
+
+        weights = None
+        if quadrature or sample_from_distribution:
+            perturbations = []
+            distribution = distribution_from_variables(variables)
+            if quadrature:
+                quadrature_perturbations, weights = perturb_along_quadrature(
+                    distribution, maximum=num_perturbations,
+                )
+                perturbations.extend(quadrature_perturbations)
+            if sample_from_distribution:
+                perturbations.extend(distribution.sample(num_perturbations))
+        else:
+            perturbations = [None for _ in range(num_perturbations)]
 
         variable_names = [variable.name for variable in variables]
 
@@ -1361,20 +1372,27 @@ class VortexPerturber:
         return instance
 
 
-def perturb_along_quadrature(
-    variables: [VortexPerturbedVariable], maximum: int = None
-) -> (numpy.ndarray, numpy.ndarray):
+def distribution_from_variables(variables: [VortexPerturbedVariable]) -> Distribution:
     """
-    Generate quadrature from variable distributions.
-
     :param variables: names of perturbed variables
-    :returns: array of nodes with size NxV, array of weights with size N
+    :return: chaospy joint distribution encompassing variables
     """
 
     if variables is None or len(variables) == 0:
         variables = [variable() for variable in VortexPerturbedVariable.__subclasses__()]
 
-    distribution = chaospy.J(*(variable.chaospy_distribution() for variable in variables))
+    return chaospy.J(*(variable.chaospy_distribution() for variable in variables))
+
+
+def perturb_along_quadrature(
+    distribution: Distribution, maximum: int = None,
+) -> (numpy.ndarray, numpy.ndarray):
+    """
+    Generate quadrature from variable distributions.
+
+    :param distribution: chaospy join distribution
+    :returns: array of nodes with size NxV, array of weights with size N
+    """
 
     nodes, weights = chaospy.generate_quadrature(
         order=3, dist=distribution, rule='Gaussian', n_max=maximum
