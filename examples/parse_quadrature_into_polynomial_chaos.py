@@ -39,10 +39,10 @@ def plot_nodes_across_runs(
     grid = gridspec.GridSpec(len(nodes.data_vars), 2, figure=figure)
 
     map_bounds = [
-        float(samples.coords['x'].min().values),
-        float(samples.coords['y'].min().values),
-        float(samples.coords['x'].max().values),
-        float(samples.coords['y'].max().values),
+        float(training_set.coords['x'].min().values),
+        float(training_set.coords['y'].min().values),
+        float(training_set.coords['x'].max().values),
+        float(training_set.coords['y'].max().values),
     ]
 
     countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
@@ -164,7 +164,7 @@ def plot_nodes_across_runs(
                         if 'source' in std_data.dims:
                             std_data = std_data.sel(source=source)
                         variable_axis.fill_between(
-                            samples['time'],
+                            training_set['time'],
                             node_data - std_data,
                             node_data + std_data,
                             color=node_color,
@@ -292,7 +292,8 @@ def plot_perturbed_variables(
 
 if __name__ == '__main__':
     plot_perturbations = True
-    plot_results = True
+    plot_validation = True
+    plot_statistics = True
     plot_percentile = True
 
     save_plots = True
@@ -301,6 +302,7 @@ if __name__ == '__main__':
     storm_name = None
 
     input_directory = Path.cwd()
+    validation_set_filename = input_directory / 'validation_set.nc'
     surrogate_filename = input_directory / 'surrogate.npy'
 
     filenames = ['perturbations.nc', 'fort.63.nc', 'maxele.63.nc']
@@ -331,13 +333,6 @@ if __name__ == '__main__':
     elevations = datasets['fort.63.nc']
     max_elevations = datasets['maxele.63.nc']
 
-    perturbations = perturbations.sel(run=perturbations['run'] != 'original')
-
-    if plot_perturbations:
-        plot_perturbed_variables(
-            perturbations, output_filename=input_directory / 'perturbations.png'
-        )
-
     variables = {
         variable_class.name: variable_class()
         for variable_class in VortexPerturbedVariable.__subclasses__()
@@ -353,16 +348,17 @@ if __name__ == '__main__':
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
-    subsetted_nodes = elevations['node'].sel(
-        node=FieldOutput.subset(elevations['node'], bounds=subset_bounds)
+    samples = max_elevations['zeta_max']
+
+    training_set = samples.sel(run='quadrature' in samples['run'])
+    training_set = training_set.sel(
+        node=FieldOutput.subset(training_set['node'], bounds=subset_bounds),
     )
-    # subsetted_times = elevations['time'][::10]
-    # samples = elevations['zeta'].sel({'time': subsetted_times, 'node': subsetted_nodes})
-    # samples = elevations['zeta']
-    samples = max_elevations['zeta_max'].sel(node=subsetted_nodes)
-    # samples = max_elevations['zeta_max']
-    samples = samples.sel(run=samples['run'] != 'original')
-    LOGGER.info(f'sample size: {samples.shape}')
+
+    validation_set = samples.sel(node=training_set['node']).drop_sel(run=training_set['run'])
+
+    LOGGER.info(f'total {training_set.shape} training samples')
+    LOGGER.info(f'total {validation_set.shape} validation samples')
 
     if storm_name is not None:
         storm = BestTrackForcing(storm_name)
@@ -372,14 +368,14 @@ if __name__ == '__main__':
     # calculate the distance of each node to the storm track
     storm_linestring = LineString(list(zip(storm.data['longitude'], storm.data['latitude'])))
     nodes = GeoDataFrame(
-        samples['node'],
-        index=samples['node'],
-        geometry=geopandas.points_from_xy(samples['x'], samples['y']),
+        training_set['node'],
+        index=training_set['node'],
+        geometry=geopandas.points_from_xy(training_set['x'], training_set['y']),
     )
-    samples = samples.assign_coords(
+    training_set = training_set.assign_coords(
         {'distance_to_track': ('node', nodes.distance(storm_linestring))}
     )
-    samples = samples.sortby('distance_to_track')
+    training_set = training_set.sortby('distance_to_track')
 
     if not surrogate_filename.exists():
         # expand polynomials with polynomial chaos
@@ -388,7 +384,7 @@ if __name__ == '__main__':
         )
 
         surrogate_model = fit_surrogate_to_quadrature(
-            samples=samples,
+            samples=training_set,
             polynomials=polynomials,
             perturbations=perturbations['perturbations'],
             weights=perturbations['weights'],
@@ -401,12 +397,38 @@ if __name__ == '__main__':
         LOGGER.info(f'loading surrogate model from "{surrogate_filename}"')
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
-    if plot_results:
-        LOGGER.info(f'running surrogate on {samples.shape} samples')
+    if plot_perturbations:
+        plot_perturbed_variables(
+            perturbations.sel(run=training_set['run']),
+            output_filename=input_directory / 'perturbations.png',
+        )
+
+    if plot_validation:
+        LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
+        validation_results = surrogate_model(
+            *perturbations['perturbations'].isel(run=0).values
+        )
+
+        validation_results = xarray.DataArray(
+            validation_results, coords=training_set.coords, dims=training_set.dims,
+        ).to_dataset(name='validation')
+
+        plot_nodes_across_runs(
+            validation_results,
+            title=f'surrogate-predicted and modeled elevation(s) for {len(validation_results["node"])} node(s) across {len(training_set["run"])} run(s)',
+            node_colors='validation',
+            storm=storm,
+            output_filename=input_directory / 'elevations.png' if save_plots else None,
+        )
+
+    if plot_statistics:
+        LOGGER.info(
+            f'gathering mean and standard deviation from surrogate on {training_set.shape} training samples'
+        )
         surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
         surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
-        modeled_mean = samples.mean('run')
-        modeled_std = samples.std('run')
+        modeled_mean = training_set.mean('run')
+        modeled_std = training_set.std('run')
 
         surrogate_mean = xarray.DataArray(
             surrogate_mean, coords=modeled_mean.coords, dims=modeled_mean.dims,
@@ -429,7 +451,7 @@ if __name__ == '__main__':
 
         plot_nodes_across_runs(
             node_results,
-            title=f'surrogate-predicted and modeled elevation(s) for {len(node_results["node"])} node(s) across {len(samples["run"])} run(s)',
+            title=f'surrogate-predicted and modeled elevation(s) for {len(node_results["node"])} node(s) across {len(training_set["run"])} run(s)',
             node_colors='mean',
             storm=storm,
             output_filename=input_directory / 'elevations.png' if save_plots else None,
@@ -440,13 +462,13 @@ if __name__ == '__main__':
         percentile_filename = input_directory / 'percentiles.nc'
         if not percentile_filename.exists():
             surrogate_percentiles = get_percentiles(
-                samples=samples,
+                samples=training_set,
                 percentiles=percentiles,
                 surrogate_model=surrogate_model,
                 distribution=distribution,
             )
 
-            modeled_percentiles = samples.quantile(
+            modeled_percentiles = training_set.quantile(
                 dim='run', q=surrogate_percentiles['quantile'] / 100
             )
             modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
@@ -477,7 +499,7 @@ if __name__ == '__main__':
                 },
                 coords=node_percentiles.coords,
             ),
-            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(samples["run"])} run(s)',
+            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
@@ -497,7 +519,7 @@ if __name__ == '__main__':
                     if coord_name != 'source'
                 },
             ),
-            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(samples["run"])} run(s)',
+            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
             node_colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentile_differences.png'
