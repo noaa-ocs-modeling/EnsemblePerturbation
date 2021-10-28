@@ -120,25 +120,6 @@ def karhunen_loeve_pc_coefficients(
     return klpc_coefficients  #: size (num_points, num_coefficients)
 
 
-def karhunen_loeve_percentiles(
-    percentiles: np.ndarray, kl_dict: dict, pc_dicts: list,
-):
-    """
-    Get the desired percentiles for the full KL expansion 
-    in which each mode has a PC (polynomial chaos) surrogate
-    
-    """
-
-    # get the samples of each percentile for each mode
-    samples = np.empty((len(percentiles), len(kl_dict['eigenvalues'])))
-    for pcx, pc_dict in enumerate(pc_dicts):
-        samples[:, pcx] = np.interp(percentiles * 0.01, pc_dict['cdf'], pc_dict['x'],)
-
-    # evaluate the height for each percentileusing the kl prediction
-    klpc_percentiles = karhunen_loeve_prediction(kl_dict, samples=samples)
-    return klpc_percentiles  #: size (ngrid,npercentiles)
-
-
 def karhunen_loeve_prediction(kl_dict: dict, samples=None, ymodel=None):
     """
     Evaluating the model prediction based on KL modes

@@ -158,3 +158,24 @@ def evaluate_pc_distribution_function(
         'cdf': cdf,
     }
     return distribution_dict
+
+
+def evaluate_pc_exceedance_heights(
+    exceedance_probabilitites: np.ndarray, pc_dict: dict
+):
+    """
+    Get the heights at the desired exceedance probabilities
+    
+    """
+
+    return np.interp(1.0 - exceedance_probabilities, pc_dict['cdf'], pc_dict['x'])
+
+def evaluate_pc_exceedance_probabilities(
+    exceedance_heights: np.ndarray, pc_dict: dict
+):
+    """
+    Get the probabilities of exceedance above desired heights
+    
+    """
+
+    return 1.0 - np.interp(exceedance_heights, pc_dict['x'], pc_dict['cdf'])
