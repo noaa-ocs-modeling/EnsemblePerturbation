@@ -367,14 +367,10 @@ if __name__ == '__main__':
     samples = samples.sortby('distance_to_track')
 
     training_set = samples.sel(run=samples['run'].str.contains('quadrature'))
-    training_perturbations = perturbations.sel(
-        run=training_set['run'], node=training_set['node']
-    )
+    training_perturbations = perturbations.sel(run=training_set['run'])
 
     validation_set = samples.drop_sel(run=training_set['run'])
-    validation_perturbations = perturbations.sel(
-        run=validation_set['run'], node=validation_set['node']
-    )
+    validation_perturbations = perturbations.sel(run=validation_set['run'])
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
