@@ -84,7 +84,7 @@ def write_vortex_perturbations(
         sample_from_distribution=sample_from_distribution,
         quadrature=along_quadrature,
         overwrite=overwrite,
-        continue_numbering=True,
+        continue_numbering=False,
         parallel=parallel,
     )
 
