@@ -305,7 +305,7 @@ if __name__ == '__main__':
     validation_set_filename = input_directory / 'validation_set.nc'
     surrogate_filename = input_directory / 'surrogate.npy'
 
-    filenames = ['perturbations.nc', 'fort.63.nc', 'maxele.63.nc']
+    filenames = ['perturbations.nc', 'maxele.63.nc']
 
     datasets = {}
     existing_filenames = []
@@ -330,7 +330,6 @@ if __name__ == '__main__':
         )
 
     perturbations = datasets['perturbations.nc']
-    elevations = datasets['fort.63.nc']
     max_elevations = datasets['maxele.63.nc']
 
     variables = {
