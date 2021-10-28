@@ -347,7 +347,7 @@ if __name__ == '__main__':
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
-    samples = max_elevations['zeta_max']
+    samples = max_elevations['zeta_max'].drop_sel(run='original')
     samples = samples.sel(node=FieldOutput.subset(samples['node'], bounds=subset_bounds),)
 
     # calculate the distance of each node to the storm track
