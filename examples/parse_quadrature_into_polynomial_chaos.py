@@ -349,7 +349,9 @@ if __name__ == '__main__':
     subset_bounds = (-83, 25, -72, 42)
     samples = max_elevations['zeta_max']
 
-    training_set = samples.sel(run='quadrature' in samples['run'])
+    training_set = samples.sel(
+        run=numpy.core.defchararray.find(samples['run'], 'quadrature') != -1
+    )
     training_set = training_set.sel(
         node=FieldOutput.subset(training_set['node'], bounds=subset_bounds),
     )
