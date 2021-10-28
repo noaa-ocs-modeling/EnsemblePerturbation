@@ -403,18 +403,20 @@ if __name__ == '__main__':
         )
         plot_perturbed_variables(
             validation_perturbations,
-            title=f'{len(training_perturbations["run"])} validation pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
+            title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
             output_filename=input_directory / 'validation_perturbations.png',
         )
 
     if plot_validation:
         LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
         validation_results = surrogate_model(
-            *perturbations['perturbations'].isel(run=0).values
+            *validation_perturbations['perturbations'].T.values
         )
 
         validation_results = xarray.DataArray(
-            validation_results, coords=training_set.coords, dims=training_set.dims,
+            validation_results,
+            coords=validation_perturbations.coords,
+            dims=validation_perturbations.dims,
         ).to_dataset(name='validation')
 
         plot_nodes_across_runs(
@@ -422,7 +424,7 @@ if __name__ == '__main__':
             title=f'surrogate-predicted and modeled elevation(s) for {len(validation_results["node"])} node(s) across {len(training_set["run"])} run(s)',
             node_colors='validation',
             storm=storm,
-            output_filename=input_directory / 'elevations.png' if save_plots else None,
+            output_filename=input_directory / 'validation.png' if save_plots else None,
         )
 
     if plot_statistics:
