@@ -88,6 +88,37 @@ def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
     return kl_dict
 
 
+def karhunen_loeve_pc_coefficients(
+    kl_dict: dict, pc_dicts: list,
+):
+    """
+    Get the joint karhunen_loeve Polynomial chaos polynomial coefficients
+    from Eq (6) in Sargsyan, K. and Ricciuto D. (2021):
+    sum_{k=0}^{K} (kroneckerdelta_{k0}*mean(f(z)) +  
+                   sum_{j=0}^{L} [c_{jk}*\sqrt(ev_j)*ef_j(z)]) 
+    K -> num PC coefficients
+    L -> num KL modes
+    c -> PC coefficient 
+    ev -> eigenvalue
+    ef -> eigenfunction
+    """
+
+    # get the coefficients of the PC for each point in z (spatiotemporal dimension)
+    num_points = len(kl_dict['mean_vector'])
+    num_coefficients = len(pc_dicts[0]['coefficients'])
+    klpc_coefficients = np.zeros((num_points,num_coefficients))
+    for z_index in range(num_points):
+        klpc_coefficients[z_index, 0] = kl_dict['mean_vector'] 
+        for coef_index in range(num_coefficients):
+            for mode_index, pc_dict in enumerate(pc_dicts):
+                klpc_coefficients[z_index, coef_index] +=         \
+                    pc_dict['coefficients'][coef_index] *         \
+                    np.sqrt(kl_dict['eigenvalues'][mode_index]) * \
+                    kl_dict['modes'][z_index,mode_index]
+
+    return klpc_coefficients  #: size (num_points, num_coefficients)
+
+
 def karhunen_loeve_percentiles(
     percentiles: np.ndarray, kl_dict: dict, pc_dicts: list,
 ):

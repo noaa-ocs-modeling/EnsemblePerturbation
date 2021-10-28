@@ -56,6 +56,7 @@ def evaluate_pc_expansion(
 
 def evaluate_pc_sensitivity(
     parameter_filename: os.PathLike = 'coeff.dat',
+    multiindex_filename: os.PathLike = 'mindex.dat',
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
     poly_order: int = 3,
@@ -79,7 +80,7 @@ def evaluate_pc_sensitivity(
     os.system(uqtk_cmd)
 
     # evaluating the sensitivities
-    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type}'
+    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename}' 
     os.system(uqtk_cmd)
     main_sensitivity = np.loadtxt('mainsens.dat')
     joint_sensitivity = np.loadtxt('jointsens.dat')
@@ -89,6 +90,7 @@ def evaluate_pc_sensitivity(
 
 def evaluate_pc_distribution_function(
     parameter_filename: os.PathLike = 'coeff.dat',
+    multiindex_filename: os.PathLike = 'mindex.dat',
     pc_type: str = 'HG',
     multiindex_type: str = 'TO',
     poly_order: int = 3,
@@ -112,6 +114,7 @@ def evaluate_pc_distribution_function(
     -o "PC polynomial order" 
     -p "PC dimension (number of parameters)" 
     -f "PC coefficient filename"
+    -m "multi-index filename"
     -w "type of random variable"
     
     pdf_cl function inputs (generates the pdf): 
@@ -124,7 +127,7 @@ def evaluate_pc_distribution_function(
     os.system(uqtk_cmd)
 
     # evaluating the PC-related random variables
-    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m mindex.dat -w PCmi'
+    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m {multiindex_filename} -w PCmi'
     os.system(uqtk_cmd)
 
     # evaluating the PDF of the PC expansion
