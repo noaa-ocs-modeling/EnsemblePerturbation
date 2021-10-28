@@ -89,7 +89,7 @@ def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
 
 
 def karhunen_loeve_pc_coefficients(
-    kl_dict: dict, pc_dicts: list,
+    kl_dict: dict, pc_coefficients: np.ndarray,
 ):
     """
     Get the joint karhunen_loeve Polynomial chaos polynomial coefficients
@@ -105,14 +105,17 @@ def karhunen_loeve_pc_coefficients(
 
     # get the coefficients of the PC for each point in z (spatiotemporal dimension)
     num_points = len(kl_dict['mean_vector'])
-    num_coefficients = len(pc_dicts[0]['coefficients'])
+    num_modes = len(kl_dict['eigenvalues'])
+    assert num_modes == pc_coefficients.size(0), 'number of kl_dict eigenvalues needs to be equal to the length of the first dimension of pc_coefficients'
+    num_coefficients = pc_coefficients.size(1)
     klpc_coefficients = np.zeros((num_points, num_coefficients))
+
     for z_index in range(num_points):
         klpc_coefficients[z_index, 0] = kl_dict['mean_vector']
         for coef_index in range(num_coefficients):
-            for mode_index, pc_dict in enumerate(pc_dicts):
+            for mode_index in range(num_modes):
                 klpc_coefficients[z_index, coef_index] += (
-                    pc_dict['coefficients'][coef_index]
+                    pc_coefficients[mode_index, coef_index]
                     * np.sqrt(kl_dict['eigenvalues'][mode_index])
                     * kl_dict['modes'][z_index, mode_index]
                 )

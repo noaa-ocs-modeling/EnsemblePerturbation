@@ -24,9 +24,11 @@ def build_pc_expansion(
     """
     uqtk_cmd = f'regression -x {x_filename} -y {y_filename} -s {pc_type} -o {poly_order} -l {lambda_regularization}'
     os.system(uqtk_cmd)
+    pc_coefficients = np.loadtxt('coeff.dat')
     if output_filename is not None:
         os.rename('coeff.dat', output_filename)
-    return
+    
+    return pc_coefficients
 
 
 def evaluate_pc_expansion(
