@@ -106,15 +106,16 @@ def karhunen_loeve_pc_coefficients(
     # get the coefficients of the PC for each point in z (spatiotemporal dimension)
     num_points = len(kl_dict['mean_vector'])
     num_coefficients = len(pc_dicts[0]['coefficients'])
-    klpc_coefficients = np.zeros((num_points,num_coefficients))
+    klpc_coefficients = np.zeros((num_points, num_coefficients))
     for z_index in range(num_points):
-        klpc_coefficients[z_index, 0] = kl_dict['mean_vector'] 
+        klpc_coefficients[z_index, 0] = kl_dict['mean_vector']
         for coef_index in range(num_coefficients):
             for mode_index, pc_dict in enumerate(pc_dicts):
-                klpc_coefficients[z_index, coef_index] +=         \
-                    pc_dict['coefficients'][coef_index] *         \
-                    np.sqrt(kl_dict['eigenvalues'][mode_index]) * \
-                    kl_dict['modes'][z_index,mode_index]
+                klpc_coefficients[z_index, coef_index] += (
+                    pc_dict['coefficients'][coef_index]
+                    * np.sqrt(kl_dict['eigenvalues'][mode_index])
+                    * kl_dict['modes'][z_index, mode_index]
+                )
 
     return klpc_coefficients  #: size (num_points, num_coefficients)
 

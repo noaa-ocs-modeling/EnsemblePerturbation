@@ -80,7 +80,7 @@ def evaluate_pc_sensitivity(
     os.system(uqtk_cmd)
 
     # evaluating the sensitivities
-    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename}' 
+    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename}'
     os.system(uqtk_cmd)
     main_sensitivity = np.loadtxt('mainsens.dat')
     joint_sensitivity = np.loadtxt('jointsens.dat')
