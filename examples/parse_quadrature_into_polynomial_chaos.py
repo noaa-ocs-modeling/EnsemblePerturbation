@@ -348,33 +348,36 @@ if __name__ == '__main__':
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
     samples = max_elevations['zeta_max']
+    samples = samples.sel(node=FieldOutput.subset(samples['node'], bounds=subset_bounds),)
 
-    training_set = samples.sel(run=samples['run'].str.contains('quadrature'))
-    training_set = training_set.sel(
-        node=FieldOutput.subset(training_set['node'], bounds=subset_bounds),
-    )
-
-    validation_set = samples.sel(node=training_set['node']).drop_sel(run=training_set['run'])
-
-    LOGGER.info(f'total {training_set.shape} training samples')
-    LOGGER.info(f'total {validation_set.shape} validation samples')
-
+    # calculate the distance of each node to the storm track
     if storm_name is not None:
         storm = BestTrackForcing(storm_name)
     else:
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
-
-    # calculate the distance of each node to the storm track
     storm_linestring = LineString(list(zip(storm.data['longitude'], storm.data['latitude'])))
     nodes = GeoDataFrame(
-        training_set['node'],
-        index=training_set['node'],
-        geometry=geopandas.points_from_xy(training_set['x'], training_set['y']),
+        samples['node'],
+        index=samples['node'],
+        geometry=geopandas.points_from_xy(samples['x'], samples['y']),
     )
-    training_set = training_set.assign_coords(
+    samples = samples.assign_coords(
         {'distance_to_track': ('node', nodes.distance(storm_linestring))}
     )
-    training_set = training_set.sortby('distance_to_track')
+    samples = samples.sortby('distance_to_track')
+
+    training_set = samples.sel(run=samples['run'].str.contains('quadrature'))
+    training_perturbations = perturbations.sel(
+        run=training_set['run'], node=training_set['node']
+    )
+
+    validation_set = samples.drop_sel(run=training_set['run'])
+    validation_perturbations = perturbations.sel(
+        run=validation_set['run'], node=validation_set['node']
+    )
+
+    LOGGER.info(f'total {training_set.shape} training samples')
+    LOGGER.info(f'total {validation_set.shape} validation samples')
 
     if not surrogate_filename.exists():
         # expand polynomials with polynomial chaos
@@ -385,8 +388,8 @@ if __name__ == '__main__':
         surrogate_model = fit_surrogate_to_quadrature(
             samples=training_set,
             polynomials=polynomials,
-            perturbations=perturbations['perturbations'],
-            weights=perturbations['weights'],
+            perturbations=training_perturbations['perturbations'],
+            weights=training_perturbations['weights'],
         )
 
         with open(surrogate_filename, 'wb') as surrogate_file:
@@ -398,8 +401,14 @@ if __name__ == '__main__':
 
     if plot_perturbations:
         plot_perturbed_variables(
-            perturbations.sel(run=training_set['run']),
-            output_filename=input_directory / 'perturbations.png',
+            training_perturbations,
+            title=f'{len(training_perturbations["run"])} training pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
+            output_filename=input_directory / 'training_perturbations.png',
+        )
+        plot_perturbed_variables(
+            validation_perturbations,
+            title=f'{len(training_perturbations["run"])} validation pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
+            output_filename=input_directory / 'validation_perturbations.png',
         )
 
     if plot_validation:
