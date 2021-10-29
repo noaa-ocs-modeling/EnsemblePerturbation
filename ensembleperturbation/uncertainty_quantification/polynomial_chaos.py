@@ -56,38 +56,50 @@ def evaluate_pc_expansion(
     return qoi_pc
 
 
-def evaluate_pc_sensitivity(
-    parameter_filename: os.PathLike = 'coeff.dat',
+def evaluate_pc_multiindex(
     multiindex_filename: os.PathLike = 'mindex.dat',
-    pc_type: str = 'HG',
     multiindex_type: str = 'TO',
     poly_order: int = 3,
     pc_dimension: int = 1,
 ):
     """
-    evaluates the Sobol sensitivities of the PC expansion
+    evaluates the multi-index of the PC expansion
     
     gen_mi function inputs (generates the multi-index files): 
     -x "Multiindex type" 
     -p "PC polynomial order" 
     -q "PC dimension (number of parameters)" 
+    """
+
+    # evaluate the multi-index file
+    uqtk_cmd = f'gen_mi -x {multiindex_type} -p {poly_order} -q {pc_dimension} >& mi.log'
+    os.system(uqtk_cmd)
+    multiindex_filename = 'mindex.dat'
+
+
+def evaluate_pc_sensitivity(
+    parameter_filename: os.PathLike = 'coeff.dat',
+    multiindex_filename: os.PathLike = 'mindex.dat',
+    pc_type: str = 'HG',
+):
+    """
+    evaluates the Sobol sensitivities of the PC expansion
     
     pce_sens function inputs (generates the Sobol sensitivity indices): 
     -x "PC type" 
     -f "PC coefficient filename"
-    -m "Multiindex file (mindex.dat by default)"
+    -m "Multiindex file"
     """
-    # evaluate the multi-index file
-    uqtk_cmd = f'gen_mi -x {multiindex_type} -p {poly_order} -q {pc_dimension}'
-    os.system(uqtk_cmd)
 
     # evaluating the sensitivities
-    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename}'
+    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename} >& sens.log'
     os.system(uqtk_cmd)
-    main_sensitivity = np.loadtxt('mainsens.dat')
-    joint_sensitivity = np.loadtxt('jointsens.dat')
-    total_sensitivity = np.loadtxt('totsens.dat')
-    return main_sensitivity, joint_sensitivity, total_sensitivity
+    sensitivities = {
+        'main':  np.loadtxt('mainsens.dat'),
+        'joint': np.loadtxt('jointsens.dat'),
+        'total': np.loadtxt('totsens.dat'),
+    }
+    return sensitivities
 
 
 def evaluate_pc_distribution_function(
@@ -105,11 +117,6 @@ def evaluate_pc_distribution_function(
     """
     evaluates the PDF & CDF of the surrogate output
     
-    gen_mi function inputs (generates the multi-index files): 
-    -x "Multiindex type" 
-    -p "PC polynomial order" 
-    -q "PC dimension (number of parameters)" 
-    
     pce_rv function inputs (generates the random variable): 
     -x "PC type" 
     -n "num samples" 
@@ -124,16 +131,12 @@ def evaluate_pc_distribution_function(
     -g "number of bins in the pdf" 
     """
 
-    # evaluate the multi-index file
-    uqtk_cmd = f'gen_mi -x {multiindex_type} -p {poly_order} -q {pc_dimension}'
-    os.system(uqtk_cmd)
-
     # evaluating the PC-related random variables
-    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m {multiindex_filename} -w PCmi'
+    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m {multiindex_filename} -w PCmi >& rv.log'
     os.system(uqtk_cmd)
 
     # evaluating the PDF of the PC expansion
-    uqtk_cmd = f'pdf_cl -i rvar.dat -g {pdf_bins}'
+    uqtk_cmd = f'pdf_cl -i rvar.dat -g {pdf_bins} >& pdf.log'
     os.system(uqtk_cmd)
     xtarget = np.loadtxt('dens.dat')[:, :-1].squeeze()
     pdf = np.loadtxt('dens.dat')[:, -1:].squeeze()
