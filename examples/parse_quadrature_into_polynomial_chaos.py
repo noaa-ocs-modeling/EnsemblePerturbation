@@ -6,11 +6,13 @@ from adcircpy.forcing import BestTrackForcing
 from adcircpy.forcing.winds.best_track import VortexForcing
 import cartopy
 import chaospy
+import dask
 import geopandas
-from geopandas import GeoDataFrame
 from matplotlib import cm, colors, gridspec, pyplot
+from matplotlib.axis import Axis
+from matplotlib.figure import Figure
 import numpy
-from shapely.geometry import LineString
+import pyproj
 import xarray
 
 from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
@@ -22,6 +24,86 @@ from ensembleperturbation.uncertainty_quantification.quadrature import (
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parse_nodes')
+
+
+def plot_node_map(
+    nodes: xarray.Dataset,
+    map_title: str = None,
+    node_colors: [(float, float, float)] = None,
+    storm: str = None,
+    map_axis: pyplot.Axes = None,
+):
+    if map_title is None:
+        map_title = f'{len(nodes["node"])} nodes'
+
+    map_crs = cartopy.crs.PlateCarree()
+    if map_axis is None:
+        map_axis = pyplot.Axes(projection=map_crs)
+
+    map_bounds = [
+        float(nodes.coords['x'].min().values),
+        float(nodes.coords['y'].min().values),
+        float(nodes.coords['x'].max().values),
+        float(nodes.coords['y'].max().values),
+    ]
+
+    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+    if storm is None:
+        storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
+    elif not isinstance(storm, VortexForcing):
+        storm = BestTrackForcing(storm)
+
+    if node_colors is None:
+        color_map = cm.get_cmap('jet')
+        color_values = numpy.arange(len(nodes['node']))
+        normalization = colors.Normalize(
+            vmin=numpy.min(color_values), vmax=numpy.max(color_values)
+        )
+        color_values = normalization(color_values)
+        node_colors = color_map(color_values)
+    elif isinstance(node_colors, str):
+        color_map = cm.get_cmap('jet')
+        map_title = f'"{node_colors}" of {map_title}'
+        color_values = nodes[node_colors]
+        if len(color_values.dims) > 1:
+            color_values = color_values.mean(
+                [dim for dim in color_values.dims if dim != 'node']
+            )
+        min_value = numpy.min(color_values.values)
+        max_value = numpy.max(color_values.values)
+        try:
+            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+        except ValueError:
+            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
+        color_values = normalization(color_values)
+        node_colors = color_map(color_values)
+    else:
+        color_map = cm.get_cmap('jet')
+        min_value = numpy.min(node_colors.values)
+        max_value = numpy.max(node_colors.values)
+        try:
+            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+        except ValueError:
+            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
+        color_values = normalization(node_colors)
+        node_colors = color_map(color_values)
+
+    countries.plot(color='lightgrey', ax=map_axis)
+    storm.data.plot(
+        x='longitude',
+        y='latitude',
+        ax=map_axis,
+        label=storm_name,
+        legend=storm_name is not None,
+    )
+
+    map_axis.scatter(
+        x=nodes['x'], y=nodes['y'], c=node_colors, s=2, norm=normalization, transform=map_crs
+    )
+
+    map_axis.set_xlim(map_bounds[0], map_bounds[2])
+    map_axis.set_ylim(map_bounds[1], map_bounds[3])
+    map_axis.set_title(map_title)
 
 
 def plot_nodes_across_runs(
@@ -38,22 +120,8 @@ def plot_nodes_across_runs(
 
     grid = gridspec.GridSpec(len(nodes.data_vars), 2, figure=figure)
 
-    map_bounds = [
-        float(training_set.coords['x'].min().values),
-        float(training_set.coords['y'].min().values),
-        float(training_set.coords['x'].max().values),
-        float(training_set.coords['y'].max().values),
-    ]
-
-    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
-    if storm is None:
-        storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
-    elif not isinstance(storm, VortexForcing):
-        storm = BestTrackForcing(storm)
-
     map_crs = cartopy.crs.PlateCarree()
     map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
-    map_title = f'{len(nodes["node"])} nodes'
 
     if node_colors is None:
         color_map = cm.get_cmap('jet')
@@ -65,7 +133,6 @@ def plot_nodes_across_runs(
         node_colors = color_map(color_values)
     elif isinstance(node_colors, str):
         color_map = cm.get_cmap('jet')
-        map_title = f'"{node_colors}" of {map_title}'
         color_values = nodes[node_colors]
         if len(color_values.dims) > 1:
             color_values = color_values.mean(
@@ -97,22 +164,7 @@ def plot_nodes_across_runs(
         color_values = normalization(node_colors)
         node_colors = color_map(color_values)
 
-    countries.plot(color='lightgrey', ax=map_axis)
-    storm.data.plot(
-        x='longitude',
-        y='latitude',
-        ax=map_axis,
-        label=storm_name,
-        legend=storm_name is not None,
-    )
-
-    map_axis.scatter(
-        x=nodes['x'], y=nodes['y'], c=node_colors, s=2, norm=normalization, transform=map_crs
-    )
-
-    map_axis.set_xlim(map_bounds[0], map_bounds[2])
-    map_axis.set_ylim(map_bounds[1], map_bounds[3])
-    map_axis.set_title(map_title)
+    plot_node_map(nodes, node_colors=node_colors, storm=storm, map_axis=map_axis)
 
     shared_axis = None
     for variable_index, (variable_name, variable) in enumerate(nodes.data_vars.items()):
@@ -192,16 +244,10 @@ def plot_nodes_across_runs(
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
 
-def plot_perturbed_variables(
-    perturbations: xarray.Dataset, title: str = None, output_filename: PathLike = None,
-):
-    figure = pyplot.figure()
-    figure.set_size_inches(12, 12 / 1.61803398875)
-    if title is None:
-        title = f'{len(perturbations["run"])} pertubation(s) of {len(perturbations["variable"])} variable(s)'
-    figure.suptitle(title)
+def comparison_plot_grid(variables: [str], figure: Figure = None):
+    if figure is None:
+        figure = pyplot.figure()
 
-    variables = perturbations['variable'].values
     num_variables = len(variables)
     num_plots = int(num_variables * (num_variables - 1) / 2)
 
@@ -221,6 +267,63 @@ def plot_perturbed_variables(
             shared_grid_columns['x'][variable] = None
         else:
             shared_grid_columns['y'][variable] = None
+
+    if len(shared_grid_columns['y']) == 0:
+        shared_grid_columns['y'][variables[-1]] = None
+
+    axes = {}
+    for row_index in range(grid_length):
+        row_variable = list(shared_grid_columns['y'])[row_index]
+        axes[row_variable] = {}
+        for column_index in range(grid_length - row_index):
+            column_variable = list(shared_grid_columns['x'])[column_index]
+
+            sharex = shared_grid_columns['x'][column_variable]
+            sharey = shared_grid_columns['y'][row_variable]
+
+            variable_axis = figure.add_subplot(
+                grid[row_index, column_index], sharex=sharex, sharey=sharey,
+            )
+
+            if sharex is None:
+                shared_grid_columns['x'][column_variable] = variable_axis
+            if sharey is None:
+                shared_grid_columns['y'][row_variable] = variable_axis
+
+            if row_index == 0:
+                variable_axis.set_xlabel(column_variable)
+                variable_axis.xaxis.set_label_position('top')
+                variable_axis.xaxis.tick_top()
+                if row_index == grid_length - column_index - 1:
+                    variable_axis.secondary_xaxis('bottom')
+            elif row_index != grid_length - column_index - 1:
+                variable_axis.xaxis.set_visible(False)
+
+            if column_index == 0:
+                variable_axis.set_ylabel(row_variable)
+                if row_index == grid_length - column_index - 1:
+                    variable_axis.secondary_yaxis('right')
+            elif row_index == grid_length - column_index - 1:
+                variable_axis.yaxis.tick_right()
+            else:
+                variable_axis.yaxis.set_visible(False)
+
+            axes[row_variable][column_variable] = variable_axis
+
+    return axes, grid
+
+
+def plot_perturbed_variables(
+    perturbations: xarray.Dataset, title: str = None, output_filename: PathLike = None,
+):
+    figure = pyplot.figure()
+    figure.set_size_inches(12, 12 / 1.61803398875)
+    if title is None:
+        title = f'{len(perturbations["run"])} pertubation(s) of {len(perturbations["variable"])} variable(s)'
+    figure.suptitle(title)
+
+    variables = perturbations['variable'].values
+    axes, grid = comparison_plot_grid(variables, figure=figure)
 
     color_map_axis = figure.add_subplot(grid[-1, -1])
     color_map_axis.set_visible(False)
@@ -243,24 +346,9 @@ def plot_perturbed_variables(
         )
     colorbar.set_label('weight')
 
-    for column_index in range(grid_length):
-        column_variable = list(shared_grid_columns['x'])[column_index]
-        for row_index in range(grid_length - column_index):
-            row_variable = list(shared_grid_columns['y'])[row_index]
-
-            sharex = shared_grid_columns['x'][column_variable]
-            sharey = shared_grid_columns['y'][row_variable]
-
-            variable_axis = figure.add_subplot(
-                grid[row_index, column_index], sharex=sharex, sharey=sharey,
-            )
-
-            if sharex is None:
-                shared_grid_columns['x'][column_variable] = variable_axis
-            if sharey is None:
-                shared_grid_columns['y'][row_variable] = variable_axis
-
-            variable_axis.scatter(
+    for row_variable, columns in axes.items():
+        for column_variable, axis in columns.items():
+            axis.scatter(
                 perturbations['perturbations'].sel(variable=column_variable),
                 perturbations['perturbations'].sel(variable=row_variable),
                 c=perturbations['weights'],
@@ -268,23 +356,33 @@ def plot_perturbed_variables(
                 norm=normalization,
             )
 
-            if row_index == 0:
-                variable_axis.set_xlabel(column_variable)
-                variable_axis.xaxis.set_label_position('top')
-                variable_axis.xaxis.tick_top()
-                if row_index == grid_length - column_index - 1:
-                    variable_axis.secondary_xaxis('bottom')
-            elif row_index != grid_length - column_index - 1:
-                variable_axis.xaxis.set_visible(False)
+    if output_filename is not None:
+        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
-            if column_index == 0:
-                variable_axis.set_ylabel(row_variable)
-                if row_index == grid_length - column_index - 1:
-                    variable_axis.secondary_yaxis('right')
-            elif row_index == grid_length - column_index - 1:
-                variable_axis.yaxis.tick_right()
-            else:
-                variable_axis.yaxis.set_visible(False)
+
+def plot_comparison(
+    nodes: xarray.DataArray, title: str = None, output_filename: Axis = None,
+):
+    if 'source' not in nodes.dims:
+        raise ValueError(f'"source" not found in data array dimensions: {nodes.dims}')
+
+    sources = nodes['source'].values
+
+    figure = pyplot.figure()
+    figure.set_size_inches(12, 12 / 1.61803398875)
+    if title is not None:
+        title = f'comparison of {len(sources)} sources along {len(nodes["node"])} node(s)'
+    figure.suptitle(title)
+
+    axes, grid = comparison_plot_grid(sources, figure=figure)
+
+    for row_source, columns in axes.items():
+        for column_source, axis in columns.items():
+            axis.scatter(
+                nodes.sel(source=column_source),
+                nodes.sel(source=row_source),
+                c=perturbations['weights'],
+            )
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
@@ -302,8 +400,9 @@ if __name__ == '__main__':
     storm_name = None
 
     input_directory = Path.cwd()
-    validation_set_filename = input_directory / 'validation_set.nc'
     surrogate_filename = input_directory / 'surrogate.npy'
+    training_filename = input_directory / 'training.nc'
+    validation_filename = input_directory / 'validation.nc'
 
     filenames = ['perturbations.nc', 'maxele.63.nc']
 
@@ -312,7 +411,7 @@ if __name__ == '__main__':
     for filename in filenames:
         filename = input_directory / filename
         if filename.exists():
-            datasets[filename.name] = xarray.open_dataset(filename, chunks=-1)
+            datasets[filename.name] = xarray.open_dataset(filename, chunks={})
             existing_filenames.append(filename.name)
 
     for filename in existing_filenames:
@@ -332,6 +431,23 @@ if __name__ == '__main__':
     perturbations = datasets['perturbations.nc']
     max_elevations = datasets['maxele.63.nc']
 
+    training_perturbations = perturbations.sel(
+        run=perturbations['run'].str.contains('quadrature')
+    )
+    validation_perturbations = perturbations.drop_sel(run=training_perturbations['run'])
+
+    if plot_perturbations:
+        plot_perturbed_variables(
+            training_perturbations,
+            title=f'{len(training_perturbations["run"])} training pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
+            output_filename=input_directory / 'training_perturbations.png',
+        )
+        plot_perturbed_variables(
+            validation_perturbations,
+            title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
+            output_filename=input_directory / 'validation_perturbations.png',
+        )
+
     variables = {
         variable_class.name: variable_class()
         for variable_class in VortexPerturbedVariable.__subclasses__()
@@ -347,30 +463,39 @@ if __name__ == '__main__':
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
-    samples = max_elevations['zeta_max'].drop_sel(run='original')
-    samples = samples.sel(node=FieldOutput.subset(samples['node'], bounds=subset_bounds),)
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        samples = max_elevations['zeta_max'].drop_sel(run='original')
+        samples = samples.sel(node=FieldOutput.subset(samples['node'], bounds=subset_bounds))
 
     # calculate the distance of each node to the storm track
     if storm_name is not None:
         storm = BestTrackForcing(storm_name)
     else:
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
-    storm_linestring = LineString(list(zip(storm.data['longitude'], storm.data['latitude'])))
-    nodes = GeoDataFrame(
-        samples['node'],
-        index=samples['node'],
-        geometry=geopandas.points_from_xy(samples['x'], samples['y']),
+    geoid = pyproj.Geod(ellps='WGS84')
+    nodes = numpy.stack([samples['x'], samples['y']], axis=1)
+    storm_points = storm.data[['longitude', 'latitude']].values
+    distances = numpy.fromiter(
+        (
+            numpy.min(
+                geoid.inv(
+                    *numpy.repeat(
+                        numpy.expand_dims(node, axis=0), repeats=len(storm_points), axis=0
+                    ).T,
+                    *storm_points.T,
+                )[-1]
+            )
+            for node in nodes
+        ),
+        dtype=float,
+        count=len(samples['node']),
     )
-    samples = samples.assign_coords(
-        {'distance_to_track': ('node', nodes.distance(storm_linestring))}
-    )
+    samples = samples.assign_coords({'distance_to_track': ('node', distances)})
     samples = samples.sortby('distance_to_track')
 
-    training_set = samples.sel(run=samples['run'].str.contains('quadrature'))
-    training_perturbations = perturbations.sel(run=training_set['run'])
-
-    validation_set = samples.drop_sel(run=training_set['run'])
-    validation_perturbations = perturbations.sel(run=validation_set['run'])
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        training_set = samples.sel(run=training_perturbations['run'])
+        validation_set = samples.sel(run=validation_perturbations['run'])
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
@@ -395,37 +520,76 @@ if __name__ == '__main__':
         LOGGER.info(f'loading surrogate model from "{surrogate_filename}"')
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
-    if plot_perturbations:
-        plot_perturbed_variables(
-            training_perturbations,
-            title=f'{len(training_perturbations["run"])} training pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
-            output_filename=input_directory / 'training_perturbations.png',
-        )
-        plot_perturbed_variables(
-            validation_perturbations,
-            title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
-            output_filename=input_directory / 'validation_perturbations.png',
-        )
-
     if plot_validation:
-        LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
-        validation_results = surrogate_model(
-            *validation_perturbations['perturbations'].T.values
+        if not training_filename.exists():
+            LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
+            training_results = xarray.DataArray(
+                surrogate_model(*training_perturbations['perturbations'].T).T,
+                coords=training_set.coords,
+                dims=('run', 'node'),
+            )
+
+            training_results = xarray.combine_nested(
+                [training_set, training_results], concat_dim='source'
+            )
+            training_results = training_results.assign_coords(source=['model', 'surrogate'])
+            training_results = training_results.to_dataset(name='training')
+
+            LOGGER.info(f'saving training to "{training_filename}"')
+            training_results.to_netcdf(training_filename)
+        else:
+            LOGGER.info(f'loading training from "{training_filename}"')
+            training_results = xarray.open_dataset(training_filename)
+
+        if not validation_filename.exists():
+            LOGGER.info(
+                f'running surrogate model on {validation_set.shape} validation samples'
+            )
+            validation_results = surrogate_model(*validation_perturbations['perturbations'].T)
+            validation_results = xarray.DataArray(
+                validation_results.T, coords=validation_set.coords, dims=('run', 'node'),
+            )
+
+            validation_results = xarray.combine_nested(
+                [validation_set, validation_results], concat_dim='source'
+            )
+            validation_results = validation_results.assign_coords(
+                source=['model', 'surrogate']
+            )
+            validation_results = validation_results.to_dataset(name='validation')
+
+            LOGGER.info(f'saving validation to "{validation_filename}"')
+            validation_results.to_netcdf(validation_filename)
+        else:
+            LOGGER.info(f'loading validation from "{validation_filename}"')
+            validation_results = xarray.open_dataset(validation_filename)
+
+        sources = validation_results['source'].values
+
+        figure = pyplot.figure()
+        figure.set_size_inches(12, 12 / 1.61803398875)
+        figure.suptitle(
+            f'comparison of {len(sources)} sources along {len(validation_results["node"])} node(s)'
         )
 
-        validation_results = xarray.DataArray(
-            validation_results,
-            coords=validation_perturbations.coords,
-            dims=validation_perturbations.dims,
-        ).to_dataset(name='validation')
+        axes, grid = comparison_plot_grid(sources, figure=figure)
 
-        plot_nodes_across_runs(
-            validation_results,
-            title=f'surrogate-predicted and modeled elevation(s) for {len(validation_results["node"])} node(s) across {len(training_set["run"])} run(s)',
-            node_colors='validation',
-            storm=storm,
-            output_filename=input_directory / 'validation.png' if save_plots else None,
-        )
+        for row_source, columns in axes.items():
+            for column_source, axis in columns.items():
+                axis.scatter(
+                    validation_results.sel(source=column_source),
+                    validation_results.sel(source=row_source),
+                    c='r',
+                )
+                axis.scatter(
+                    training_results.sel(source=column_source),
+                    training_results.sel(source=row_source),
+                    c='g',
+                )
+
+        output_filename = input_directory / 'validation.png' if save_plots else None
+        if output_filename is not None:
+            figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
     if plot_statistics:
         LOGGER.info(
