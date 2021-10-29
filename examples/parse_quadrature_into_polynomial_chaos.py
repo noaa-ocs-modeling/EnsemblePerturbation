@@ -523,16 +523,13 @@ if __name__ == '__main__':
     if plot_validation:
         if not training_filename.exists():
             LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
+            training_results = surrogate_model(*training_perturbations['perturbations'].T).T
+            training_results = numpy.concatenate([training_set, training_results], axis=0)
             training_results = xarray.DataArray(
-                surrogate_model(*training_perturbations['perturbations'].T).T,
-                coords=training_set.coords,
-                dims=('run', 'node'),
+                training_results,
+                coords={'source': ['model', 'surrogate'], **training_set.coords},
+                dims=('source', 'run', 'node'),
             )
-
-            training_results = xarray.combine_nested(
-                [training_set, training_results], concat_dim='source'
-            )
-            training_results = training_results.assign_coords(source=['model', 'surrogate'])
             training_results = training_results.to_dataset(name='training')
 
             LOGGER.info(f'saving training to "{training_filename}"')
@@ -545,16 +542,16 @@ if __name__ == '__main__':
             LOGGER.info(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
-            validation_results = surrogate_model(*validation_perturbations['perturbations'].T)
+            validation_results = surrogate_model(
+                *validation_perturbations['perturbations'].T
+            ).T
+            validation_results = numpy.concatenate(
+                [validation_set, validation_results], axis=0
+            )
             validation_results = xarray.DataArray(
-                validation_results.T, coords=validation_set.coords, dims=('run', 'node'),
-            )
-
-            validation_results = xarray.combine_nested(
-                [validation_set, validation_results], concat_dim='source'
-            )
-            validation_results = validation_results.assign_coords(
-                source=['model', 'surrogate']
+                validation_results,
+                coords={'source': ['model', 'surrogate'], **validation_set.coords},
+                dims=('source', 'run', 'node'),
             )
             validation_results = validation_results.to_dataset(name='validation')
 
@@ -586,6 +583,8 @@ if __name__ == '__main__':
                     training_results.sel(source=row_source),
                     c='g',
                 )
+                max_value = max(axis.get_xlim(), axis.get_ylim())
+                axis.plot([0, max_value], [0, max_value], '--k')
 
         output_filename = input_directory / 'validation.png' if save_plots else None
         if output_filename is not None:
