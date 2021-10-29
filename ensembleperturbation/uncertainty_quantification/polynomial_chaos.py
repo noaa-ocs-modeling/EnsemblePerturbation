@@ -22,7 +22,7 @@ def build_pc_expansion(
     -o "Polynomial order"  
     -l "regularization lambda"
     """
-    uqtk_cmd = f'regression -x {x_filename} -y {y_filename} -s {pc_type} -o {poly_order} -l {lambda_regularization}'
+    uqtk_cmd = f'regression -x {x_filename} -y {y_filename} -s {pc_type} -o {poly_order} -l {lambda_regularization} >& regr.log'
     os.system(uqtk_cmd)
     pc_coefficients = np.loadtxt('coeff.dat')
     if output_filename is not None:
@@ -48,7 +48,7 @@ def evaluate_pc_expansion(
     -o "Polynomial order"  
     """
     assert x_filename == 'xdata.dat', 'x_filename needs to be xdata.dat'
-    uqtk_cmd = f'pce_eval -f {parameter_filename} -s {pc_type} -o {poly_order}'
+    uqtk_cmd = f'pce_eval -f {parameter_filename} -s {pc_type} -o {poly_order} >& pc_eval.log'
     os.system(uqtk_cmd)
     qoi_pc = np.loadtxt('ydata.dat')
     if output_filename is not None:
@@ -132,7 +132,7 @@ def evaluate_pc_distribution_function(
     """
 
     # evaluating the PC-related random variables
-    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m {multiindex_filename} -w PCmi >& rv.log'
+    uqtk_cmd = f'pce_rv -x {pc_type} -n {num_samples} -o {poly_order} -p {pc_dimension} -f {parameter_filename} -m {multiindex_filename} -w PCmi >& pc_rv.log'
     os.system(uqtk_cmd)
 
     # evaluating the PDF of the PC expansion
@@ -166,7 +166,7 @@ def evaluate_pc_distribution_function(
 
 
 def evaluate_pc_exceedance_heights(
-    exceedance_probabilitites: np.ndarray, pc_dict: dict
+    exceedance_probabilities: np.ndarray, pc_dict: dict
 ):
     """
     Get the heights at the desired exceedance probabilities

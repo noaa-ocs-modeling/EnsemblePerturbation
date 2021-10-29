@@ -23,208 +23,276 @@ from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     evaluate_pc_exceedance_heights,
 )
 
-##############################################################################
-# MAIN SCRIPT ################################################################
-##############################################################################
+def joint_klpc_surrogate(
+    h5name: str,
+    point_spacing: int,
+    neig: float,
+    pc_type: str,
+    lambda_reg: int,
+    pc_order: int,
+    mi_type: str,
+    num_samples: int,
+    pdf_bins: int,
+    exceedance_probabilities: np.ndarray,
+    exceedance_heights: np.ndarray,
+):
 
-h5name = '../data/florence_40member.h5'
-dataframes = read_combined_hdf(h5name)
-keys = list(dataframes.keys())
+    #------------------------#
+    #-------- Part 1 --------#
+    #------------------------#
+    print('Reading ensemble inputs and outputs...')
 
-# Load the input/outputs
-np_input, np_output = ensemble_array(
-    input_dataframe=dataframes[keys[0]], output_dataframe=dataframes[keys[1]],
-)
-np.savetxt('xdata.dat', np_input)  # because pce_eval expects xdata.dat as input
+    dataframes = read_combined_hdf(h5name)
+    keys = list(dataframes.keys())
 
-# adjusting the output to have less nodes for now (every 100 points)
-points = dataframes[keys[1]][['x', 'y']].to_numpy()
-# numpy.nan_to_num(np_output, copy=False)
-np_output_subset = np_output[:, ::25]
-points_subset = points[::25, :]
-
-# spacing_deg=0.005
-# neighbors=50
-# get every points spaced every spacing_deg degrees
-# mask = sample_points_with_equal_spacing(output_dataframe=df_output, spacing=spacing_deg)
-# mask = sample_points_with_equal_spacing(output_dataframe=df_output, neighbors=neighbors)
-# np_output_subset = np_output[:, mask]
-# remove areas where any of the ensembles was a NaN
-mask = np.isnan(np_output_subset)
-mask = mask.any(axis=0)
-ymodel = np_output_subset[:, ~mask].T
-points_subset = points_subset[~mask, :]
-
-print('shape of ymodel')
-print(ymodel.shape)
-ngrid = ymodel.shape[0]
-nens = ymodel.shape[1]
-
-# choose neig decimal percent of variance explained to keep
-# neig = 0.90 # gives us 4 modes
-neig = 0.95  # gives  us 6 modes
-
-## Evaluating the KL mode
-# Components of the dictionary:
-# mean_vector is the average field                                        : size (ngrid,)
-# modes is the KL modes ('principal directions')                          : size (ngrid,neig)
-# eigenvalues is the eigenvalue vector                                    : size (neig,)
-# samples are the samples for the KL coefficients                         : size (nens, neig)
-kl_dict = karhunen_loeve_expansion(ymodel, neig=neig, plot=True)
-
-# evaluate the fit of the KL prediction
-# ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
-ypred = karhunen_loeve_prediction(kl_dict)
-
-# plot scatter points to compare ymodel and ypred spatially
-for example in range(0, nens, 5):
-    # plot_coastline()
-    plot_points(
-        np.hstack((points_subset, ymodel[:, [example]])),
-        save_filename='modeled_zmax' + str(example),
-        title='modeled zmax, ensemble #' + str(example),
-        vmax=3.0,
+    # Load the input/outputs
+    np_input, np_output = ensemble_array(
+        input_dataframe=dataframes[keys[0]], 
+        output_dataframe=dataframes[keys[1]],
     )
+    np.savetxt('xdata.dat', np_input)  # because pce_eval expects xdata.dat as input
 
-    # plot_coastline()
-    plot_points(
-        np.hstack((points_subset, ypred[:, [example]])),
-        save_filename='predicted_zmax' + str(example),
-        title='predicted zmax, ensemble #' + str(example),
-        vmax=3.0,
-    )
+    # adjusting the output to have less nodes for now (every 100 points)
+    points = dataframes[keys[1]][['x', 'y']].to_numpy()
+    # numpy.nan_to_num(np_output, copy=False)
+    np_output_subset = np_output[:, ::point_spacing]
+    points_subset = points[::point_spacing, :]
 
-# Set parameters for the PC
-pc_type = 'HG'                # Hermite-Gauss chaos
-lambda_reg = 0                # regularization lambda
-pc_dim = np_input.shape[1]    # dimension of the PC expansion
-pc_order = 3                  # order of the polynomial
-mi_type = 'TO'                # PC multi-index type
-mi_filename = 'mindex.dat'    # find the multi-index file for later use
-evaluate_pc_multiindex(
+    # alternative way get points (leave for now)
+    # spacing_deg=0.005
+    # neighbors=50
+    # get every points spaced every spacing_deg degrees
+    # mask = sample_points_with_equal_spacing(output_dataframe=df_output, spacing=spacing_deg)
+    # mask = sample_points_with_equal_spacing(output_dataframe=df_output, neighbors=neighbors)
+    # np_output_subset = np_output[:, mask]
+
+    # remove areas where any of the ensembles was a NaN
+    mask = np.isnan(np_output_subset)
+    mask = mask.any(axis=0)
+    ymodel = np_output_subset[:, ~mask].T
+    points_subset = points_subset[~mask, :]
+
+    pc_dim = np_input.shape[1]  # dimension of the PC expansion
+    ngrid = ymodel.shape[0]     # number of points
+    nens = ymodel.shape[1]      # number of ensembles
+    print(f'Reduced grid size = {ngrid}')
+
+    #------------------------#
+    #-------- Part 2 --------#
+    #------------------------#
+    print('Evaluating the Karunen loeve expansion...')
+
+    ## Evaluating the KL mode
+    # Components of the dictionary:
+    # mean_vector is the average field                                        : size (ngrid,)
+    # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
+    # eigenvalues is the eigenvalue vector                                    : size (neig,)
+    # samples are the samples for the KL coefficients                         : size (nens, neig)
+    kl_dict = karhunen_loeve_expansion(ymodel, neig=neig, plot=True)
+
+    neig = len(kl_dict['eigenvalues']) # number of eigenvalues
+    print(f'Number of KL modes = {neig}')
+
+    # evaluate the fit of the KL prediction
+    # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
+    ypred = karhunen_loeve_prediction(kl_dict)
+
+    # plot scatter points to compare ymodel and ypred spatially
+    for example in range(0, nens, 5):
+        # plot_coastline()
+        plot_points(
+            np.hstack((points_subset, ymodel[:, [example]])),
+            save_filename='modeled_zmax' + str(example),
+            title='modeled zmax, ensemble #' + str(example),
+            vmax=3.0,
+        )
+
+        # plot_coastline()
+        plot_points(
+            np.hstack((points_subset, ypred[:, [example]])),
+            save_filename='predicted_zmax' + str(example),
+            title='predicted zmax, ensemble #' + str(example),
+            vmax=3.0,
+        )
+
+    #------------------------#
+    #-------- Part 3 --------#
+    #------------------------#
+    print('Evaluating the Polynomial Chaos expansion for each KL mode...')
+
+    # find the multi-index file for later use
+    mi_filename = 'mindex.dat'
+    evaluate_pc_multiindex(
         multiindex_filename=mi_filename,
         multiindex_type=mi_type,
         pc_dimension=pc_dim,
         poly_order=pc_order,
-)
-
-# Build PC for each KL mode (each mode has nens values)
-neig = len(kl_dict['eigenvalues']) # number of eigenvalues
-for mode, qoi in enumerate(kl_dict['samples'].transpose()):
-    np.savetxt('qoi.dat', qoi)
-
-    # Builds second order PC expansion for the each mode
-    poly_coefs = build_pc_expansion(
-        x_filename='xdata.dat',
-        y_filename='qoi.dat',
-        output_filename=f'coeff{mode + 1}.dat',
-        pc_type=pc_type,
-        poly_order=pc_order,
-        lambda_regularization=lambda_reg,
     )
 
-    # Enter into array for storing PC coefficients for each KL mode
-    if mode == 0:
-        ncoefs = len(poly_coefs)                  # number of polynomial coefficients
-        pc_coefficients = np.empty((neig,ncoefs)) # array for storing PC coefficients for each KL mode
-    pc_coefficients[mode,:] = poly_coefs
+    # Build PC for each KL mode (each mode has nens values)
+    for mode, qoi in enumerate(kl_dict['samples'].transpose()):
+        np.savetxt('qoi.dat', qoi)
+ 
+        # Builds second order PC expansion for the each mode
+        poly_coefs = build_pc_expansion(
+            x_filename='xdata.dat',
+            y_filename='qoi.dat',
+            output_filename=f'coeff{mode + 1}.dat',
+            pc_type=pc_type,
+            poly_order=pc_order,
+            lambda_regularization=lambda_reg,
+        )
+ 
+        # Enter into array for storing PC coefficients for each KL mode
+        if mode == 0:
+            ncoefs = len(poly_coefs)                  # number of polynomial coefficients
+            pc_coefficients = np.empty((neig,ncoefs)) # array for storing PC coefficients for each KL mode
+        pc_coefficients[mode,:] = poly_coefs
+ 
+        # Evaluates the constructed PC for the training data for comparison
+        qoi_pc = evaluate_pc_expansion(
+            x_filename='xdata.dat',
+            output_filename='ydata.dat',
+            parameter_filename=f'coeff{mode + 1}.dat',
+            pc_type=pc_type,
+            poly_order=pc_order,
+        )
+ 
+        # shows comparison of predicted against "real" result
+        pyplot.plot(qoi, qoi_pc, 'o', label='poly order = ' + str(pc_order))
+        pyplot.plot([-2, 3], [-2, 3], 'k--', lw=1)
+        pyplot.gca().set_xlabel('predicted')
+        pyplot.gca().set_ylabel('actual')
+        pyplot.title(f'mode-{mode + 1}')
+        pyplot.legend()
+        pyplot.savefig(f'mode-{mode + 1}')
+        pyplot.close()
 
-    # Evaluates the constructed PC for the training data for comparison
-    qoi_pc = evaluate_pc_expansion(
-        x_filename='xdata.dat',
-        output_filename='ydata.dat',
-        parameter_filename=f'coeff{mode + 1}.dat',
-        pc_type=pc_type,
-        poly_order=pc_order,
+    #------------------------#
+    #-------- Part 4 --------#
+    #------------------------#
+    print('Evaluating the joint KLPC expansion at each point...')
+
+    # Now get the joint KLPC coefficients
+    klpc_coefficients = karhunen_loeve_pc_coefficients(
+        kl_dict=kl_dict, 
+        pc_coefficients=pc_coefficients,
     )
-
-    # shows comparison of predicted against "real" result
-    pyplot.plot(qoi, qoi_pc, 'o', label='poly order = ' + str(pc_order))
-    pyplot.plot([-2, 3], [-2, 3], 'k--', lw=1)
-    pyplot.gca().set_xlabel('predicted')
-    pyplot.gca().set_ylabel('actual')
-    pyplot.title(f'mode-{mode + 1}')
-    pyplot.legend()
-    pyplot.savefig(f'mode-{mode + 1}')
-    pyplot.close()
-
-# Now get the joint KLPC coefficients
-klpc_coefficients = karhunen_loeve_pc_coefficients(
-    kl_dict=kl_dict, 
-    pc_coefficients=pc_coefficients,
-)
     
-# Get sensitivities and distribution functions
-# at each point of the KLP surrgogate
+    # Get sensitivities and distribution functions
+    # at each point of the KLP surrgogate
+    param_filename = 'coeff.dat'
+    klpc_sensitivities = [None] * ngrid
+    klpc_exceedance_heights = [None] * ngrid
+    klpc_exceedance_probabilities = [None] * ngrid
+    for z_index in range(ngrid):
+        # save coefficients for this point into parameter file
+        np.savetxt(param_filename, klpc_coefficients[z_index,:])  
+ 
+        # evaluate the Sobol sensitivities for the KLPC surrogate
+        klpc_sensitivities[z_index] = evaluate_pc_sensitivity(
+            parameter_filename=param_filename,
+            multiindex_filename=mi_filename,
+            pc_type=pc_type,
+        )
+ 
+        # evaluate the PDF/CDF of the KLPC surrogate
+        klpc_distribution = evaluate_pc_distribution_function(
+            parameter_filename=param_filename,
+            multiindex_filename=mi_filename,
+            num_samples=num_samples,
+            pdf_bins=pdf_bins,
+            pc_type=pc_type,
+            pc_dimension=pc_dim,
+            poly_order=pc_order,
+        )
+ 
+        # Get the heights at the desired exceedance probabilities
+        klpc_exceedance_heights[z_index] = evaluate_pc_exceedance_heights(
+            exceedance_probabilities=exceedance_probabilities,
+            pc_dict=klpc_distribution,
+        )
+        
+        # Get the probability of the desired exceedance height
+        klpc_exceedance_probabilities[z_index] = evaluate_pc_exceedance_probabilities(
+            exceedance_heights=exceedance_heights,
+            pc_dict=klpc_distribution,
+        )
 
-# set some parameters
-num_samples = 1000  # number of times to sample the PC expansion to get PDF
-pdf_bins = 100      # number of PDF bins
-percentiles = np.array([10, 50, 90])  # List of percentiles to extract
-klpc_sensitivities = [None] * ngrid
-klpc_distributions = [None] * ngrid
-for z_index in range(ngrid):
-    # save coefficients for this point into parameter file
-    np.savetxt('coeff.dat', klpc_coefficients[z_index,:])  
+    breakpoint()
 
-    # evaluate the Sobol sensitivities for the KLPC surrogate
-    klpc_sensitivities[z_index] = evaluate_pc_sensitivity(
-        parameter_filename='coeff.dat',
-        multiindex_filename=mi_filename,
+## Plotting the sensitivities
+#for sdx, sens_label in enumerate(sens_types):
+#    lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
+#    pyplot.gca().set_xlabel('mode number')
+#    pyplot.gca().set_ylabel('Sobol sensitivty')
+#    pyplot.title(sens_label + '_sensitivity')
+#    pyplot.legend(lineObjects, dataframes[keys[0]].columns)
+#    pyplot.savefig(sens_label + '_sensitivity')
+#    pyplot.close()
+
+## Plotting the PDF/CDFs of each mode
+#pc_keys = [*pc_distributions[0]]
+#pc_keys.remove('x')
+#for pc_key in pc_keys:
+#    for mode in range(neig):
+#        pyplot.plot(
+#            pc_distributions[mode]['x'],
+#            pc_distributions[mode][pc_key],
+#            label=f'KL Mode-{mode+1}',
+#        )
+#    pyplot.gca().set_xlabel('x')
+#    pyplot.gca().set_ylabel('P')
+#    pyplot.title(pc_key + ' of PC surrogate for each KL mode')
+#    pyplot.legend()
+#    pyplot.grid()
+#    pyplot.savefig('KLPC_' + pc_key)
+#    pyplot.close()
+#
+## plot scatter points to show zeta_max percentiles
+#for pdx, perc in enumerate(percentiles):
+#    plot_points(
+#        np.hstack((points_subset, zeta_max_percentiles[:, [pdx]])),
+#        save_filename='zmax_' + str(perc) + '_percentile',
+#        title=str(perc) + ' percentile maximum elevation',
+#        vmax=4.0,
+#    )
+
+#############################
+####### MAIN SCRIPT #########
+#############################
+if __name__ == '__main__':
+
+    # Ensemble member data and point selection
+    h5name = '../data/florence_40member.h5' # name of h5 data
+    point_spacing = 100      # select every x points
+
+    # Karhunen Loeve expansion parameters
+    neig = 0.95              # choose neig decimal percent of variance explained to keep
+
+    # Polynomial Chaos expansion parameters
+    pc_type = 'HG'           # Hermite-Gauss chaos
+    lambda_reg = 0           # regularization lambda
+    pc_order = 3             # order of the polynomial
+    mi_type = 'TO'           # PC multi-index type
+
+    # Probability parameters
+    num_samples = 1000  # number of times to sample the KLPC expansion to get PDF
+    pdf_bins = 1000     # number of PDF bins
+    exceedance_probabilities = np.array([0.1, 0.5, 0.9])  # [decimal percent]
+    exceedance_heights = np.array([0.5, 1.0, 2.0])        # [m]
+
+    # Execute the joint klpc program
+    joint_klpc_surrogate(
+        h5name=h5name,
+        point_spacing=point_spacing,
+        neig=neig,
         pc_type=pc_type,
-    )
-
-    # evaluate the PDF/CDF of the KLPC surrogate
-    klpc_distributions[z_index] = evaluate_pc_distribution_function(
-        parameter_filename='coeff.dat',
-        multiindex_filename=mi_filename,
+        lambda_reg=lambda_reg,
+        pc_order=pc_order,
+        mi_type=mi_type,
         num_samples=num_samples,
         pdf_bins=pdf_bins,
-        pc_type=pc_type,
-        pc_dimension=pc_dim,
-        poly_order=pc_order,
-    )
-
-breakpoint()
-
-# Plotting the sensitivities
-for sdx, sens_label in enumerate(sens_types):
-    lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
-    pyplot.gca().set_xlabel('mode number')
-    pyplot.gca().set_ylabel('Sobol sensitivty')
-    pyplot.title(sens_label + '_sensitivity')
-    pyplot.legend(lineObjects, dataframes[keys[0]].columns)
-    pyplot.savefig(sens_label + '_sensitivity')
-    pyplot.close()
-
-# Plotting the PDF/CDFs of each mode
-pc_keys = [*pc_distributions[0]]
-pc_keys.remove('x')
-for pc_key in pc_keys:
-    for mode in range(neig):
-        pyplot.plot(
-            pc_distributions[mode]['x'],
-            pc_distributions[mode][pc_key],
-            label=f'KL Mode-{mode+1}',
-        )
-    pyplot.gca().set_xlabel('x')
-    pyplot.gca().set_ylabel('P')
-    pyplot.title(pc_key + ' of PC surrogate for each KL mode')
-    pyplot.legend()
-    pyplot.grid()
-    pyplot.savefig('KLPC_' + pc_key)
-    pyplot.close()
-
-# Evaluate the percentile of the full KLPC surrogate of zeta_max
-zeta_max_percentiles = karhunen_loeve_percentiles(
-    percentiles=percentiles, kl_dict=kl_dict, pc_dicts=pc_distributions,
-)
-
-# plot scatter points to show zeta_max percentiles
-for pdx, perc in enumerate(percentiles):
-    plot_points(
-        np.hstack((points_subset, zeta_max_percentiles[:, [pdx]])),
-        save_filename='zmax_' + str(perc) + '_percentile',
-        title=str(perc) + ' percentile maximum elevation',
-        vmax=4.0,
+        exceedance_probabilities=exceedance_probabilities,
+        exceedance_heights=exceedance_heights,
     )
