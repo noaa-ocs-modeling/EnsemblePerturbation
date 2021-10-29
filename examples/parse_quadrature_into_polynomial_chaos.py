@@ -524,7 +524,7 @@ if __name__ == '__main__':
         if not training_filename.exists():
             LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
             training_results = surrogate_model(*training_perturbations['perturbations'].T).T
-            training_results = numpy.concatenate([training_set, training_results], axis=0)
+            training_results = numpy.stack([training_set, training_results], axis=0)
             training_results = xarray.DataArray(
                 training_results,
                 coords={'source': ['model', 'surrogate'], **training_set.coords},
@@ -545,7 +545,7 @@ if __name__ == '__main__':
             validation_results = surrogate_model(
                 *validation_perturbations['perturbations'].T
             ).T
-            validation_results = numpy.concatenate(
+            validation_results = numpy.stack(
                 [validation_set, validation_results], axis=0
             )
             validation_results = xarray.DataArray(
