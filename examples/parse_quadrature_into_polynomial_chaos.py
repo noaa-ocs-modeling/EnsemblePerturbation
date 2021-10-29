@@ -290,23 +290,27 @@ def comparison_plot_grid(variables: [str], figure: Figure = None):
             if sharey is None:
                 shared_grid_columns['y'][row_variable] = variable_axis
 
-            if row_index == 0:
-                variable_axis.set_xlabel(column_variable)
-                variable_axis.xaxis.set_label_position('top')
-                variable_axis.xaxis.tick_top()
-                if row_index == grid_length - column_index - 1:
-                    variable_axis.secondary_xaxis('bottom')
-            elif row_index != grid_length - column_index - 1:
-                variable_axis.xaxis.set_visible(False)
+            if grid_length != 1:
+                if row_index == 0:
+                    variable_axis.set_xlabel(column_variable)
+                    variable_axis.xaxis.set_label_position('top')
+                    variable_axis.xaxis.tick_top()
+                    if row_index == grid_length - column_index - 1:
+                        variable_axis.secondary_xaxis('bottom')
+                elif row_index != grid_length - column_index - 1:
+                    variable_axis.xaxis.set_visible(False)
 
-            if column_index == 0:
-                variable_axis.set_ylabel(row_variable)
-                if row_index == grid_length - column_index - 1:
-                    variable_axis.secondary_yaxis('right')
-            elif row_index == grid_length - column_index - 1:
-                variable_axis.yaxis.tick_right()
+                if column_index == 0:
+                    variable_axis.set_ylabel(row_variable)
+                    if row_index == grid_length - column_index - 1:
+                        variable_axis.secondary_yaxis('right')
+                elif row_index == grid_length - column_index - 1:
+                    variable_axis.yaxis.tick_right()
+                else:
+                    variable_axis.yaxis.set_visible(False)
             else:
-                variable_axis.yaxis.set_visible(False)
+                variable_axis.set_xlabel(column_variable)
+                variable_axis.set_ylabel(row_variable)
 
             axes[row_variable][column_variable] = variable_axis
 
@@ -401,7 +405,6 @@ if __name__ == '__main__':
 
     input_directory = Path.cwd()
     surrogate_filename = input_directory / 'surrogate.npy'
-    training_filename = input_directory / 'training.nc'
     validation_filename = input_directory / 'validation.nc'
 
     filenames = ['perturbations.nc', 'maxele.63.nc']
@@ -521,7 +524,7 @@ if __name__ == '__main__':
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
     if plot_validation:
-        if not training_filename.exists():
+        if not validation_filename.exists():
             LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
             training_results = surrogate_model(*training_perturbations['perturbations'].T).T
             training_results = numpy.stack([training_set, training_results], axis=0)
@@ -529,37 +532,38 @@ if __name__ == '__main__':
                 training_results,
                 coords={'source': ['model', 'surrogate'], **training_set.coords},
                 dims=('source', 'run', 'node'),
+                name='training',
             )
-            training_results = training_results.to_dataset(name='training')
 
-            LOGGER.info(f'saving training to "{training_filename}"')
-            training_results.to_netcdf(training_filename)
-        else:
-            LOGGER.info(f'loading training from "{training_filename}"')
-            training_results = xarray.open_dataset(training_filename)
-
-        if not validation_filename.exists():
             LOGGER.info(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
             validation_results = surrogate_model(
                 *validation_perturbations['perturbations'].T
             ).T
-            validation_results = numpy.stack(
-                [validation_set, validation_results], axis=0
-            )
+            validation_results = numpy.stack([validation_set, validation_results], axis=0)
             validation_results = xarray.DataArray(
                 validation_results,
                 coords={'source': ['model', 'surrogate'], **validation_set.coords},
                 dims=('source', 'run', 'node'),
+                name='validation',
             )
-            validation_results = validation_results.to_dataset(name='validation')
+
+            validation_results = xarray.combine_nested(
+                [training_results, validation_results], concat_dim='type'
+            )
+            validation_results = validation_results.assign_coords(
+                type=['training', 'validation']
+            )
+            validation_results = validation_results.to_dataset(name='results')
 
             LOGGER.info(f'saving validation to "{validation_filename}"')
             validation_results.to_netcdf(validation_filename)
         else:
             LOGGER.info(f'loading validation from "{validation_filename}"')
             validation_results = xarray.open_dataset(validation_filename)
+
+        validation_results = validation_results['results']
 
         sources = validation_results['source'].values
 
@@ -571,20 +575,21 @@ if __name__ == '__main__':
 
         axes, grid = comparison_plot_grid(sources, figure=figure)
 
+        type_colors = {'training': 'b', 'validation': 'r'}
+
         for row_source, columns in axes.items():
             for column_source, axis in columns.items():
-                axis.scatter(
-                    validation_results.sel(source=column_source),
-                    validation_results.sel(source=row_source),
-                    c='r',
-                )
-                axis.scatter(
-                    training_results.sel(source=column_source),
-                    training_results.sel(source=row_source),
-                    c='g',
-                )
-                max_value = max(axis.get_xlim(), axis.get_ylim())
+                for result_type in validation_results['type'].values:
+                    type_results = validation_results.sel(type=result_type)
+                    axis.scatter(
+                        type_results.sel(source=column_source),
+                        type_results.sel(source=row_source),
+                        c=type_colors[result_type],
+                        label=result_type,
+                    )
+                max_value = max(axis.get_xlim()[-1], axis.get_ylim()[-1])
                 axis.plot([0, max_value], [0, max_value], '--k')
+                axis.legend()
 
         output_filename = input_directory / 'validation.png' if save_plots else None
         if output_filename is not None:
