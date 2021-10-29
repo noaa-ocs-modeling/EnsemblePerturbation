@@ -106,12 +106,11 @@ def karhunen_loeve_pc_coefficients(
     # get the coefficients of the PC for each point in z (spatiotemporal dimension)
     num_points = len(kl_dict['mean_vector'])
     num_modes = len(kl_dict['eigenvalues'])
-    assert num_modes == pc_coefficients.size(0), 'number of kl_dict eigenvalues needs to be equal to the length of the first dimension of pc_coefficients'
-    num_coefficients = pc_coefficients.size(1)
+    assert num_modes == pc_coefficients.shape[0], 'number of kl_dict eigenvalues needs to be equal to the length of the first dimension of pc_coefficients'
+    num_coefficients = pc_coefficients.shape[1]
     klpc_coefficients = np.zeros((num_points, num_coefficients))
-
+    klpc_coefficients[:, 0] = kl_dict['mean_vector']
     for z_index in range(num_points):
-        klpc_coefficients[z_index, 0] = kl_dict['mean_vector']
         for coef_index in range(num_coefficients):
             for mode_index in range(num_modes):
                 klpc_coefficients[z_index, coef_index] += (
@@ -149,9 +148,9 @@ def karhunen_loeve_prediction(kl_dict: dict, samples=None, ymodel=None):
 
 
 def trapezoidal_rule_weights(length: int):
-    # Set trapesoidal rule weights
-    weights = np.full(length, fill_value=1)
-    weights[[0, -1]] = 0.5
+    # Set trapezoidal rule weights
+    weights = np.ones(length)
+    weights[[0,-1]]  = 0.5
     return np.sqrt(weights)
 
 
