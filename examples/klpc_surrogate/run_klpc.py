@@ -2,6 +2,9 @@
 
 from matplotlib import pyplot
 import numpy as np
+import os
+import glob as gl
+import shutil
 
 from ensembleperturbation.plotting import plot_points
 from ensembleperturbation.uncertainty_quantification.ensemble_array import (
@@ -219,8 +222,6 @@ def joint_klpc_surrogate(
             pc_dict=klpc_distribution,
         )
 
-    breakpoint()
-
 ## Plotting the sensitivities
 #for sdx, sens_label in enumerate(sens_types):
 #    lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
@@ -282,7 +283,9 @@ if __name__ == '__main__':
     exceedance_probabilities = np.array([0.1, 0.5, 0.9])  # [decimal percent]
     exceedance_heights = np.array([0.5, 1.0, 2.0])        # [m]
 
-    # Execute the joint klpc program
+    #------------------------------------------------#
+    # Execute the joint klpc program                 #
+    #------------------------------------------------#
     joint_klpc_surrogate(
         h5name=h5name,
         point_spacing=point_spacing,
@@ -296,3 +299,20 @@ if __name__ == '__main__':
         exceedance_probabilities=exceedance_probabilities,
         exceedance_heights=exceedance_heights,
     )
+  
+    #------------------------------------------------#
+    # Move files and figures into output directories #
+    #------------------------------------------------#
+    dst_folder = 'data/'
+    if not os.path.isdir(dst_folder): 
+        os.mkdir(dst_folder) 
+    for data in gl.glob('*.dat') + gl.glob('*.log'):
+        file_name = os.path.basename(data)
+        shutil.move(data, dst_folder + file_name)
+    
+    dst_folder = 'figures/' 
+    if not os.path.isdir(dst_folder): 
+        os.mkdir(dst_folder) 
+    for figure in gl.glob('*.png'):
+        file_name = os.path.basename(figure)
+        shutil.move(figure, dst_folder + file_name)
