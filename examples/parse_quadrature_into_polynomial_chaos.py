@@ -56,9 +56,7 @@ def plot_node_map(
     if node_colors is None:
         color_map = cm.get_cmap('jet')
         color_values = numpy.arange(len(nodes['node']))
-        normalization = colors.Normalize(
-            vmin=numpy.min(color_values), vmax=numpy.max(color_values)
-        )
+        normalization = colors.Normalize(vmin=color_values.min(), vmax=color_values.max())
         color_values = normalization(color_values)
         node_colors = color_map(color_values)
     elif isinstance(node_colors, str):
@@ -69,8 +67,8 @@ def plot_node_map(
             color_values = color_values.mean(
                 [dim for dim in color_values.dims if dim != 'node']
             )
-        min_value = numpy.min(color_values.values)
-        max_value = numpy.max(color_values.values)
+        min_value = float(color_values.min().values)
+        max_value = float(color_values.max().values)
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
         except ValueError:
@@ -79,8 +77,8 @@ def plot_node_map(
         node_colors = color_map(color_values)
     else:
         color_map = cm.get_cmap('jet')
-        min_value = numpy.min(node_colors.values)
-        max_value = numpy.max(node_colors.values)
+        min_value = float(node_colors.min().values)
+        max_value = float(node_colors.max().values)
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
         except ValueError:
@@ -126,9 +124,7 @@ def plot_nodes_across_runs(
     if node_colors is None:
         color_map = cm.get_cmap('jet')
         color_values = numpy.arange(len(nodes['node']))
-        normalization = colors.Normalize(
-            vmin=numpy.min(color_values), vmax=numpy.max(color_values)
-        )
+        normalization = colors.Normalize(vmin=color_values.min(), vmax=color_values.max())
         color_values = normalization(color_values)
         node_colors = color_map(color_values)
     elif isinstance(node_colors, str):
@@ -138,8 +134,8 @@ def plot_nodes_across_runs(
             color_values = color_values.mean(
                 [dim for dim in color_values.dims if dim != 'node']
             )
-        min_value = numpy.min(color_values.values)
-        max_value = numpy.max(color_values.values)
+        min_value = float(color_values.min().values)
+        max_value = float(color_values.max().values)
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
             colorbar = figure.colorbar(
@@ -155,8 +151,8 @@ def plot_nodes_across_runs(
         node_colors = color_map(color_values)
     else:
         color_map = cm.get_cmap('jet')
-        min_value = numpy.min(node_colors.values)
-        max_value = numpy.max(node_colors.values)
+        min_value = float(node_colors.min().values)
+        max_value = float(node_colors.max().values)
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
         except ValueError:
@@ -335,8 +331,8 @@ def plot_perturbed_variables(
     if not perturbation_colors.isnull().values.all():
         color_map_axis = figure.add_subplot(grid[-1, -1])
         color_map_axis.set_visible(False)
-        min_value = numpy.min(perturbation_colors.values)
-        max_value = numpy.max(perturbation_colors.values)
+        min_value = float(perturbation_colors.min().values)
+        max_value = float(perturbation_colors.max().values)
         perturbation_colors.loc[perturbation_colors.isnull()] = 0
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
@@ -401,10 +397,10 @@ def plot_comparison(
 
 
 if __name__ == '__main__':
-    plot_perturbations = True
+    plot_perturbations = False
     plot_validation = True
-    plot_statistics = True
-    plot_percentile = True
+    plot_statistics = False
+    plot_percentile = False
 
     save_plots = True
     show_plots = False
@@ -488,14 +484,12 @@ if __name__ == '__main__':
     storm_points = storm.data[['longitude', 'latitude']].values
     distances = numpy.fromiter(
         (
-            numpy.min(
-                geoid.inv(
-                    *numpy.repeat(
-                        numpy.expand_dims(node, axis=0), repeats=len(storm_points), axis=0
-                    ).T,
-                    *storm_points.T,
-                )[-1]
-            )
+            geoid.inv(
+                *numpy.repeat(
+                    numpy.expand_dims(node, axis=0), repeats=len(storm_points), axis=0
+                ).T,
+                *storm_points.T,
+            )[-1].min()
             for node in nodes
         ),
         dtype=float,
