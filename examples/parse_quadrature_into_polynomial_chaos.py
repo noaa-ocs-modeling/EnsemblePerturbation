@@ -397,10 +397,10 @@ def plot_comparison(
 
 
 if __name__ == '__main__':
-    plot_perturbations = False
+    plot_perturbations = True
     plot_validation = True
-    plot_statistics = False
-    plot_percentile = False
+    plot_statistics = True
+    plot_percentile = True
 
     save_plots = True
     show_plots = False
