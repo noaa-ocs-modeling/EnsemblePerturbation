@@ -38,7 +38,7 @@ def plot_node_map(
 
     map_crs = cartopy.crs.PlateCarree()
     if map_axis is None:
-        map_axis = pyplot.Axes(projection=map_crs)
+        map_axis = pyplot.subplot(1, 1, 1, projection=map_crs)
 
     map_bounds = [
         float(nodes.coords['x'].min().values),
