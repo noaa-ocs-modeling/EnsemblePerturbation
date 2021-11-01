@@ -329,33 +329,41 @@ def plot_perturbed_variables(
     variables = perturbations['variable'].values
     axes, grid = comparison_plot_grid(variables, figure=figure)
 
-    color_map_axis = figure.add_subplot(grid[-1, -1])
-    color_map_axis.set_visible(False)
     color_map = cm.get_cmap('jet')
-    min_value = numpy.min(perturbations['weights'].values)
-    max_value = numpy.max(perturbations['weights'].values)
-    try:
-        normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
-        colorbar = figure.colorbar(
-            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
-            orientation='horizontal',
-            ax=color_map_axis,
-        )
-    except ValueError:
-        normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-        colorbar = figure.colorbar(
-            mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
-            orientation='horizontal',
-            ax=color_map_axis,
-        )
-    colorbar.set_label('weight')
 
+    perturbation_colors = perturbations['weights']
+    if not perturbation_colors.isnull().values.all():
+        color_map_axis = figure.add_subplot(grid[-1, -1])
+        color_map_axis.set_visible(False)
+        min_value = numpy.min(perturbation_colors.values)
+        max_value = numpy.max(perturbation_colors.values)
+        perturbation_colors.loc[perturbation_colors.isnull()] = 0
+        try:
+            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+            colorbar = figure.colorbar(
+                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
+                orientation='horizontal',
+                ax=color_map_axis,
+            )
+        except ValueError:
+            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
+            colorbar = figure.colorbar(
+                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
+                orientation='horizontal',
+                ax=color_map_axis,
+            )
+        colorbar.set_label('weight')
+    else:
+        perturbation_colors = numpy.arange(len(perturbation_colors))
+        normalization = None
+
+    perturbations = perturbations['perturbations']
     for row_variable, columns in axes.items():
         for column_variable, axis in columns.items():
             axis.scatter(
-                perturbations['perturbations'].sel(variable=column_variable),
-                perturbations['perturbations'].sel(variable=row_variable),
-                c=perturbations['weights'],
+                perturbations.sel(variable=column_variable),
+                perturbations.sel(variable=row_variable),
+                c=perturbation_colors,
                 cmap=color_map,
                 norm=normalization,
             )
