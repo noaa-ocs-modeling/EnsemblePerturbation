@@ -8,14 +8,15 @@ import cartopy
 import chaospy
 import dask
 import geopandas
-from matplotlib import cm, colors, gridspec, pyplot
+from matplotlib import cm, gridspec, pyplot
 from matplotlib.axis import Axis
+from matplotlib.colors import Colormap, LogNorm, Normalize
 from matplotlib.figure import Figure
 import numpy
 import pyproj
 import xarray
 
-from ensembleperturbation.parsing.adcirc import combine_outputs
+from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.uncertainty_quantification.quadrature import (
     fit_surrogate_to_quadrature,
@@ -26,15 +27,61 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parse_nodes')
 
 
+def node_color_map(nodes: xarray.Dataset, colors: []) -> (Colormap, Normalize, numpy.ndarray):
+    if colors is None:
+        color_map = cm.get_cmap('jet')
+        color_values = numpy.arange(len(nodes['node']))
+        normalization = Normalize(vmin=numpy.min(color_values), vmax=numpy.max(color_values))
+        colors = color_map(normalization(color_values))
+    elif isinstance(colors, str):
+        color_map = cm.get_cmap('jet')
+        color_values = nodes[colors]
+        if len(color_values.dims) > 1:
+            color_values = color_values.mean(
+                [dim for dim in color_values.dims if dim != 'node']
+            )
+        min_value = float(color_values.min().values)
+        max_value = float(color_values.max().values)
+        try:
+            normalization = LogNorm(vmin=min_value, vmax=max_value)
+            normalized_color_values = normalization(color_values)
+        except ValueError:
+            normalization = Normalize(vmin=min_value, vmax=max_value)
+            normalized_color_values = normalization(color_values)
+        colors = color_map(normalized_color_values)
+    else:
+        colors = numpy.array(colors)
+
+        color_map = cm.get_cmap('jet')
+        min_value = numpy.min(colors)
+        max_value = numpy.max(colors)
+        try:
+            normalization = LogNorm(vmin=min_value, vmax=max_value)
+        except ValueError:
+            normalization = Normalize(vmin=min_value, vmax=max_value)
+
+        if len(colors.shape) < 2 or colors.shape[1] != 4:
+            color_values = colors
+            colors = color_map(normalization(color_values))
+        else:
+            color_values = None
+
+    return color_map, normalization, color_values, colors
+
+
 def plot_node_map(
     nodes: xarray.Dataset,
     map_title: str = None,
-    node_colors: [] = None,
+    colors: [] = None,
     storm: str = None,
     map_axis: pyplot.Axes = None,
 ):
     if map_title is None:
         map_title = f'{len(nodes["node"])} nodes'
+    if isinstance(colors, str):
+        map_title = f'"{colors}" of {map_title}'
+
+    color_map, normalization, color_values, colors = node_color_map(nodes, colors=colors)
 
     map_crs = cartopy.crs.PlateCarree()
     if map_axis is None:
@@ -53,40 +100,6 @@ def plot_node_map(
     elif not isinstance(storm, VortexForcing):
         storm = BestTrackForcing(storm)
 
-    if node_colors is None:
-        color_map = cm.get_cmap('jet')
-        color_values = numpy.arange(len(nodes['node']))
-        normalization = colors.Normalize(vmin=color_values.min(), vmax=color_values.max())
-        color_values = normalization(color_values)
-        node_colors = color_map(color_values)
-    elif isinstance(node_colors, str):
-        color_map = cm.get_cmap('jet')
-        map_title = f'"{node_colors}" of {map_title}'
-        color_values = nodes[node_colors]
-        if len(color_values.dims) > 1:
-            color_values = color_values.mean(
-                [dim for dim in color_values.dims if dim != 'node']
-            )
-        min_value = float(color_values.min().values)
-        max_value = float(color_values.max().values)
-        try:
-            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
-        except ValueError:
-            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-        color_values = normalization(color_values)
-        node_colors = color_map(color_values)
-    else:
-        color_map = cm.get_cmap('jet')
-        min_value = node_colors.min()
-        max_value = node_colors.max()
-        try:
-            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
-            color_values = normalization(node_colors)
-        except ValueError:
-            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-            color_values = normalization(node_colors)
-        node_colors = color_map(color_values)
-
     countries.plot(color='lightgrey', ax=map_axis)
     storm.data.plot(
         x='longitude',
@@ -97,7 +110,7 @@ def plot_node_map(
     )
 
     map_axis.scatter(
-        x=nodes['x'], y=nodes['y'], c=node_colors, s=2, norm=normalization, transform=map_crs
+        x=nodes['x'], y=nodes['y'], c=colors, s=2, norm=normalization, transform=map_crs
     )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
@@ -108,7 +121,7 @@ def plot_node_map(
 def plot_nodes_across_runs(
     nodes: xarray.Dataset,
     title: str = None,
-    node_colors: [] = None,
+    colors: [] = None,
     storm: str = None,
     output_filename: PathLike = None,
 ):
@@ -122,46 +135,8 @@ def plot_nodes_across_runs(
     map_crs = cartopy.crs.PlateCarree()
     map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
 
-    if node_colors is None:
-        color_map = cm.get_cmap('jet')
-        color_values = numpy.arange(len(nodes['node']))
-        normalization = colors.Normalize(vmin=color_values.min(), vmax=color_values.max())
-        color_values = normalization(color_values)
-        node_colors = color_map(color_values)
-    elif isinstance(node_colors, str):
-        color_map = cm.get_cmap('jet')
-        color_values = nodes[node_colors]
-        if len(color_values.dims) > 1:
-            color_values = color_values.mean(
-                [dim for dim in color_values.dims if dim != 'node']
-            )
-        min_value = float(color_values.min().values)
-        max_value = float(color_values.max().values)
-        try:
-            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
-            colorbar = figure.colorbar(
-                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization), ax=map_axis,
-            )
-        except ValueError:
-            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-            colorbar = figure.colorbar(
-                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization), ax=map_axis,
-            )
-        colorbar.set_label(node_colors)
-        color_values = normalization(color_values)
-        node_colors = color_map(color_values)
-    else:
-        color_map = cm.get_cmap('jet')
-        min_value = float(node_colors.min().values)
-        max_value = float(node_colors.max().values)
-        try:
-            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
-        except ValueError:
-            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-        color_values = normalization(node_colors)
-        node_colors = color_map(color_values)
-
-    plot_node_map(nodes, node_colors=node_colors, storm=storm, map_axis=map_axis)
+    color_map, normalization, color_values, map_colors = node_color_map(nodes, colors=colors)
+    plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis)
 
     shared_axis = None
     for variable_index, (variable_name, variable) in enumerate(nodes.data_vars.items()):
@@ -183,14 +158,12 @@ def plot_nodes_across_runs(
             sources = [None]
 
         for source_index, source in enumerate(sources):
-            if source is None:
-                color_map = cm.get_cmap('jet')
-                variable_node_colors = color_map(color_values)
-            elif source == 'model':
-                color_map = cm.get_cmap('jet')
-                variable_node_colors = color_map(color_values)
+            if source == 'model':
+                variable_colors = cm.get_cmap('jet')(color_values)
             elif source == 'surrogate':
-                variable_node_colors = 'grey'
+                variable_colors = 'grey'
+            else:
+                variable_colors = cm.get_cmap('jet')(color_values)
 
             kwargs = {}
             if source == 'surrogate':
@@ -204,7 +177,7 @@ def plot_nodes_across_runs(
             if 'time' in nodes.dims:
                 for node_index in range(len(nodes['node'])):
                     node_data = source_data.isel(node=node_index)
-                    node_color = variable_node_colors[node_index]
+                    node_color = variable_colors[node_index]
                     node_data.plot.line(
                         x='time', c=node_color, ax=variable_axis, **kwargs,
                     )
@@ -228,7 +201,7 @@ def plot_nodes_across_runs(
                     x=source_data['distance_to_track'] + bar_offset,
                     width=bar_width,
                     height=source_data.values,
-                    color=variable_node_colors,
+                    color=variable_colors,
                     **kwargs,
                 )
 
@@ -338,14 +311,14 @@ def plot_perturbed_variables(
         max_value = float(perturbation_colors.max().values)
         perturbation_colors.loc[perturbation_colors.isnull()] = 0
         try:
-            normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+            normalization = LogNorm(vmin=min_value, vmax=max_value)
             colorbar = figure.colorbar(
                 mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
                 orientation='horizontal',
                 ax=color_map_axis,
             )
         except ValueError:
-            normalization = colors.Normalize(vmin=min_value, vmax=max_value)
+            normalization = Normalize(vmin=min_value, vmax=max_value)
             colorbar = figure.colorbar(
                 mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
                 orientation='horizontal',
@@ -431,6 +404,8 @@ if __name__ == '__main__':
     subset_filename = input_directory / 'subset.nc'
     surrogate_filename = input_directory / 'surrogate.npy'
     validation_filename = input_directory / 'validation.nc'
+    statistics_filename = input_directory / 'statistics.nc'
+    percentile_filename = input_directory / 'percentiles.nc'
 
     filenames = ['perturbations.nc', 'maxele.63.nc', 'fort.63.nc']
 
@@ -497,12 +472,9 @@ if __name__ == '__main__':
         LOGGER.info('subsetting nodes')
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subset = values.drop_sel(run='original')
-            subset = subset.sel(node=elevations['node'])
-            # subset = subset.sel(
-            #     node=ElevationTimeSeriesOutput.subset(
-            #         elevations, bounds=subset_bounds, maximum_depth=0, only_inundated=True,
-            #     )
-            # )
+            subset = subset.sel(
+                node=FieldOutput.subset(elevations['node'], bounds=subset_bounds,)
+            )
         LOGGER.info(f'saving subset to "{subset_filename}"')
         subset.to_netcdf(subset_filename)
     else:
@@ -575,49 +547,45 @@ if __name__ == '__main__':
             LOGGER.info(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
-            validation_results = surrogate_model(
-                *validation_perturbations['perturbations'].T
-            ).T
-            validation_results = numpy.stack([validation_set, validation_results], axis=0)
-            validation_results = xarray.DataArray(
-                validation_results,
+            node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
+            node_validation = numpy.stack([validation_set, node_validation], axis=0)
+            node_validation = xarray.DataArray(
+                node_validation,
                 coords={'source': ['model', 'surrogate'], **validation_set.coords},
                 dims=('source', 'run', 'node'),
                 name='validation',
             )
 
-            validation_results = xarray.combine_nested(
-                [training_results, validation_results], concat_dim='type'
+            node_validation = xarray.combine_nested(
+                [training_results, node_validation], concat_dim='type'
             )
-            validation_results = validation_results.assign_coords(
-                type=['training', 'validation']
-            )
-            validation_results = validation_results.to_dataset(name='results')
+            node_validation = node_validation.assign_coords(type=['training', 'validation'])
+            node_validation = node_validation.to_dataset(name='results')
 
             LOGGER.info(f'saving validation to "{validation_filename}"')
-            validation_results.to_netcdf(validation_filename)
+            node_validation.to_netcdf(validation_filename)
         else:
             LOGGER.info(f'loading validation from "{validation_filename}"')
-            validation_results = xarray.open_dataset(validation_filename)
+            node_validation = xarray.open_dataset(validation_filename)
 
-        validation_results = validation_results['results']
+        node_validation = node_validation['results']
 
-        sources = validation_results['source'].values
+        sources = node_validation['source'].values
 
         figure = pyplot.figure()
         figure.set_size_inches(12, 12 / 1.61803398875)
         figure.suptitle(
-            f'comparison of {len(sources)} sources along {len(validation_results["node"])} node(s)'
+            f'comparison of {len(sources)} sources along {len(node_validation["node"])} node(s)'
         )
 
         type_colors = {'training': 'b', 'validation': 'r'}
         axes = None
-        for result_type in validation_results['type'].values:
+        for result_type in node_validation['type'].values:
             axes = plot_comparison(
-                validation_results.sel(type=result_type),
+                node_validation.sel(type=result_type),
                 figure=figure,
                 axes=axes,
-                s=2,
+                s=1,
                 c=type_colors[result_type],
                 label=result_type,
             )
@@ -630,44 +598,50 @@ if __name__ == '__main__':
             figure.savefig(input_directory / 'validation.png', dpi=200, bbox_inches='tight')
 
     if plot_statistics:
-        LOGGER.info(
-            f'gathering mean and standard deviation from surrogate on {training_set.shape} training samples'
-        )
-        surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
-        surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
-        modeled_mean = training_set.mean('run')
-        modeled_std = training_set.std('run')
+        if not statistics_filename.exists():
+            LOGGER.info(
+                f'gathering mean and standard deviation from surrogate on {training_set.shape} training samples'
+            )
+            surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
+            surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+            modeled_mean = training_set.mean('run')
+            modeled_std = training_set.std('run')
 
-        surrogate_mean = xarray.DataArray(
-            surrogate_mean, coords=modeled_mean.coords, dims=modeled_mean.dims,
-        )
-        surrogate_std = xarray.DataArray(
-            surrogate_std, coords=modeled_std.coords, dims=modeled_std.dims,
-        )
+            surrogate_mean = xarray.DataArray(
+                surrogate_mean, coords=modeled_mean.coords, dims=modeled_mean.dims,
+            )
+            surrogate_std = xarray.DataArray(
+                surrogate_std, coords=modeled_std.coords, dims=modeled_std.dims,
+            )
 
-        node_results = xarray.Dataset(
-            {
-                'mean': xarray.combine_nested(
-                    [surrogate_mean, modeled_mean], concat_dim='source'
-                ).assign_coords({'source': ['surrogate', 'model']}),
-                'std': xarray.combine_nested(
-                    [surrogate_std, modeled_std], concat_dim='source'
-                ).assign_coords({'source': ['surrogate', 'model']}),
-                'difference': xarray.ufuncs.fabs(surrogate_std - modeled_std),
-            }
-        )
+            node_statistics = xarray.Dataset(
+                {
+                    'mean': xarray.combine_nested(
+                        [surrogate_mean, modeled_mean], concat_dim='source'
+                    ).assign_coords({'source': ['surrogate', 'model']}),
+                    'std': xarray.combine_nested(
+                        [surrogate_std, modeled_std], concat_dim='source'
+                    ).assign_coords({'source': ['surrogate', 'model']}),
+                    'difference': xarray.ufuncs.fabs(surrogate_std - modeled_std),
+                }
+            )
+
+            LOGGER.info(f'saving statistics to "{statistics_filename}"')
+            node_statistics.to_netcdf(statistics_filename)
+        else:
+            LOGGER.info(f'loading statistics from "{statistics_filename}"')
+            node_statistics = xarray.open_dataset(statistics_filename)
 
         plot_nodes_across_runs(
-            node_results,
-            title=f'surrogate-predicted and modeled elevation(s) for {len(node_results["node"])} node(s) across {len(training_set["run"])} run(s)',
-            node_colors='mean',
+            node_statistics,
+            title=f'surrogate-predicted and modeled elevation(s) for {len(node_statistics["node"])} node(s) across {len(training_set["run"])} run(s)',
+            colors='mean',
             storm=storm,
             output_filename=input_directory / 'elevations.png' if save_plots else None,
         )
 
     if plot_percentile:
         percentiles = [10, 50, 90]
-        percentile_filename = input_directory / 'percentiles.nc'
         if not percentile_filename.exists():
             surrogate_percentiles = get_percentiles(
                 samples=training_set,
@@ -708,7 +682,7 @@ if __name__ == '__main__':
                 coords=node_percentiles.coords,
             ),
             title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
-            node_colors='90.0',
+            colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
         )
@@ -728,7 +702,7 @@ if __name__ == '__main__':
                 },
             ),
             title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
-            node_colors='90.0',
+            colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentile_differences.png'
             if save_plots

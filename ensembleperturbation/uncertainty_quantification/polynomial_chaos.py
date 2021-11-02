@@ -27,7 +27,7 @@ def build_pc_expansion(
     pc_coefficients = np.loadtxt('coeff.dat')
     if output_filename is not None:
         os.rename('coeff.dat', output_filename)
-    
+
     return pc_coefficients
 
 
@@ -92,10 +92,12 @@ def evaluate_pc_sensitivity(
     """
 
     # evaluating the sensitivities
-    uqtk_cmd = f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename} >& sens.log'
+    uqtk_cmd = (
+        f'pce_sens -f {parameter_filename} -x {pc_type} -m {multiindex_filename} >& sens.log'
+    )
     os.system(uqtk_cmd)
     sensitivities = {
-        'main':  np.loadtxt('mainsens.dat'),
+        'main': np.loadtxt('mainsens.dat'),
         'joint': np.loadtxt('jointsens.dat'),
         'total': np.loadtxt('totsens.dat'),
     }
@@ -165,9 +167,7 @@ def evaluate_pc_distribution_function(
     return distribution_dict
 
 
-def evaluate_pc_exceedance_heights(
-    exceedance_probabilities: np.ndarray, pc_dict: dict
-):
+def evaluate_pc_exceedance_heights(exceedance_probabilities: np.ndarray, pc_dict: dict):
     """
     Get the heights at the desired exceedance probabilities
     
@@ -175,9 +175,8 @@ def evaluate_pc_exceedance_heights(
 
     return np.interp(1.0 - exceedance_probabilities, pc_dict['cdf'], pc_dict['x'])
 
-def evaluate_pc_exceedance_probabilities(
-    exceedance_heights: np.ndarray, pc_dict: dict
-):
+
+def evaluate_pc_exceedance_probabilities(exceedance_heights: np.ndarray, pc_dict: dict):
     """
     Get the probabilities of exceedance above desired heights
     
