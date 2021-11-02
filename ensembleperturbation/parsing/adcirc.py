@@ -581,13 +581,26 @@ def combine_outputs(
 
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
-    output_data.update(
-        parse_adcirc_outputs(
-            directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
-        )
+    parsed_files = parse_adcirc_outputs(
+        directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
     )
 
+    elevation_time_series_filename = 'fort.63.nc'
+    if only_inundated:
+        if elevation_time_series_filename in parsed_files:
+            output_data[elevation_time_series_filename] = parsed_files[
+                elevation_time_series_filename
+            ]
+            del parsed_files[elevation_time_series_filename]
+        else:
+            raise ValueError(
+                f'elevation time series "{elevation_time_series_filename}" not found'
+            )
+
+    output_data.update(parsed_files)
+
     # generate subset
+    inundated_subset = None
     for basename, file_data in output_data.items():
         if 'node' in file_data:
             num_nodes = len(file_data['node'])
@@ -601,11 +614,19 @@ def combine_outputs(
 
             file_data_variable = file_data_variables[basename]
 
-            subset = file_data_variable.subset(
-                file_data,
-                bounds=bounds,
-                maximum_depth=maximum_depth,
-                only_inundated=only_inundated,
+            subset = ~file_data['node'].isnull()
+
+            if inundated_subset is not None:
+                subset = xarray.ufuncs.logical_and(subset, inundated_subset)
+
+            subset = xarray.ufuncs.logical_and(
+                subset,
+                file_data_variable.subset(
+                    file_data,
+                    bounds=bounds,
+                    maximum_depth=maximum_depth,
+                    only_inundated=only_inundated,
+                ),
             )
 
             if subset is not None:
@@ -614,6 +635,9 @@ def combine_outputs(
                 LOGGER.info(
                     f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
                 )
+
+                if only_inundated:
+                    inundated_subset = subset
 
             output_data[basename] = file_data
 
