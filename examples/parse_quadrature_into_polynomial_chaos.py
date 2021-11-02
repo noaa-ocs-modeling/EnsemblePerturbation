@@ -27,7 +27,7 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parse_nodes')
 
 
-def node_color_map(nodes: xarray.Dataset, colors: []) -> (Colormap, Normalize, numpy.ndarray):
+def node_color_map(nodes: xarray.Dataset, colors: []) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
     if colors is None:
         color_map = cm.get_cmap('jet')
         color_values = numpy.arange(len(nodes['node']))
@@ -66,7 +66,7 @@ def node_color_map(nodes: xarray.Dataset, colors: []) -> (Colormap, Normalize, n
         else:
             color_values = None
 
-    return color_map, normalization, color_values, colors
+    return color_values, normalization, color_map, colors
 
 
 def plot_node_map(
@@ -81,7 +81,7 @@ def plot_node_map(
     if isinstance(colors, str):
         map_title = f'"{colors}" of {map_title}'
 
-    color_map, normalization, color_values, colors = node_color_map(nodes, colors=colors)
+    color_values, normalization, color_map, colors = node_color_map(nodes, colors=colors)
 
     map_crs = cartopy.crs.PlateCarree()
     if map_axis is None:
@@ -135,7 +135,7 @@ def plot_nodes_across_runs(
     map_crs = cartopy.crs.PlateCarree()
     map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
 
-    color_map, normalization, color_values, map_colors = node_color_map(nodes, colors=colors)
+    color_values, normalization, color_map, map_colors = node_color_map(nodes, colors=colors)
     plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis)
 
     shared_axis = None
