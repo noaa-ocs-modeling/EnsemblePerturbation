@@ -29,7 +29,7 @@ LOGGER = get_logger('parse_nodes')
 def plot_node_map(
     nodes: xarray.Dataset,
     map_title: str = None,
-    node_colors: [(float, float, float)] = None,
+    node_colors: [] = None,
     storm: str = None,
     map_axis: pyplot.Axes = None,
 ):
@@ -77,13 +77,14 @@ def plot_node_map(
         node_colors = color_map(color_values)
     else:
         color_map = cm.get_cmap('jet')
-        min_value = float(node_colors.min().values)
-        max_value = float(node_colors.max().values)
+        min_value = node_colors.min()
+        max_value = node_colors.max()
         try:
             normalization = colors.LogNorm(vmin=min_value, vmax=max_value)
+            color_values = normalization(node_colors)
         except ValueError:
             normalization = colors.Normalize(vmin=min_value, vmax=max_value)
-        color_values = normalization(node_colors)
+            color_values = normalization(node_colors)
         node_colors = color_map(color_values)
 
     countries.plot(color='lightgrey', ax=map_axis)
@@ -107,7 +108,7 @@ def plot_node_map(
 def plot_nodes_across_runs(
     nodes: xarray.Dataset,
     title: str = None,
-    node_colors: [(float, float, float)] = None,
+    node_colors: [] = None,
     storm: str = None,
     output_filename: PathLike = None,
 ):
@@ -240,7 +241,9 @@ def plot_nodes_across_runs(
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
 
-def comparison_plot_grid(variables: [str], figure: Figure = None):
+def comparison_plot_grid(
+    variables: [str], figure: Figure = None
+) -> ({str: {str: Axis}}, gridspec.GridSpec):
     if figure is None:
         figure = pyplot.figure()
 
@@ -369,33 +372,48 @@ def plot_perturbed_variables(
 
 
 def plot_comparison(
-    nodes: xarray.DataArray, title: str = None, output_filename: Axis = None,
+    nodes: xarray.DataArray,
+    title: str = None,
+    output_filename: PathLike = None,
+    figure: Figure = None,
+    axes: {str: {str: Axis}} = None,
+    **kwargs,
 ):
     if 'source' not in nodes.dims:
         raise ValueError(f'"source" not found in data array dimensions: {nodes.dims}')
     elif len(nodes['source']) < 2:
         raise ValueError(f'cannot perform comparison with {len(nodes["source"])} source(s)')
 
+    if 'c' not in kwargs:
+        kwargs['c'] = (perturbations['weights'],)
+
     sources = nodes['source'].values
 
-    figure = pyplot.figure()
-    figure.set_size_inches(12, 12 / 1.61803398875)
-    if title is not None:
+    if figure is None:
+        figure = pyplot.figure()
+        figure.set_size_inches(12, 12 / 1.61803398875)
         title = f'comparison of {len(sources)} sources along {len(nodes["node"])} node(s)'
-    figure.suptitle(title)
 
-    axes, grid = comparison_plot_grid(sources, figure=figure)
+    if axes is None:
+        axes, _ = comparison_plot_grid(sources, figure=figure)
+
+    if title is not None:
+        figure.suptitle(title)
 
     for row_source, columns in axes.items():
         for column_source, axis in columns.items():
             axis.scatter(
-                nodes.sel(source=column_source),
-                nodes.sel(source=row_source),
-                c=perturbations['weights'],
+                nodes.sel(source=column_source), nodes.sel(source=row_source), **kwargs,
             )
+
+            min_value = min(axis.get_xlim()[0], axis.get_ylim()[0])
+            max_value = max(axis.get_xlim()[-1], axis.get_ylim()[-1])
+            axis.plot([min_value, max_value], [min_value, max_value], '--k', alpha=0.3)
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
+    return axes
 
 
 if __name__ == '__main__':
@@ -473,11 +491,12 @@ if __name__ == '__main__':
 
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
+    values = max_elevations['zeta_max']
     subset_bounds = (-83, 25, -72, 42)
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            subset = max_elevations['zeta_max'].drop_sel(run='original')
+            subset = values.drop_sel(run='original')
             subset = subset.sel(node=elevations['node'])
             # subset = subset.sel(
             #     node=ElevationTimeSeriesOutput.subset(
@@ -488,7 +507,7 @@ if __name__ == '__main__':
         subset.to_netcdf(subset_filename)
     else:
         LOGGER.info(f'loading subset from "{subset_filename}"')
-        subset = xarray.open_dataset(subset_filename)
+        subset = xarray.open_dataset(subset_filename)[values.name]
 
     # calculate the distance of each node to the storm track
     if storm_name is not None:
@@ -591,27 +610,24 @@ if __name__ == '__main__':
             f'comparison of {len(sources)} sources along {len(validation_results["node"])} node(s)'
         )
 
-        axes, grid = comparison_plot_grid(sources, figure=figure)
-
         type_colors = {'training': 'b', 'validation': 'r'}
+        axes = None
+        for result_type in validation_results['type'].values:
+            axes = plot_comparison(
+                validation_results.sel(type=result_type),
+                figure=figure,
+                axes=axes,
+                s=2,
+                c=type_colors[result_type],
+                label=result_type,
+            )
 
-        for row_source, columns in axes.items():
-            for column_source, axis in columns.items():
-                for result_type in validation_results['type'].values:
-                    type_results = validation_results.sel(type=result_type)
-                    axis.scatter(
-                        type_results.sel(source=column_source),
-                        type_results.sel(source=row_source),
-                        c=type_colors[result_type],
-                        label=result_type,
-                    )
-                max_value = max(axis.get_xlim()[-1], axis.get_ylim()[-1])
-                axis.plot([0, max_value], [0, max_value], '--k')
+        for row in axes.values():
+            for axis in row.values():
                 axis.legend()
 
-        output_filename = input_directory / 'validation.png' if save_plots else None
-        if output_filename is not None:
-            figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+        if save_plots:
+            figure.savefig(input_directory / 'validation.png', dpi=200, bbox_inches='tight')
 
     if plot_statistics:
         LOGGER.info(
