@@ -27,7 +27,9 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parse_nodes')
 
 
-def node_color_map(nodes: xarray.Dataset, colors: []) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
+def node_color_map(
+    nodes: xarray.Dataset, colors: [] = None
+) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
     if colors is None:
         color_map = cm.get_cmap('jet')
         color_values = numpy.arange(len(nodes['node']))
