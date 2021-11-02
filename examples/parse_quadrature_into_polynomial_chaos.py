@@ -15,7 +15,7 @@ import numpy
 import pyproj
 import xarray
 
-from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
+from ensembleperturbation.parsing.adcirc import combine_outputs
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.uncertainty_quantification.quadrature import (
     fit_surrogate_to_quadrature,
@@ -373,6 +373,8 @@ def plot_comparison(
 ):
     if 'source' not in nodes.dims:
         raise ValueError(f'"source" not found in data array dimensions: {nodes.dims}')
+    elif len(nodes['source']) < 2:
+        raise ValueError(f'cannot perform comparison with {len(nodes["source"])} source(s)')
 
     sources = nodes['source'].values
 
@@ -408,10 +410,11 @@ if __name__ == '__main__':
     storm_name = None
 
     input_directory = Path.cwd()
+    subset_filename = input_directory / 'subset.nc'
     surrogate_filename = input_directory / 'surrogate.npy'
     validation_filename = input_directory / 'validation.nc'
 
-    filenames = ['perturbations.nc', 'maxele.63.nc']
+    filenames = ['perturbations.nc', 'maxele.63.nc', 'fort.63.nc']
 
     datasets = {}
     existing_filenames = []
@@ -437,6 +440,7 @@ if __name__ == '__main__':
 
     perturbations = datasets['perturbations.nc']
     max_elevations = datasets['maxele.63.nc']
+    elevations = datasets['fort.63.nc']
 
     training_perturbations = perturbations.sel(
         run=perturbations['run'].str.contains('quadrature')
@@ -470,9 +474,21 @@ if __name__ == '__main__':
     # sample times and nodes
     # TODO: sample based on sentivity / eigenvalues
     subset_bounds = (-83, 25, -72, 42)
-    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        samples = max_elevations['zeta_max'].drop_sel(run='original')
-        samples = samples.sel(node=FieldOutput.subset(samples['node'], bounds=subset_bounds))
+    if not subset_filename.exists():
+        LOGGER.info('subsetting nodes')
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            subset = max_elevations['zeta_max'].drop_sel(run='original')
+            subset = subset.sel(node=elevations['node'])
+            # subset = subset.sel(
+            #     node=ElevationTimeSeriesOutput.subset(
+            #         elevations, bounds=subset_bounds, maximum_depth=0, only_inundated=True,
+            #     )
+            # )
+        LOGGER.info(f'saving subset to "{subset_filename}"')
+        subset.to_netcdf(subset_filename)
+    else:
+        LOGGER.info(f'loading subset from "{subset_filename}"')
+        subset = xarray.open_dataset(subset_filename)
 
     # calculate the distance of each node to the storm track
     if storm_name is not None:
@@ -480,7 +496,7 @@ if __name__ == '__main__':
     else:
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
     geoid = pyproj.Geod(ellps='WGS84')
-    nodes = numpy.stack([samples['x'], samples['y']], axis=1)
+    nodes = numpy.stack([subset['x'], subset['y']], axis=1)
     storm_points = storm.data[['longitude', 'latitude']].values
     distances = numpy.fromiter(
         (
@@ -493,14 +509,14 @@ if __name__ == '__main__':
             for node in nodes
         ),
         dtype=float,
-        count=len(samples['node']),
+        count=len(subset['node']),
     )
-    samples = samples.assign_coords({'distance_to_track': ('node', distances)})
-    samples = samples.sortby('distance_to_track')
+    subset = subset.assign_coords({'distance_to_track': ('node', distances)})
+    subset = subset.sortby('distance_to_track')
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        training_set = samples.sel(run=training_perturbations['run'])
-        validation_set = samples.sel(run=validation_perturbations['run'])
+        training_set = subset.sel(run=training_perturbations['run'])
+        validation_set = subset.sel(run=validation_perturbations['run'])
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
