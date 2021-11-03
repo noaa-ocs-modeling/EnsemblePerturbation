@@ -473,10 +473,11 @@ if __name__ == '__main__':
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            subset = values.drop_sel(run='original')
-            subset = subset.sel(
-                node=FieldOutput.subset(elevations['node'], bounds=subset_bounds,)
+            subsetted_nodes = elevations['node'].where(
+                FieldOutput.subset(elevations['node'], bounds=subset_bounds), drop=True,
             )
+            subset = values.drop_sel(run='original')
+            subset = subset.sel(node=subsetted_nodes)
         LOGGER.info(f'saving subset to "{subset_filename}"')
         subset.to_netcdf(subset_filename)
     else:
