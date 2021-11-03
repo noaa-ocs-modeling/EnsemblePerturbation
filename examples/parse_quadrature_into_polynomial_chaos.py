@@ -472,12 +472,12 @@ if __name__ == '__main__':
     subset_bounds = (-83, 25, -72, 42)
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
+        num_nodes = len(values['node'])
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = elevations['node'].where(
                 FieldOutput.subset(elevations['node'], bounds=subset_bounds), drop=True,
             )
             subset = values.drop_sel(run='original')
-            num_nodes = len(subset['node'])
             subset = subset.sel(node=subsetted_nodes)
         if len(subset['node']) != num_nodes:
             LOGGER.info(
