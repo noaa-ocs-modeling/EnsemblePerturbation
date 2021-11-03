@@ -477,7 +477,12 @@ if __name__ == '__main__':
                 FieldOutput.subset(elevations['node'], bounds=subset_bounds), drop=True,
             )
             subset = values.drop_sel(run='original')
+            num_nodes = len(subset['node'])
             subset = subset.sel(node=subsetted_nodes)
+        if len(subset['node']) != num_nodes:
+            LOGGER.info(
+                f'subsetted down to {len(subset["node"])} nodes ({len(subset["node"]) / num_nodes:.1%})'
+            )
         LOGGER.info(f'saving subset to "{subset_filename}"')
         subset.to_netcdf(subset_filename)
     else:
