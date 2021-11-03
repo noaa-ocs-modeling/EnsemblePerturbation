@@ -416,7 +416,7 @@ if __name__ == '__main__':
     for filename in filenames:
         filename = input_directory / filename
         if filename.exists():
-            datasets[filename.name] = xarray.open_dataset(filename, chunks={})
+            datasets[filename.name] = xarray.open_dataset(filename, chunks='auto')
             existing_filenames.append(filename.name)
 
     for filename in existing_filenames:
@@ -473,7 +473,7 @@ if __name__ == '__main__':
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         num_nodes = len(values['node'])
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        with dask.config.set(**{'array.slicing.split_large_chunks': False}):
             subsetted_nodes = elevations['node'].where(
                 FieldOutput.subset(elevations['node'], bounds=subset_bounds), drop=True,
             )
@@ -513,7 +513,7 @@ if __name__ == '__main__':
     subset = subset.assign_coords({'distance_to_track': ('node', distances)})
     subset = subset.sortby('distance_to_track')
 
-    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    with dask.config.set(**{'array.slicing.split_large_chunks': False}):
         training_set = subset.sel(run=training_perturbations['run'])
         validation_set = subset.sel(run=validation_perturbations['run'])
 
