@@ -160,16 +160,14 @@ def plot_nodes_across_runs(
             sources = [None]
 
         for source_index, source in enumerate(sources):
+            kwargs = {}
             if source == 'model':
                 variable_colors = cm.get_cmap('jet')(color_values)
             elif source == 'surrogate':
                 variable_colors = 'grey'
+                kwargs['linestyle'] = '--'
             else:
                 variable_colors = cm.get_cmap('jet')(color_values)
-
-            kwargs = {}
-            if source == 'surrogate':
-                kwargs['linestyle'] = '--'
 
             if 'source' in variable.dims:
                 source_data = variable.sel(source=source)
@@ -196,21 +194,21 @@ def plot_nodes_across_runs(
                             **kwargs,
                         )
             else:
-                bar_width = 0.01
+                bar_width = 1
                 bar_offset = bar_width * (source_index + 0.5 - len(sources) / 2)
 
                 variable_axis.bar(
-                    x=source_data['distance_to_track'] + bar_offset,
+                    x=numpy.arange(len(source_data)) + bar_offset,
                     width=bar_width,
-                    height=source_data.values,
+                    height=source_data,
                     color=variable_colors,
                     **kwargs,
                 )
+                variable_axis.set_ylim([0, source_data.max()])
 
         variable_axis.set_title(variable_name)
         variable_axis.tick_params(axis='x', which='both', labelsize=6)
         variable_axis.set(xlabel=None)
-        # variable_axis.set_yscale('symlog')
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
@@ -481,7 +479,7 @@ if __name__ == '__main__':
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         num_nodes = len(values['node'])
-        with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = elevations['node'].where(
                 FieldOutput.subset(elevations['node'], bounds=subset_bounds), drop=True,
             )
@@ -521,7 +519,7 @@ if __name__ == '__main__':
     subset = subset.assign_coords({'distance_to_track': ('node', distances)})
     subset = subset.sortby('distance_to_track')
 
-    with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         training_set = subset.sel(run=training_perturbations['run'])
         validation_set = subset.sel(run=validation_perturbations['run'])
 
@@ -668,7 +666,7 @@ if __name__ == '__main__':
             )
 
             modeled_percentiles = training_set.quantile(
-                dim='run', q=surrogate_percentiles['quantile'].chunk({'run': -1}) / 100
+                dim='run', q=surrogate_percentiles['quantile'] / 100
             )
             modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
 
