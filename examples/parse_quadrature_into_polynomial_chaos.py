@@ -204,7 +204,7 @@ def plot_nodes_across_runs(
                     color=variable_colors,
                     **kwargs,
                 )
-                variable_axis.set_ylim([0, source_data.max()])
+                variable_axis.set_ylim([min(0, source_data.min()), source_data.max()])
 
         variable_axis.set_title(variable_name)
         variable_axis.tick_params(axis='x', which='both', labelsize=6)
