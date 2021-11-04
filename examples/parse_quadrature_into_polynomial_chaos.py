@@ -350,6 +350,7 @@ def plot_comparison(
     nodes: xarray.DataArray,
     title: str = None,
     output_filename: PathLike = None,
+    reference_line: bool = True,
     figure: Figure = None,
     axes: {str: {str: Axis}} = None,
     **kwargs,
@@ -377,13 +378,20 @@ def plot_comparison(
 
     for row_source, columns in axes.items():
         for column_source, axis in columns.items():
-            axis.scatter(
-                nodes.sel(source=column_source), nodes.sel(source=row_source), **kwargs,
-            )
+            x = nodes.sel(source=column_source)
+            y = nodes.sel(source=row_source)
+            axis.scatter(x, y, **kwargs)
 
-            min_value = min(axis.get_xlim()[0], axis.get_ylim()[0])
-            max_value = max(axis.get_xlim()[-1], axis.get_ylim()[-1])
-            axis.plot([min_value, max_value], [min_value, max_value], '--k', alpha=0.3)
+            if reference_line:
+                xlim = axis.get_xlim()
+                ylim = axis.get_ylim()
+
+                min_value = numpy.nanmax([x.min(), y.min()])
+                max_value = numpy.nanmin([x.max(), y.max()])
+                axis.plot([min_value, max_value], [min_value, max_value], '--k', alpha=0.3)
+
+                axis.set_xlim(xlim)
+                axis.set_ylim(ylim)
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
@@ -588,9 +596,10 @@ if __name__ == '__main__':
 
         type_colors = {'training': 'b', 'validation': 'r'}
         axes = None
-        for result_type in node_validation['type'].values:
+        for index, result_type in enumerate(node_validation['type'].values):
             axes = plot_comparison(
                 node_validation.sel(type=result_type),
+                reference_line=index == 0,
                 figure=figure,
                 axes=axes,
                 s=1,
