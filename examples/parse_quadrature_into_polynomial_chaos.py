@@ -659,7 +659,7 @@ if __name__ == '__main__':
             )
 
             modeled_percentiles = training_set.quantile(
-                dim='run', q=surrogate_percentiles['quantile'] / 100
+                dim='run', q=surrogate_percentiles['quantile'].chunk({'run': -1}) / 100
             )
             modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
 
