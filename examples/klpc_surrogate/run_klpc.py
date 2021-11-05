@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
+import glob as gl
+import os
+import shutil
+
 from matplotlib import pyplot
 import numpy as np
-import os
-import glob as gl
-import shutil
 
 from ensembleperturbation.plotting import plot_points
 from ensembleperturbation.uncertainty_quantification.ensemble_array import (
@@ -13,18 +14,19 @@ from ensembleperturbation.uncertainty_quantification.ensemble_array import (
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
-    karhunen_loeve_prediction,
     karhunen_loeve_pc_coefficients,
+    karhunen_loeve_prediction,
 )
 from ensembleperturbation.uncertainty_quantification.polynomial_chaos import (
     build_pc_expansion,
     evaluate_pc_distribution_function,
+    evaluate_pc_exceedance_heights,
+    evaluate_pc_exceedance_probabilities,
     evaluate_pc_expansion,
     evaluate_pc_multiindex,
     evaluate_pc_sensitivity,
-    evaluate_pc_exceedance_probabilities,
-    evaluate_pc_exceedance_heights,
 )
+
 
 def joint_klpc_surrogate(
     h5name: str,
@@ -40,9 +42,9 @@ def joint_klpc_surrogate(
     exceedance_heights: np.ndarray,
 ):
 
-    #------------------------#
-    #-------- Part 1 --------#
-    #------------------------#
+    # ------------------------#
+    # -------- Part 1 --------#
+    # ------------------------#
     print('Reading ensemble inputs and outputs...')
 
     dataframes = read_combined_hdf(h5name)
@@ -50,8 +52,7 @@ def joint_klpc_surrogate(
 
     # Load the input/outputs
     np_input, np_output = ensemble_array(
-        input_dataframe=dataframes[keys[0]], 
-        output_dataframe=dataframes[keys[1]],
+        input_dataframe=dataframes[keys[0]], output_dataframe=dataframes[keys[1]],
     )
     np.savetxt('xdata.dat', np_input)  # because pce_eval expects xdata.dat as input
 
@@ -76,13 +77,13 @@ def joint_klpc_surrogate(
     points_subset = points_subset[~mask, :]
 
     pc_dim = np_input.shape[1]  # dimension of the PC expansion
-    ngrid = ymodel.shape[0]     # number of points
-    nens = ymodel.shape[1]      # number of ensembles
+    ngrid = ymodel.shape[0]  # number of points
+    nens = ymodel.shape[1]  # number of ensembles
     print(f'Reduced grid size = {ngrid}')
 
-    #------------------------#
-    #-------- Part 2 --------#
-    #------------------------#
+    # ------------------------#
+    # -------- Part 2 --------#
+    # ------------------------#
     print('Evaluating the Karunen loeve expansion...')
 
     ## Evaluating the KL mode
@@ -93,7 +94,7 @@ def joint_klpc_surrogate(
     # samples are the samples for the KL coefficients                         : size (nens, neig)
     kl_dict = karhunen_loeve_expansion(ymodel, neig=neig, plot=True)
 
-    neig = len(kl_dict['eigenvalues']) # number of eigenvalues
+    neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
     print(f'Number of KL modes = {neig}')
 
     # evaluate the fit of the KL prediction
@@ -118,9 +119,9 @@ def joint_klpc_surrogate(
             vmax=3.0,
         )
 
-    #------------------------#
-    #-------- Part 3 --------#
-    #------------------------#
+    # ------------------------#
+    # -------- Part 3 --------#
+    # ------------------------#
     print('Evaluating the Polynomial Chaos expansion for each KL mode...')
 
     # find the multi-index file for later use
@@ -135,7 +136,7 @@ def joint_klpc_surrogate(
     # Build PC for each KL mode (each mode has nens values)
     for mode, qoi in enumerate(kl_dict['samples'].transpose()):
         np.savetxt('qoi.dat', qoi)
- 
+
         # Builds second order PC expansion for the each mode
         poly_coefs = build_pc_expansion(
             x_filename='xdata.dat',
@@ -145,13 +146,15 @@ def joint_klpc_surrogate(
             poly_order=pc_order,
             lambda_regularization=lambda_reg,
         )
- 
+
         # Enter into array for storing PC coefficients for each KL mode
         if mode == 0:
-            ncoefs = len(poly_coefs)                  # number of polynomial coefficients
-            pc_coefficients = np.empty((neig,ncoefs)) # array for storing PC coefficients for each KL mode
-        pc_coefficients[mode,:] = poly_coefs
- 
+            ncoefs = len(poly_coefs)  # number of polynomial coefficients
+            pc_coefficients = np.empty(
+                (neig, ncoefs)
+            )  # array for storing PC coefficients for each KL mode
+        pc_coefficients[mode, :] = poly_coefs
+
         # Evaluates the constructed PC for the training data for comparison
         qoi_pc = evaluate_pc_expansion(
             x_filename='xdata.dat',
@@ -160,7 +163,7 @@ def joint_klpc_surrogate(
             pc_type=pc_type,
             poly_order=pc_order,
         )
- 
+
         # shows comparison of predicted against "real" result
         pyplot.plot(qoi, qoi_pc, 'o', label='poly order = ' + str(pc_order))
         pyplot.plot([-2, 3], [-2, 3], 'k--', lw=1)
@@ -171,17 +174,16 @@ def joint_klpc_surrogate(
         pyplot.savefig(f'mode-{mode + 1}')
         pyplot.close()
 
-    #------------------------#
-    #-------- Part 4 --------#
-    #------------------------#
+    # ------------------------#
+    # -------- Part 4 --------#
+    # ------------------------#
     print('Evaluating the joint KLPC expansion at each point...')
 
     # Now get the joint KLPC coefficients
     klpc_coefficients = karhunen_loeve_pc_coefficients(
-        kl_dict=kl_dict, 
-        pc_coefficients=pc_coefficients,
+        kl_dict=kl_dict, pc_coefficients=pc_coefficients,
     )
-    
+
     # Get sensitivities and distribution functions
     # at each point of the KLP surrgogate
     param_filename = 'coeff.dat'
@@ -190,15 +192,15 @@ def joint_klpc_surrogate(
     klpc_exceedance_probabilities = [None] * ngrid
     for z_index in range(ngrid):
         # save coefficients for this point into parameter file
-        np.savetxt(param_filename, klpc_coefficients[z_index,:])  
- 
+        np.savetxt(param_filename, klpc_coefficients[z_index, :])
+
         # evaluate the Sobol sensitivities for the KLPC surrogate
         klpc_sensitivities[z_index] = evaluate_pc_sensitivity(
             parameter_filename=param_filename,
             multiindex_filename=mi_filename,
             pc_type=pc_type,
         )
- 
+
         # evaluate the PDF/CDF of the KLPC surrogate
         klpc_distribution = evaluate_pc_distribution_function(
             parameter_filename=param_filename,
@@ -209,21 +211,20 @@ def joint_klpc_surrogate(
             pc_dimension=pc_dim,
             poly_order=pc_order,
         )
- 
+
         # Get the heights at the desired exceedance probabilities
         klpc_exceedance_heights[z_index] = evaluate_pc_exceedance_heights(
-            exceedance_probabilities=exceedance_probabilities,
-            pc_dict=klpc_distribution,
-        )
-        
-        # Get the probability of the desired exceedance height
-        klpc_exceedance_probabilities[z_index] = evaluate_pc_exceedance_probabilities(
-            exceedance_heights=exceedance_heights,
-            pc_dict=klpc_distribution,
+            exceedance_probabilities=exceedance_probabilities, pc_dict=klpc_distribution,
         )
 
+        # Get the probability of the desired exceedance height
+        klpc_exceedance_probabilities[z_index] = evaluate_pc_exceedance_probabilities(
+            exceedance_heights=exceedance_heights, pc_dict=klpc_distribution,
+        )
+
+
 ## Plotting the sensitivities
-#for sdx, sens_label in enumerate(sens_types):
+# for sdx, sens_label in enumerate(sens_types):
 #    lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
 #    pyplot.gca().set_xlabel('mode number')
 #    pyplot.gca().set_ylabel('Sobol sensitivty')
@@ -233,9 +234,9 @@ def joint_klpc_surrogate(
 #    pyplot.close()
 
 ## Plotting the PDF/CDFs of each mode
-#pc_keys = [*pc_distributions[0]]
-#pc_keys.remove('x')
-#for pc_key in pc_keys:
+# pc_keys = [*pc_distributions[0]]
+# pc_keys.remove('x')
+# for pc_key in pc_keys:
 #    for mode in range(neig):
 #        pyplot.plot(
 #            pc_distributions[mode]['x'],
@@ -251,7 +252,7 @@ def joint_klpc_surrogate(
 #    pyplot.close()
 #
 ## plot scatter points to show zeta_max percentiles
-#for pdx, perc in enumerate(percentiles):
+# for pdx, perc in enumerate(percentiles):
 #    plot_points(
 #        np.hstack((points_subset, zeta_max_percentiles[:, [pdx]])),
 #        save_filename='zmax_' + str(perc) + '_percentile',
@@ -265,27 +266,27 @@ def joint_klpc_surrogate(
 if __name__ == '__main__':
 
     # Ensemble member data and point selection
-    h5name = '../data/florence_40member.h5' # name of h5 data
-    point_spacing = 100      # select every x points
+    h5name = '../data/florence_40member.h5'  # name of h5 data
+    point_spacing = 100  # select every x points
 
     # Karhunen Loeve expansion parameters
-    neig = 0.95              # choose neig decimal percent of variance explained to keep
+    neig = 0.95  # choose neig decimal percent of variance explained to keep
 
     # Polynomial Chaos expansion parameters
-    pc_type = 'HG'           # Hermite-Gauss chaos
-    lambda_reg = 0           # regularization lambda
-    pc_order = 3             # order of the polynomial
-    mi_type = 'TO'           # PC multi-index type
+    pc_type = 'HG'  # Hermite-Gauss chaos
+    lambda_reg = 0  # regularization lambda
+    pc_order = 3  # order of the polynomial
+    mi_type = 'TO'  # PC multi-index type
 
     # Probability parameters
     num_samples = 1000  # number of times to sample the KLPC expansion to get PDF
-    pdf_bins = 1000     # number of PDF bins
+    pdf_bins = 1000  # number of PDF bins
     exceedance_probabilities = np.array([0.1, 0.5, 0.9])  # [decimal percent]
-    exceedance_heights = np.array([0.5, 1.0, 2.0])        # [m]
+    exceedance_heights = np.array([0.5, 1.0, 2.0])  # [m]
 
-    #------------------------------------------------#
+    # ------------------------------------------------#
     # Execute the joint klpc program                 #
-    #------------------------------------------------#
+    # ------------------------------------------------#
     joint_klpc_surrogate(
         h5name=h5name,
         point_spacing=point_spacing,
@@ -299,20 +300,20 @@ if __name__ == '__main__':
         exceedance_probabilities=exceedance_probabilities,
         exceedance_heights=exceedance_heights,
     )
-  
-    #------------------------------------------------#
+
+    # ------------------------------------------------#
     # Move files and figures into output directories #
-    #------------------------------------------------#
+    # ------------------------------------------------#
     dst_folder = 'data/'
-    if not os.path.isdir(dst_folder): 
-        os.mkdir(dst_folder) 
+    if not os.path.isdir(dst_folder):
+        os.mkdir(dst_folder)
     for data in gl.glob('*.dat') + gl.glob('*.log'):
         file_name = os.path.basename(data)
         shutil.move(data, dst_folder + file_name)
-    
-    dst_folder = 'figures/' 
-    if not os.path.isdir(dst_folder): 
-        os.mkdir(dst_folder) 
+
+    dst_folder = 'figures/'
+    if not os.path.isdir(dst_folder):
+        os.mkdir(dst_folder)
     for figure in gl.glob('*.png'):
         file_name = os.path.basename(figure)
         shutil.move(figure, dst_folder + file_name)
