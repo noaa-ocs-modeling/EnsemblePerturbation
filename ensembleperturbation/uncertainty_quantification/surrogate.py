@@ -15,11 +15,10 @@ def fit_surrogate(
     quadrature_weights: xarray.DataArray = None,
 ):
     # create surrogate models for selected nodes
-    LOGGER.info(f'fitting surrogate to {samples.shape} samples')
     if quadrature:
+        LOGGER.info(f'fitting polynomial surrogate to {samples.shape} samples along the quadrature')
         if quadrature_weights is None:
             LOGGER.warning('no quadrature weights provided')
-
         try:
             surrogate_model = chaospy.fit_quadrature(
                 orth=polynomials,
@@ -39,6 +38,7 @@ def fit_surrogate(
             else:
                 raise
     else:
+        LOGGER.info(f'fitting polynomial surrogate to {samples.shape} samples using regression')
         try:
             surrogate_model = chaospy.fit_regression(
                 polynomials=polynomials, abscissas=perturbations.T, evals=samples,
