@@ -16,7 +16,7 @@ from ensembleperturbation.plotting import (
     plot_perturbed_variables,
 )
 from ensembleperturbation.uncertainty_quantification.surrogate import (
-    fit_surrogate_to_quadrature,
+    fit_surrogate,
     get_percentiles,
 )
 from ensembleperturbation.utilities import get_logger
@@ -156,23 +156,17 @@ if __name__ == '__main__':
 
     if not surrogate_filename.exists():
         # expand polynomials with polynomial chaos
-        polynomials = chaospy.generate_expansion(
+        polynomial_expansion = chaospy.generate_expansion(
             order=3, dist=distribution, rule='three_terms_recurrence',
         )
 
-        if use_quadrature:
-            surrogate_model = fit_surrogate_to_quadrature(
-                samples=training_set,
-                polynomials=polynomials,
-                perturbations=training_perturbations['perturbations'],
-                weights=training_perturbations['weights'],
-            )
-        else:
-            surrogate_model = chaospy.fit_regression(
-                polynomials=polynomials,
-                abscissas=training_perturbations['perturbations'],
-                evals=training_set,
-            )
+        surrogate_model = fit_surrogate(
+            samples=training_set,
+            perturbations=training_perturbations['perturbations'],
+            polynomials=polynomial_expansion,
+            quadrature=use_quadrature,
+            quadrature_weights=training_perturbations['weights'] if use_quadrature else None,
+        )
 
         with open(surrogate_filename, 'wb') as surrogate_file:
             LOGGER.info(f'saving surrogate model to "{surrogate_filename}"')

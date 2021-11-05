@@ -7,29 +7,47 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('quadrature')
 
 
-def fit_surrogate_to_quadrature(
+def fit_surrogate(
     samples: xarray.DataArray,
-    polynomials: numpoly.PolyLike,
     perturbations: xarray.DataArray,
-    weights: xarray.DataArray,
+    polynomials: numpoly.PolyLike,
+    quadrature: bool = False,
+    quadrature_weights: xarray.DataArray = None,
 ):
     # create surrogate models for selected nodes
     LOGGER.info(f'fitting surrogate to {samples.shape} samples')
-    try:
-        surrogate_model = chaospy.fit_quadrature(
-            orth=polynomials, nodes=perturbations.T, weights=weights, solves=samples,
-        )
-    except AssertionError:
-        if (
-            len(perturbations['run']) != len(weights)
-            or len(weights) != len(samples)
-            or len(samples) != len(perturbations['run'])
-        ):
-            raise AssertionError(
-                f'{len(perturbations["run"])} != {len(weights)} != {len(samples)}'
+    if quadrature:
+        if quadrature_weights is None:
+            LOGGER.warning('no quadrature weights provided')
+
+        try:
+            surrogate_model = chaospy.fit_quadrature(
+                orth=polynomials,
+                nodes=perturbations.T,
+                weights=quadrature_weights,
+                solves=samples,
             )
-        else:
-            raise
+        except AssertionError:
+            if (
+                perturbations.shape[0] != len(quadrature_weights)
+                or len(quadrature_weights) != len(samples)
+                or len(samples) != perturbations.shape[0]
+            ):
+                raise AssertionError(
+                    f'{perturbations.shape[0]} != {len(quadrature_weights)} != {len(samples)}'
+                )
+            else:
+                raise
+    else:
+        try:
+            surrogate_model = chaospy.fit_regression(
+                polynomials=polynomials, abscissas=perturbations.T, evals=samples,
+            )
+        except AssertionError:
+            if perturbations.T.shape[-1] != len(samples):
+                raise AssertionError(f'{perturbations.T.shape[-1]} != {len(samples)}')
+            else:
+                raise
 
     return surrogate_model
 
