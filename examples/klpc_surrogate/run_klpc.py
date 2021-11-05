@@ -2,9 +2,8 @@
 
 from matplotlib import pyplot
 import numpy as np
-import os
+import os, shutil
 import glob as gl
-import shutil
 
 from ensembleperturbation.plotting import plot_points
 from ensembleperturbation.uncertainty_quantification.ensemble_array import (
@@ -83,7 +82,7 @@ def joint_klpc_surrogate(
     #------------------------#
     #-------- Part 2 --------#
     #------------------------#
-    print('Evaluating the Karunen loeve expansion...')
+    print('Evaluating the Karhunen-Loeve expansion...')
 
     ## Evaluating the KL mode
     # Components of the dictionary:
@@ -108,6 +107,7 @@ def joint_klpc_surrogate(
             save_filename='modeled_zmax' + str(example),
             title='modeled zmax, ensemble #' + str(example),
             vmax=3.0,
+            vmin=0.0,
         )
 
         # plot_coastline()
@@ -116,6 +116,7 @@ def joint_klpc_surrogate(
             save_filename='predicted_zmax' + str(example),
             title='predicted zmax, ensemble #' + str(example),
             vmax=3.0,
+            vmin=0.0,
         )
 
     #------------------------#
@@ -221,43 +222,67 @@ def joint_klpc_surrogate(
             exceedance_heights=exceedance_heights,
             pc_dict=klpc_distribution,
         )
+    
+    #------------------------#
+    #-------- Part 5 --------#
+    #------------------------#
+    print('Plotting sensitivities and exceedance levels...')
+    # Plot scatter points of sensitivities
+    variable_names = dataframes[keys[0]].columns
+    sensitivity_types = klpc_sensitivities[0].keys()
+    for sensitivity_type in sensitivity_types:
+        print('Plotting ' + sensitivity_type + ' sensitivities') 
+        sensitivity = np.array(
+            [z[sensitivity_type] for z in klpc_sensitivities]
+        )
+        for vdx1, var1 in enumerate(variable_names):
+            if sensitivity.ndim == 2:
+                plot_points(
+                    np.hstack((points_subset, sensitivity[:,[vdx1]])),
+                    save_filename=var1 + '_' + sensitivity_type + '_sensitivity',
+                    title=sensitivity_type + ' sensitivity for ' + var1,
+                    vmax=1.0,
+                )
+            else:
+                # Don't understand joint sensitivity matrix format..
+                for vdx2, var2 in enumerate(variable_names):
+                    plot_points(
+                        np.hstack((points_subset, sensitivity[:,[vdx1],[vdx2]])),
+                        save_filename=var1 + '+' + var2 + '_' + sensitivity_type + '_sensitivity',
+                        title=sensitivity_type + ' sensitivity for ' + var1 + '/' + var2,
+                        vmax=1.0,
+                    )
 
-## Plotting the sensitivities
-#for sdx, sens_label in enumerate(sens_types):
-#    lineObjects = pyplot.plot(sens_all[:, :, sdx].squeeze())
-#    pyplot.gca().set_xlabel('mode number')
-#    pyplot.gca().set_ylabel('Sobol sensitivty')
-#    pyplot.title(sens_label + '_sensitivity')
-#    pyplot.legend(lineObjects, dataframes[keys[0]].columns)
-#    pyplot.savefig(sens_label + '_sensitivity')
-#    pyplot.close()
-
-## Plotting the PDF/CDFs of each mode
-#pc_keys = [*pc_distributions[0]]
-#pc_keys.remove('x')
-#for pc_key in pc_keys:
-#    for mode in range(neig):
-#        pyplot.plot(
-#            pc_distributions[mode]['x'],
-#            pc_distributions[mode][pc_key],
-#            label=f'KL Mode-{mode+1}',
-#        )
-#    pyplot.gca().set_xlabel('x')
-#    pyplot.gca().set_ylabel('P')
-#    pyplot.title(pc_key + ' of PC surrogate for each KL mode')
-#    pyplot.legend()
-#    pyplot.grid()
-#    pyplot.savefig('KLPC_' + pc_key)
-#    pyplot.close()
-#
-## plot scatter points to show zeta_max percentiles
-#for pdx, perc in enumerate(percentiles):
-#    plot_points(
-#        np.hstack((points_subset, zeta_max_percentiles[:, [pdx]])),
-#        save_filename='zmax_' + str(perc) + '_percentile',
-#        title=str(perc) + ' percentile maximum elevation',
-#        vmax=4.0,
-#    )
+    # Plot scatter points of exceedance levels for each probability
+    for pdx, probability in enumerate(exceedance_probabilities):
+        label = str(int(probability*100)) + '% exceedance height' 
+        filename = 'height_of_' + str(int(probability*100)) + 'percent_exceedance' 
+        print('Plotting ' + label) 
+        height = np.array(
+            [z[pdx] for z in klpc_exceedance_heights]
+        )
+        plot_points(
+            np.hstack((points_subset, height[:,None])),
+            save_filename=filename,
+            title=label,
+            vmax=3.0,
+            vmin=0.0,
+        )
+    
+    # Plot scatter points of exceedance probability for each height
+    for hdx, height in enumerate(exceedance_heights):
+        label = str(height) + '-m exceedance probability' 
+        filename = 'probability_of_' + str(height) + 'm_exceedance.png' 
+        print('Plotting ' + label) 
+        probability = np.array(
+            [z[hdx] for z in klpc_exceedance_probabilities]
+        )
+        plot_points(
+            np.hstack((points_subset, probability[:,None])),
+            save_filename=filename,
+            title=label,
+            vmax=1.0,
+        )
 
 #############################
 ####### MAIN SCRIPT #########
@@ -266,7 +291,7 @@ if __name__ == '__main__':
 
     # Ensemble member data and point selection
     h5name = '../data/florence_40member.h5' # name of h5 data
-    point_spacing = 100      # select every x points
+    point_spacing = 25       # select every x points
 
     # Karhunen Loeve expansion parameters
     neig = 0.95              # choose neig decimal percent of variance explained to keep
