@@ -1,6 +1,6 @@
 import chaospy
 import numpoly
-from sklearn.linear_model import BayesianRidge
+from sklearn.linear_model import OrthogonalMatchingPursuit
 import xarray
 
 from ensembleperturbation.utilities import get_logger
@@ -45,7 +45,7 @@ def fit_surrogate(
             f'fitting polynomial surrogate to {samples.shape} samples using regression'
         )
         try:
-            model = BayesianRidge(fit_intercept=False)
+            model = OrthogonalMatchingPursuit(n_nonzero_coefs=3, fit_intercept=False)
             surrogate_model = chaospy.fit_regression(
                 polynomials=polynomials, abscissas=perturbations.T, evals=samples, model=model,
             )
