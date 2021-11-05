@@ -1,5 +1,6 @@
 import chaospy
 import numpoly
+from sklearn.linear_model import BayesianRidge
 import xarray
 
 from ensembleperturbation.utilities import get_logger
@@ -16,7 +17,9 @@ def fit_surrogate(
 ):
     # create surrogate models for selected nodes
     if quadrature:
-        LOGGER.info(f'fitting polynomial surrogate to {samples.shape} samples along the quadrature')
+        LOGGER.info(
+            f'fitting polynomial surrogate to {samples.shape} samples along the quadrature'
+        )
         if quadrature_weights is None:
             LOGGER.warning('no quadrature weights provided')
         try:
@@ -38,10 +41,13 @@ def fit_surrogate(
             else:
                 raise
     else:
-        LOGGER.info(f'fitting polynomial surrogate to {samples.shape} samples using regression')
+        LOGGER.info(
+            f'fitting polynomial surrogate to {samples.shape} samples using regression'
+        )
         try:
+            model = BayesianRidge(fit_intercept=False)
             surrogate_model = chaospy.fit_regression(
-                polynomials=polynomials, abscissas=perturbations.T, evals=samples,
+                polynomials=polynomials, abscissas=perturbations.T, evals=samples, model=model,
             )
         except AssertionError:
             if perturbations.T.shape[-1] != len(samples):
