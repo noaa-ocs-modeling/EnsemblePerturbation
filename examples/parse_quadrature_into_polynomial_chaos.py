@@ -24,6 +24,8 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parse_nodes')
 
 if __name__ == '__main__':
+    use_quadrature = True
+
     plot_perturbations = True
     plot_validation = True
     plot_statistics = True
@@ -158,12 +160,19 @@ if __name__ == '__main__':
             order=3, dist=distribution, rule='three_terms_recurrence',
         )
 
-        surrogate_model = fit_surrogate_to_quadrature(
-            samples=training_set,
-            polynomials=polynomials,
-            perturbations=training_perturbations['perturbations'],
-            weights=training_perturbations['weights'],
-        )
+        if use_quadrature:
+            surrogate_model = fit_surrogate_to_quadrature(
+                samples=training_set,
+                polynomials=polynomials,
+                perturbations=training_perturbations['perturbations'],
+                weights=training_perturbations['weights'],
+            )
+        else:
+            surrogate_model = chaospy.fit_regression(
+                polynomials=polynomials,
+                abscissas=training_perturbations['perturbations'],
+                evals=training_set,
+            )
 
         with open(surrogate_filename, 'wb') as surrogate_file:
             LOGGER.info(f'saving surrogate model to "{surrogate_filename}"')
