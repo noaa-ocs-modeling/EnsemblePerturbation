@@ -939,7 +939,7 @@ def plot_comparison(
 
     sources = nodes['source'].values
 
-    if figure is None:
+    if figure is None and axes is None:
         figure = pyplot.figure()
         figure.set_size_inches(12, 12 / 1.61803398875)
 
