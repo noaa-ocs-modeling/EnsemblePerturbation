@@ -29,13 +29,13 @@ if __name__ == '__main__':
     use_quadrature = True
 
     plot_perturbations = True
-    plot_sensitivities = False
-    plot_validation = False
-    plot_statistics = False
-    plot_percentile = False
+    plot_sensitivities = True
+    plot_validation = True
+    plot_statistics = True
+    plot_percentile = True
 
     save_plots = True
-    show_plots = True
+    show_plots = False
 
     storm_name = None
 
