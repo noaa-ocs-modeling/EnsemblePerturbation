@@ -215,6 +215,40 @@ if __name__ == '__main__':
         LOGGER.info(f'loading surrogate model from "{surrogate_filename}"')
         surrogate_model = chaospy.load(surrogate_filename, allow_pickle=True)
 
+    if plot_sensitivities:
+        if not sensitivities_filename.exists():
+            LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
+            sensitivities = chaospy.Sens_m(surrogate_model, distribution)
+            sensitivities = xarray.DataArray(
+                sensitivities,
+                coords={'variable': perturbations['variable'], 'node': subset['node']},
+                dims=('variable', 'node'),
+            ).T
+
+            sensitivities = sensitivities.to_dataset(name='sensitivities')
+
+            LOGGER.info(f'saving sensitivities to "{sensitivities_filename}"')
+            sensitivities.to_netcdf(sensitivities_filename)
+        else:
+            LOGGER.info(f'loading sensitivities from "{sensitivities_filename}"')
+            sensitivities = xarray.open_dataset(sensitivities_filename)['sensitivities']
+
+        figure = pyplot.figure()
+        figure.set_size_inches(12, 12 / 1.61803398875)
+        figure.suptitle(
+            f'Sobol sensitivities of {len(sensitivities["variable"])} variables along {len(sensitivities["node"])} node(s)'
+        )
+
+        axis = figure.add_subplot(1, 1, 1)
+
+        for variable in sensitivities['variable']:
+            axis.scatter(
+                sensitivities['node'], sensitivities.sel(variable=variable), label=variable
+            )
+
+        if save_plots:
+            figure.savefig(input_directory / 'sensitivities.png', dpi=200, bbox_inches='tight')
+
     if plot_validation:
         if not validation_filename.exists():
             LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
