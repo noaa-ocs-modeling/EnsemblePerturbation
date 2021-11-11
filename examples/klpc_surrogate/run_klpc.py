@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-from matplotlib import pyplot
-import numpy as np
-import os, shutil
 import glob as gl
+import os
+import shutil
 
 from matplotlib import pyplot
 import numpy as np
@@ -82,9 +81,9 @@ def joint_klpc_surrogate(
     nens = ymodel.shape[1]  # number of ensembles
     print(f'Reduced grid size = {ngrid}')
 
-    #------------------------#
-    #-------- Part 2 --------#
-    #------------------------#
+    # ------------------------#
+    # -------- Part 2 --------#
+    # ------------------------#
     print('Evaluating the Karhunen-Loeve expansion...')
 
     ## Evaluating the KL mode
@@ -224,23 +223,21 @@ def joint_klpc_surrogate(
         klpc_exceedance_probabilities[z_index] = evaluate_pc_exceedance_probabilities(
             exceedance_heights=exceedance_heights, pc_dict=klpc_distribution,
         )
-    
-    #------------------------#
-    #-------- Part 5 --------#
-    #------------------------#
+
+    # ------------------------#
+    # -------- Part 5 --------#
+    # ------------------------#
     print('Plotting sensitivities and exceedance levels...')
     # Plot scatter points of sensitivities
     variable_names = dataframes[keys[0]].columns
     sensitivity_types = klpc_sensitivities[0].keys()
     for sensitivity_type in sensitivity_types:
-        print('Plotting ' + sensitivity_type + ' sensitivities') 
-        sensitivity = np.array(
-            [z[sensitivity_type] for z in klpc_sensitivities]
-        )
+        print('Plotting ' + sensitivity_type + ' sensitivities')
+        sensitivity = np.array([z[sensitivity_type] for z in klpc_sensitivities])
         for vdx1, var1 in enumerate(variable_names):
             if sensitivity.ndim == 2:
                 plot_points(
-                    np.hstack((points_subset, sensitivity[:,[vdx1]])),
+                    np.hstack((points_subset, sensitivity[:, [vdx1]])),
                     save_filename=var1 + '_' + sensitivity_type + '_sensitivity',
                     title=sensitivity_type + ' sensitivity for ' + var1,
                     vmax=1.0,
@@ -249,42 +246,44 @@ def joint_klpc_surrogate(
                 # Don't understand joint sensitivity matrix format..
                 for vdx2, var2 in enumerate(variable_names):
                     plot_points(
-                        np.hstack((points_subset, sensitivity[:,[vdx1],[vdx2]])),
-                        save_filename=var1 + '+' + var2 + '_' + sensitivity_type + '_sensitivity',
+                        np.hstack((points_subset, sensitivity[:, [vdx1], [vdx2]])),
+                        save_filename=var1
+                        + '+'
+                        + var2
+                        + '_'
+                        + sensitivity_type
+                        + '_sensitivity',
                         title=sensitivity_type + ' sensitivity for ' + var1 + '/' + var2,
                         vmax=1.0,
                     )
 
     # Plot scatter points of exceedance levels for each probability
     for pdx, probability in enumerate(exceedance_probabilities):
-        label = str(int(probability*100)) + '% exceedance height' 
-        filename = 'height_of_' + str(int(probability*100)) + 'percent_exceedance' 
-        print('Plotting ' + label) 
-        height = np.array(
-            [z[pdx] for z in klpc_exceedance_heights]
-        )
+        label = str(int(probability * 100)) + '% exceedance height'
+        filename = 'height_of_' + str(int(probability * 100)) + 'percent_exceedance'
+        print('Plotting ' + label)
+        height = np.array([z[pdx] for z in klpc_exceedance_heights])
         plot_points(
-            np.hstack((points_subset, height[:,None])),
+            np.hstack((points_subset, height[:, None])),
             save_filename=filename,
             title=label,
             vmax=3.0,
             vmin=0.0,
         )
-    
+
     # Plot scatter points of exceedance probability for each height
     for hdx, height in enumerate(exceedance_heights):
-        label = str(height) + '-m exceedance probability' 
-        filename = 'probability_of_' + str(height) + 'm_exceedance.png' 
-        print('Plotting ' + label) 
-        probability = np.array(
-            [z[hdx] for z in klpc_exceedance_probabilities]
-        )
+        label = str(height) + '-m exceedance probability'
+        filename = 'probability_of_' + str(height) + 'm_exceedance.png'
+        print('Plotting ' + label)
+        probability = np.array([z[hdx] for z in klpc_exceedance_probabilities])
         plot_points(
-            np.hstack((points_subset, probability[:,None])),
+            np.hstack((points_subset, probability[:, None])),
             save_filename=filename,
             title=label,
             vmax=1.0,
         )
+
 
 #############################
 ####### MAIN SCRIPT #########
@@ -292,8 +291,8 @@ def joint_klpc_surrogate(
 if __name__ == '__main__':
 
     # Ensemble member data and point selection
-    h5name = '../data/florence_40member.h5' # name of h5 data
-    point_spacing = 25       # select every x points
+    h5name = '../data/florence_40member.h5'  # name of h5 data
+    point_spacing = 25  # select every x points
 
     # Karhunen Loeve expansion parameters
     neig = 0.95  # choose neig decimal percent of variance explained to keep
