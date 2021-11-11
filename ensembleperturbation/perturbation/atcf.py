@@ -49,9 +49,10 @@ from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
 import warnings
 
-from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
+from adcircpy.forcing.winds.best_track import FileDeck, Mode, VortexForcing
 import chaospy
 from chaospy import Distribution
+from coupledmodeldriver.utilities import convert_value
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
