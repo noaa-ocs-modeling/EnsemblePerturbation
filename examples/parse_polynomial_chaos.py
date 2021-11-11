@@ -3,7 +3,9 @@ from pathlib import Path
 from adcircpy.forcing import BestTrackForcing
 import chaospy
 import dask
+import geopandas
 from matplotlib import pyplot
+from modelforcings.vortex import VortexForcing
 import numpy
 import pyproj
 import xarray
@@ -27,18 +29,20 @@ if __name__ == '__main__':
     use_quadrature = True
 
     plot_perturbations = True
-    plot_validation = True
-    plot_statistics = True
-    plot_percentile = True
+    plot_sensitivities = False
+    plot_validation = False
+    plot_statistics = False
+    plot_percentile = False
 
     save_plots = True
-    show_plots = False
+    show_plots = True
 
     storm_name = None
 
     input_directory = Path.cwd()
     subset_filename = input_directory / 'subset.nc'
     surrogate_filename = input_directory / 'surrogate.npy'
+    sensitivities_filename = input_directory / 'sensitivities.nc'
     validation_filename = input_directory / 'validation.nc'
     statistics_filename = input_directory / 'statistics.nc'
     percentile_filename = input_directory / 'percentiles.nc'
@@ -87,6 +91,36 @@ if __name__ == '__main__':
             title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
             output_filename=input_directory / 'validation_perturbations.png',
         )
+
+        track_directory = input_directory / 'track_files'
+        if track_directory.exists():
+            track_filenames = list(track_directory.glob('*.22'))
+
+            figure = pyplot.figure()
+            figure.set_size_inches(12, 12 / 1.61803398875)
+            figure.suptitle(f'storm tracks of {len(track_filenames)}')
+
+            map_axis = figure.add_subplot(1, 1, 1)
+            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+            for track_filename in track_filenames:
+                storm = VortexForcing.from_fort22(track_filename)
+                storm.data.plot(
+                    x='longitude', y='latitude', ax=map_axis, legend=None,
+                )
+
+            xlim = map_axis.get_xlim()
+            ylim = map_axis.get_ylim()
+
+            countries.plot(color='lightgrey', ax=map_axis)
+
+            map_axis.set_xlim(xlim)
+            map_axis.set_ylim(ylim)
+
+            if save_plots:
+                figure.savefig(
+                    input_directory / 'storm_tracks.png', dpi=200, bbox_inches='tight'
+                )
 
     variables = {
         variable_class.name: variable_class()
