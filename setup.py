@@ -8,7 +8,7 @@ import sys
 from setuptools import config, find_packages, setup
 
 DEPENDENCIES = {
-    'adcircpy>=1.0.39': ['gdal', 'fiona'],
+    'adcircpy>=1.0.42': ['gdal', 'fiona'],
     'appdirs': [],
     'cartopy': ['cython', 'numpy', 'proj'],
     'chaospy': [],
