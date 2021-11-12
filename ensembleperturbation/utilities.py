@@ -117,3 +117,18 @@ class ProcessPoolExecutorStackTraced(ProcessPoolExecutor):
         except Exception:
             # Creates an exception of the same type with the traceback as message
             raise sys.exc_info()[0](traceback.format_exc())
+
+
+def encode_categorical_values(values: [], unique_values: [] = None) -> []:
+    if unique_values is None:
+        unique_values = numpy.unique(values)
+
+    if not isinstance(values, numpy.ndarray) or len(values.shape) == 1:
+        return numpy.concatenate(
+            [numpy.where(unique_values == value) for value in values]
+        ).squeeze()
+    else:
+        rows = []
+        for row in values:
+            rows.append(encode_categorical_values(row, unique_values=unique_values))
+        return numpy.stack(rows, axis=0)

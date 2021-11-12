@@ -5,6 +5,10 @@ import chaospy
 import dask
 import geopandas
 from matplotlib import pyplot
+from matplotlib.cm import get_cmap
+from matplotlib.collections import LineCollection
+from matplotlib.colors import Normalize
+from matplotlib.patches import Patch
 from modelforcings.vortex import VortexForcing
 import numpy
 import pyproj
@@ -21,7 +25,7 @@ from ensembleperturbation.uncertainty_quantification.surrogate import (
     fit_surrogate,
     get_percentiles,
 )
-from ensembleperturbation.utilities import get_logger
+from ensembleperturbation.utilities import encode_categorical_values, get_logger
 
 LOGGER = get_logger('parse_nodes')
 
@@ -75,10 +79,19 @@ if __name__ == '__main__':
     max_elevations = datasets['maxele.63.nc']
     elevations = datasets['fort.63.nc']
 
-    training_perturbations = perturbations.sel(
-        run=perturbations['run'].str.contains('quadrature')
+    perturbations = perturbations.assign_coords(
+        type=(
+            'run',
+            (
+                numpy.where(
+                    perturbations['run'].str.contains('quadrature'), 'training', 'validation'
+                )
+            ),
+        )
     )
-    validation_perturbations = perturbations.drop_sel(run=training_perturbations['run'])
+
+    training_perturbations = perturbations.sel(run=perturbations['type'] == 'training')
+    validation_perturbations = perturbations.sel(run=perturbations['type'] == 'validation')
 
     if plot_perturbations:
         plot_perturbed_variables(
@@ -94,20 +107,73 @@ if __name__ == '__main__':
 
         track_directory = input_directory / 'track_files'
         if track_directory.exists():
-            track_filenames = list(track_directory.glob('*.22'))
+            track_filenames = {
+                track_filename.stem: track_filename
+                for track_filename in track_directory.glob('*.22')
+            }
 
             figure = pyplot.figure()
             figure.set_size_inches(12, 12 / 1.61803398875)
-            figure.suptitle(f'storm tracks of {len(track_filenames)}')
+            figure.suptitle(f'{len(track_filenames)} perturbations of storm')
 
             map_axis = figure.add_subplot(1, 1, 1)
             countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
 
-            for track_filename in track_filenames:
-                storm = VortexForcing.from_fort22(track_filename)
-                storm.data.plot(
-                    x='longitude', y='latitude', ax=map_axis, legend=None,
+            runs = perturbations['run'].values
+            perturbation_types = perturbations['type'].values
+            unique_perturbation_types = numpy.unique(perturbation_types)
+            encoded_perturbation_types = encode_categorical_values(
+                perturbation_types, unique_values=unique_perturbation_types
+            )
+            linear_normalization = Normalize()
+            colors = get_cmap('jet')(linear_normalization(encoded_perturbation_types))
+
+            bounds = numpy.array([None, None, None, None])
+            for index, run in enumerate(runs):
+                storm = VortexForcing.from_fort22(track_filenames[run]).data
+                points = storm.loc[:, ['longitude', 'latitude']].values.reshape(-1, 1, 2)
+                segments = numpy.concatenate([points[:-1], points[1:]], axis=1)
+                line_collection = LineCollection(
+                    segments,
+                    linewidths=numpy.concatenate(
+                        [
+                            [0],
+                            storm['radius_of_maximum_winds']
+                            / max(storm['radius_of_maximum_winds']),
+                        ]
+                    )
+                    * 4,
+                    color=colors[index],
                 )
+                map_axis.add_collection(line_collection)
+
+                track_bounds = numpy.array(
+                    [
+                        points[:, :, 0].min(),
+                        points[:, :, 1].min(),
+                        points[:, :, 0].max(),
+                        points[:, :, 1].max(),
+                    ]
+                )
+                if bounds[0] is None or track_bounds[0] < bounds[0]:
+                    bounds[0] = track_bounds[0]
+                if bounds[1] is None or track_bounds[1] < bounds[1]:
+                    bounds[1] = track_bounds[1]
+                if bounds[2] is None or track_bounds[2] > bounds[2]:
+                    bounds[2] = track_bounds[2]
+                if bounds[3] is None or track_bounds[3] > bounds[3]:
+                    bounds[3] = track_bounds[3]
+
+            map_axis.set_xlim((bounds[0], bounds[2]))
+            map_axis.set_ylim((bounds[1], bounds[3]))
+
+            unique_perturbation_type_colors = get_cmap('jet')(
+                linear_normalization(numpy.unique(encoded_perturbation_types))
+            )
+            map_axis.legend(
+                [Patch(facecolor=color) for color in unique_perturbation_type_colors],
+                unique_perturbation_types,
+            )
 
             xlim = map_axis.get_xlim()
             ylim = map_axis.get_ylim()
