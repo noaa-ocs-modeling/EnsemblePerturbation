@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from os import PathLike
 from pathlib import Path
+from typing import List
 
 from geopandas import GeoDataFrame
 from matplotlib import cm, colors, pyplot
@@ -44,8 +45,8 @@ class ReferenceComparison(ABC):
         self,
         input_directory: str,
         output_directory: str,
-        variables: [str],
-        stages: [str] = None,
+        variables: List[str],
+        stages: List[str] = None,
     ):
         if not isinstance(input_directory, Path):
             input_directory = Path(input_directory)
@@ -294,7 +295,7 @@ class ReferenceComparison(ABC):
 
     @property
     @lru_cache(maxsize=1)
-    def rmses(self) -> {}:
+    def rmses(self) -> dict:
         errors = self.errors
         rmses = []
         for _, station in self.stations.iterrows():
@@ -337,7 +338,7 @@ class ReferenceComparison(ABC):
         return rmses
 
     @abstractmethod
-    def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
+    def parse_stations(self, filename: PathLike, station_names: List[str]) -> GeoDataFrame:
         raise NotImplementedError
 
     def plot_values(self, show: bool = False):
@@ -563,7 +564,7 @@ class ZetaComparison(ReferenceComparison):
             input_directory, output_directory, ['zeta'], ['coldstart', 'hotstart']
         )
 
-    def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
+    def parse_stations(self, filename: PathLike, station_names: List[str]) -> GeoDataFrame:
         return fort61_stations_zeta(filename, station_names)
 
 
@@ -573,7 +574,7 @@ class VelocityComparison(ReferenceComparison):
             input_directory, output_directory, ['u', 'v'], ['coldstart', 'hotstart']
         )
 
-    def parse_stations(self, filename: PathLike, station_names: [str]) -> GeoDataFrame:
+    def parse_stations(self, filename: PathLike, station_names: List[str]) -> GeoDataFrame:
         return fort62_stations_uv(filename, station_names)
 
 
