@@ -9,14 +9,14 @@ from typing import Dict, List
 from setuptools import config, find_packages, setup
 
 DEPENDENCIES = {
-    'adcircpy>=1.0.39': ['gdal', 'fiona'],
+    'adcircpy>=1.0.42': ['gdal', 'fiona'],
     'appdirs': [],
     'cython': [],
     'cartopy': ['cython', 'numpy', 'proj'],
     'cmocean': [],
     'bs4': [],
     'click': [],
-    'coupledmodeldriver>=1.4.6': [],
+    'coupledmodeldriver>=1.4.11': [],
     'fiona': ['gdal'],
     'geopandas': [],
     'matplotlib': [],
