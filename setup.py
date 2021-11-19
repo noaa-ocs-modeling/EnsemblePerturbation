@@ -11,6 +11,7 @@ from setuptools import config, find_packages, setup
 DEPENDENCIES = {
     'adcircpy>=1.0.39': ['gdal', 'fiona'],
     'appdirs': [],
+    'cython': [],
     'cartopy': ['cython', 'numpy', 'proj'],
     'cmocean': [],
     'bs4': [],
@@ -55,7 +56,7 @@ def missing_packages(required_packages: Dict[str, List[str]]) -> Dict[str, List[
             required_package
             for required_package in required_packages
             if re.split('<|<=|==|>=|>', required_package)[0].lower()
-            not in installed_packages()
+               not in installed_packages()
         ]
 
 
@@ -102,10 +103,10 @@ if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
             non_conda_packages = [
                 package.replace('-', '').strip()
                 for package in output[
-                    output.index(package_not_found_start) : output.index(
-                        package_not_found_stop
-                    )
-                ].splitlines()[2:]
+                               output.index(package_not_found_start): output.index(
+                                   package_not_found_stop
+                               )
+                               ].splitlines()[2:]
             ]
             conda_packages = [
                 package
@@ -151,7 +152,7 @@ if len(MISSING_DEPENDENCIES) > 0:
                     package_name
                     for package_name in subdependencies + [dependency]
                     if package_name in MISSING_DEPENDENCIES
-                    or package_name in missing_subdependencies
+                                        or package_name in missing_subdependencies
                 ]
                 try:
                     subprocess.run(
