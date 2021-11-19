@@ -1,8 +1,17 @@
 CLI Commands
 ============
 
+``make_storm_ensemble``
+-----------------------
+
+.. program-output:: make_storm_ensemble -h
+
+.. autofunction:: ensembleperturbation.perturbation.atcf.perturb_tracks
+
 ``perturb_tracks``
 ------------------
+
+``perturb_tracks`` is an extension of ` ``initialize_adcirc`` from CoupledModelDriver <https://coupledmodeldriver.readthedocs.io/en/latest/client.html#initialize-adcirc-create-json-configuration-files>`_
 
 .. code-block:: shell
 
@@ -25,12 +34,9 @@ CLI Commands
         --quadrature \
         --serial
 
+The extension adds several new arguments: ``--perturbations``, ``--variables``, ``--quadrature``, and ``--serial``
+
 .. program-output:: perturb_tracks -h
-
-``make_storm_ensemble``
------------------------
-
-.. program-output:: make_storm_ensemble -h
 
 ``combine_results``
 -------------------
