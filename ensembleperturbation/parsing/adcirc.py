@@ -5,7 +5,7 @@ from os import PathLike
 from pathlib import Path
 import pickle
 from tempfile import TemporaryDirectory
-from typing import Any, Collection, Mapping, Union
+from typing import Any, Collection, Dict, List, Mapping, Union
 
 import geopandas
 from geopandas import GeoDataFrame
@@ -55,7 +55,7 @@ ADCIRC_OUTPUT_DATA_VARIABLES = {
 NODATA = -99999.0
 
 
-def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
+def fort61_stations_zeta(filename: PathLike, station_names: List[str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
     coordinate_variables = ['x', 'y']
@@ -87,7 +87,7 @@ def fort61_stations_zeta(filename: PathLike, station_names: [str] = None) -> Geo
     return pandas.concat(stations)
 
 
-def fort62_stations_uv(filename: PathLike, station_names: [str] = None) -> GeoDataFrame:
+def fort62_stations_uv(filename: PathLike, station_names: List[str] = None) -> GeoDataFrame:
     dataset = Dataset(filename)
 
     coordinate_variables = ['x', 'y']
@@ -120,7 +120,7 @@ def fort62_stations_uv(filename: PathLike, station_names: [str] = None) -> GeoDa
     return pandas.concat(stations)
 
 
-def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[dict, DataFrame]:
+def parse_adcirc_netcdf(filename: PathLike, variables: List[str] = None) -> Union[dict, DataFrame]:
     """
     Parse ADCIRC output files
 
@@ -196,7 +196,7 @@ def parse_adcirc_netcdf(filename: PathLike, variables: [str] = None) -> Union[di
 
 
 def async_parse_adcirc_netcdf(
-    filename: PathLike, pickle_filename: PathLike, variables: [str] = None
+    filename: PathLike, pickle_filename: PathLike, variables: List[str] = None
 ) -> (Path, Path):
     if not isinstance(filename, Path):
         filename = Path(filename)
@@ -237,8 +237,8 @@ def pickle_data(data: Any, filename: PathLike) -> Path:
 
 
 def parse_adcirc_outputs(
-    directory: PathLike = None, file_data_variables: [str] = None
-) -> {str: dict}:
+    directory: PathLike = None, file_data_variables: List[str] = None
+) -> Dict[str, dict]:
     """
     Parse output from multiple ADCIRC runs.
 
@@ -328,9 +328,9 @@ def combine_outputs(
     directory: PathLike = None,
     bounds: (float, float, float, float) = None,
     maximum_depth: float = None,
-    file_data_variables: {str: [str]} = None,
+    file_data_variables: Dict[str, List[str]] = None,
     output_filename: PathLike = None,
-) -> {str: DataFrame}:
+) -> Dict[str, DataFrame]:
     if directory is None:
         directory = Path.cwd()
     elif not isinstance(directory, Path):

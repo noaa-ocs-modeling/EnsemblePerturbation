@@ -1,7 +1,7 @@
 import io
 from os import PathLike
 import pathlib
-from typing import Union
+from typing import List, Union
 import zipfile
 
 # from affine import Affine
@@ -257,8 +257,8 @@ def plot_polygon(
 
 
 def plot_polygons(
-    geometries: [Polygon],
-    colors: [str] = None,
+    geometries: List[Polygon],
+    colors: List[str] = None,
     axis: pyplot.Axes = None,
     show: bool = False,
     **kwargs

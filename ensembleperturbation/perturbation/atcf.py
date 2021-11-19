@@ -30,8 +30,8 @@ Variables that can be perturbed:
   mean absolute errors.
 
 By William Pringle, Argonne National Laboratory, Mar-May 2021
-   Zach Burnett, NOS/NOAA
-   Saeed Moghimi, NOS/NOAA
+Zach Burnett, NOS/NOAA
+Saeed Moghimi, NOS/NOAA
 """
 
 from abc import ABC
@@ -49,7 +49,7 @@ from pathlib import Path
 from random import gauss, uniform
 from typing import Dict, List, Mapping, Union
 
-from adcircpy.forcing.winds.best_track import convert_value, FileDeck, Mode, VortexForcing
+from adcircpy.forcing.winds.best_track import FileDeck, Mode, VortexForcing
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -60,6 +60,7 @@ from pint_pandas import PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
+from typepigeon import convert_value
 
 from ensembleperturbation.utilities import get_logger, units
 
@@ -142,7 +143,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         self,
         lower_bound: float = None,
         upper_bound: float = None,
-        historical_forecast_errors: {str: DataFrame} = None,
+        historical_forecast_errors: Dict[str, DataFrame] = None,
         default: float = None,
         unit: pint.Unit = None,
     ):
@@ -187,7 +188,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         self.__upper_bound = upper_bound
 
     @property
-    def historical_forecast_errors(self) -> {str: DataFrame}:
+    def historical_forecast_errors(self) -> Dict[str, DataFrame]:
         for classification, dataframe in self.__historical_forecast_errors.items():
             for column in dataframe:
                 pint_type = PintType(self.unit)
@@ -204,7 +205,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         return self.__historical_forecast_errors
 
     @historical_forecast_errors.setter
-    def historical_forecast_errors(self, historical_forecast_errors: {str: DataFrame}):
+    def historical_forecast_errors(self, historical_forecast_errors: Dict[str, DataFrame]):
         for classification, dataframe in historical_forecast_errors.items():
             for column in dataframe:
                 pint_type = PintType(self.unit)
@@ -223,8 +224,8 @@ class VortexPerturbedVariable(VortexVariable, ABC):
     def perturb(
         self,
         vortex_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        values: List[float],
+        times: List[datetime],
         inplace: bool = False,
     ) -> DataFrame:
         """
@@ -243,9 +244,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         all_values = vortex_dataframe[self.name].values - values
         vortex_dataframe[self.name] = [
-            min(self.upper_bound, max(value, self.lower_bound)).magnitude
-            for value in all_values
-        ] * self.unit
+                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
+                                          for value in all_values
+                                      ] * self.unit
 
         return vortex_dataframe
 
@@ -506,13 +507,12 @@ class CrossTrack(VortexPerturbedVariable):
     def perturb(
         self,
         vortex_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        values: List[float],
+        times: List[datetime],
         inplace: bool = False,
     ) -> DataFrame:
         """
-        offset_track(df_,VT,cross_track_errors)
-          - Offsets points by a given perpendicular error/distance from the original track
+        offsets points by a given perpendicular error/distance from the original track
 
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: cross-track errors [nm] for each forecast time (VT)
@@ -666,13 +666,12 @@ class AlongTrack(VortexPerturbedVariable):
     def perturb(
         self,
         vortex_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        values: List[float],
+        times: List[datetime],
         inplace: bool = False,
     ) -> DataFrame:
         """
-        interpolate_along_track(df_,VT,along_track_errros)
-        Offsets points by a given error/distance by interpolating along the track
+        offsets points by a given error/distance by interpolating along the track
 
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: along-track errors for each forecast time (VT)
@@ -893,11 +892,11 @@ class VortexPerturber:
     def write(
         self,
         perturbations: Union[int, List[float], List[Dict[str, float]]],
-        variables: [VortexVariable],
+        variables: List[VortexVariable],
         directory: PathLike = None,
         overwrite: bool = False,
         continue_numbering: bool = True,
-    ) -> [Path]:
+    ) -> List[Path]:
         """
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
@@ -1005,8 +1004,8 @@ class VortexPerturber:
         self,
         filename: PathLike,
         dataframe: DataFrame,
-        perturbation: {str: float},
-        variables: [VortexPerturbedVariable],
+        perturbation: Dict[str, float],
+        variables: List[VortexPerturbedVariable],
         storm_size: str,
         storm_strength: str,
     ) -> Path:
@@ -1125,7 +1124,7 @@ class VortexPerturber:
         return filename
 
     @property
-    def validation_times(self) -> [timedelta]:
+    def validation_times(self) -> List[timedelta]:
         """ get the validation time of storm """
         return self.forcing.datetime - self.forcing.start_date
 
@@ -1178,7 +1177,7 @@ class VortexPerturber:
 
 def storm_intensity_class(max_sustained_wind_speed: float) -> str:
     """
-    Category for Vmax based intensity
+    category for Vmax based intensity
 
     :param max_sustained_wind_speed: maximum sustained wind speed, in knots
     :return: intensity classification
@@ -1197,7 +1196,7 @@ def storm_intensity_class(max_sustained_wind_speed: float) -> str:
 
 def storm_size_class(radius_of_maximum_winds: float) -> str:
     """
-    Category for Rmax based size
+    category for Rmax based size
 
     :param radius_of_maximum_winds: radius of maximum winds, in nautical miles
     :return: size classification
@@ -1302,7 +1301,7 @@ def parse_vortex_perturbations(
     directory: PathLike = None, output_filename: PathLike = None
 ) -> DataFrame:
     """
-    Parse `fort.22` and JSON files into a dataframe.
+    parse `fort.22` and JSON files into a dataframe
 
     :param directory: directory containing `fort.22` and JSON files of tracks
     :returns: dataframe of the variables perturbed with each track

@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from typing import Dict, List
 
 from setuptools import config, find_packages, setup
 
@@ -31,7 +32,7 @@ DEPENDENCIES = {
 }
 
 
-def installed_packages() -> [str]:
+def installed_packages() -> List[str]:
     return [
         re.split('#egg=', re.split('==| @ ', package.decode())[0])[-1].lower()
         for package in subprocess.run(
@@ -40,7 +41,7 @@ def installed_packages() -> [str]:
     ]
 
 
-def missing_packages(required_packages: {str: [str]}) -> {str: [str]}:
+def missing_packages(required_packages: Dict[str, List[str]]) -> Dict[str, List[str]]:
     if isinstance(required_packages, Mapping):
         missing_dependencies = missing_packages(list(required_packages))
         output = {}
@@ -54,7 +55,7 @@ def missing_packages(required_packages: {str: [str]}) -> {str: [str]}:
             required_package
             for required_package in required_packages
             if re.split('<|<=|==|>=|>', required_package)[0].lower()
-            not in installed_packages()
+               not in installed_packages()
         ]
 
 
@@ -101,10 +102,10 @@ if (Path(sys.prefix) / 'conda-meta').exists() and len(MISSING_DEPENDENCIES) > 0:
             non_conda_packages = [
                 package.replace('-', '').strip()
                 for package in output[
-                    output.index(package_not_found_start) : output.index(
-                        package_not_found_stop
-                    )
-                ].splitlines()[2:]
+                               output.index(package_not_found_start): output.index(
+                                   package_not_found_stop
+                               )
+                               ].splitlines()[2:]
             ]
             conda_packages = [
                 package
@@ -150,7 +151,7 @@ if len(MISSING_DEPENDENCIES) > 0:
                     package_name
                     for package_name in subdependencies + [dependency]
                     if package_name in MISSING_DEPENDENCIES
-                    or package_name in missing_subdependencies
+                                        or package_name in missing_subdependencies
                 ]
                 try:
                     subprocess.run(
@@ -220,12 +221,20 @@ setup(
     extras_require={
         'testing': ['pytest', 'pytest-cov', 'pytest-xdist', 'wget'],
         'development': ['flake8', 'isort', 'oitnb'],
+        'documentation': [
+            'dunamai',
+            'm2r2',
+            'sphinx',
+            'sphinx-rtd-theme',
+            'sphinxcontrib-programoutput',
+        ],
     },
     entry_points={
         'console_scripts': [
             'make_storm_ensemble=ensembleperturbation.client.make_storm_ensemble:main',
             'perturb_tracks=ensembleperturbation.client.perturb_tracks:main',
             'combine_results=ensembleperturbation.client.combine_results:main',
+            'plot_results=ensembleperturbation.client.plot_results:main',
         ],
     },
 )
