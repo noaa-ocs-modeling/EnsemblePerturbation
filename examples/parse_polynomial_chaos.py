@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
             figure = pyplot.figure()
             figure.set_size_inches(12, 12 / 1.61803398875)
-            figure.suptitle(f'{len(track_filenames)} perturbations of storm')
+            figure.suptitle(f'{len(track_filenames)} perturbations of storm track')
 
             map_axis = figure.add_subplot(1, 1, 1)
             countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
