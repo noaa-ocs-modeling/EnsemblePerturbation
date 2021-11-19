@@ -120,7 +120,9 @@ def fort62_stations_uv(filename: PathLike, station_names: List[str] = None) -> G
     return pandas.concat(stations)
 
 
-def parse_adcirc_netcdf(filename: PathLike, variables: List[str] = None) -> Union[dict, DataFrame]:
+def parse_adcirc_netcdf(
+    filename: PathLike, variables: List[str] = None
+) -> Union[dict, DataFrame]:
     """
     Parse ADCIRC output files
 

@@ -1,8 +1,8 @@
 CLI Commands
 ============
 
-``perturb_tracks`` - create JSON configuration files
--------------------------------------------------------
+``perturb_tracks``
+------------------
 
 .. code-block:: shell
 
@@ -28,18 +28,18 @@ CLI Commands
 .. program-output:: perturb_tracks -h
 
 ``make_storm_ensemble``
---------------------------------------------------------------------------
+-----------------------
 
 .. program-output:: make_storm_ensemble -h
 
 ``combine_results``
---------------------------------------------------------------------------
+-------------------
 
 .. program-output:: combine_results -h
 
 .. autofunction:: ensembleperturbation.client.combine_results.combine_results
 
 ``plot_results``
---------------------------------------------------------------------------
+----------------
 
 .. program-output:: plot_results -h

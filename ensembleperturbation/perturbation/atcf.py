@@ -244,9 +244,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         all_values = vortex_dataframe[self.name].values - values
         vortex_dataframe[self.name] = [
-                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
-                                          for value in all_values
-                                      ] * self.unit
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            for value in all_values
+        ] * self.unit
 
         return vortex_dataframe
 
@@ -1341,5 +1341,88 @@ def parse_vortex_perturbations(
     perturbations = DataFrame.from_records(
         list(perturbations.values()), index=list(perturbations)
     )
+
+    return perturbations
+
+
+def perturb_tracks(
+    perturbations: Union[int, List[float], List[Dict[str, float]]],
+    directory: PathLike = None,
+    storm: Union[str, PathLike] = None,
+    variables: List[VortexPerturbedVariable] = None,
+    start_date: datetime = None,
+    end_date: datetime = None,
+    file_deck: FileDeck = None,
+    mode: Mode = None,
+    record_type: str = None,
+    overwrite: bool = False,
+):
+    """
+    write a set of perturbed storm tracks
+
+    :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
+    :param directory: directory to which to write
+    :param storm: ATCF storm ID, or file path to an existing `fort.22` / ATCF file, from which to perturb
+    :param variables: vortex variables to perturb
+    :param start_date: model start time of ensemble
+    :param end_date: model end time of ensemble
+    :param file_deck: letter of file deck, one of `a`, `b`
+    :param mode: either `realtime` / `aid_public` or `historical` / `archive`
+    :param record_type: record type (i.e. `BEST`, `OFCL`)
+    :param overwrite: overwrite existing files
+    :return: mapping of track names to perturbation JSONs
+    """
+
+    if directory is None:
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
+        directory = Path(directory)
+    if not directory.exists():
+        directory.mkdir(parents=True, exist_ok=True)
+
+    if storm is None:
+        storm = directory / 'original.22'
+
+    if file_deck is None:
+        file_deck = FileDeck.b
+    if mode is None:
+        mode = Mode.realtime
+    if record_type is None:
+        record_type = 'BEST'
+
+    try:
+        if Path(storm).exists():
+            perturber = VortexPerturber.from_file(
+                storm, start_date=start_date, end_date=end_date,
+            )
+        else:
+            raise FileNotFoundError
+    except:
+        if storm is None:
+            raise ValueError('no storm ID specified')
+
+        perturber = VortexPerturber(
+            storm=storm,
+            start_date=start_date,
+            end_date=end_date,
+            file_deck=file_deck,
+            mode=mode,
+            record_type=record_type,
+        )
+
+    filenames = [directory / 'original.22']
+    filenames += perturber.write(
+        perturbations=perturbations,
+        variables=variables,
+        directory=directory,
+        overwrite=overwrite,
+    )
+
+    perturbations = {
+        track_filename.stem: {
+            'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, directory))}
+        }
+        for index, track_filename in enumerate(filenames)
+    }
 
     return perturbations

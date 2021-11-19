@@ -3,7 +3,8 @@
 .. toctree::
    :hidden:
 
-   readme
+   abstract
    client
    parsing
    perturbation
+   acknowledgements

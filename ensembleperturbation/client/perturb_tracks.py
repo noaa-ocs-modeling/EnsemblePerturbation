@@ -1,14 +1,13 @@
 import os
 from pathlib import Path
 
-from adcircpy.forcing.winds.best_track import FileDeck
 from coupledmodeldriver.client.initialize_adcirc import (
     initialize_adcirc,
     parse_initialize_adcirc_arguments,
 )
 from coupledmodeldriver.configure import BestTrackForcingJSON
 
-from ensembleperturbation.perturbation.atcf import VortexPerturber
+from ensembleperturbation.perturbation.atcf import perturb_tracks
 
 
 def main():
@@ -33,6 +32,8 @@ def main():
     original_track_filename = track_directory / 'fort.22'
 
     if original_track_filename.exists():
+        storm_id = original_track_filename
+
         vortex_forcing = BestTrackForcingJSON.from_fort22(
             original_track_filename,
             start_date=arguments['modeled_start_time'],
@@ -43,12 +44,6 @@ def main():
             if isinstance(forcing, BestTrackForcingJSON):
                 arguments['forcings'][index] = vortex_forcing
                 break
-
-        perturber = VortexPerturber.from_file(
-            original_track_filename,
-            start_date=arguments['modeled_start_time'],
-            end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
-        )
     else:
         for forcing in arguments['forcings']:
             if isinstance(forcing, BestTrackForcingJSON):
@@ -57,31 +52,15 @@ def main():
         else:
             raise ValueError('no best track forcing specified')
 
-        perturber = VortexPerturber(
-            storm=storm_id,
-            start_date=arguments['modeled_start_time'],
-            end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
-            file_deck=FileDeck.b,
-        )
-
-    track_filenames = [track_directory / 'original.22']
-    track_filenames += perturber.write(
+    perturbations = perturb_tracks(
         perturbations=arguments['perturbations'],
+        directory=Path(arguments['output_directory']) / 'track_files',
+        storm=storm_id,
         variables=arguments['variables'],
-        directory=track_directory,
+        start_date=arguments['modeled_start_time'],
+        end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
         overwrite=arguments['overwrite'],
     )
-
-    perturbations = {
-        track_filename.stem: {
-            'besttrack': {
-                'fort22_filename': Path(
-                    os.path.relpath(track_filename, arguments['output_directory'])
-                )
-            }
-        }
-        for index, track_filename in enumerate(track_filenames)
-    }
 
     initialize_adcirc(
         platform=arguments['platform'],

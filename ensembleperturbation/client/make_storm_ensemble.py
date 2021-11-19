@@ -4,8 +4,8 @@ from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
     MaximumSustainedWindSpeed,
+    perturb_tracks,
     RadiusOfMaximumWinds,
-    VortexPerturber,
 )
 
 
@@ -42,19 +42,16 @@ def main():
         CrossTrack,
     ]
 
-    perturber = VortexPerturber(
-        storm=arguments.storm_code,
-        start_date=arguments.start_date,
-        end_date=arguments.end_date,
-        file_deck=arguments.file_deck,
-        mode=arguments.mode,
-        record_type=arguments.record_type,
-    )
-
-    perturber.write(
-        perturbations=arguments.number_of_perturbations,
+    perturb_tracks(
+        perturbations=arguments['number_of_perturbations'],
+        directory=arguments['directory'],
+        storm=arguments['storm_code'],
         variables=variables,
-        directory=arguments.directory,
+        start_date=arguments['start_date'],
+        end_date=arguments['end_date'],
+        file_deck=arguments['file_deck'],
+        mode=arguments['mode'],
+        record_type=arguments['record_type'],
     )
 
 
