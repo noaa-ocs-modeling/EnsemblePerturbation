@@ -27,6 +27,7 @@ DEPENDENCIES = {
     'pint-pandas': ['pint'],
     'pyproj>=2.6': [],
     'tables': [],
+    'typepigeon': [],
     'python-dateutil': [],
     'requests': [],
     'shapely': [],

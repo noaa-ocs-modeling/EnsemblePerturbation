@@ -52,7 +52,6 @@ import warnings
 from adcircpy.forcing.winds.best_track import FileDeck, Mode, VortexForcing
 import chaospy
 from chaospy import Distribution
-from coupledmodeldriver.utilities import convert_value
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
@@ -65,6 +64,7 @@ from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
+import typepigeon
 import xarray
 from xarray import Dataset
 
@@ -936,7 +936,7 @@ class VortexPerturber:
     @file_deck.setter
     def file_deck(self, file_deck: FileDeck):
         if file_deck is not None and not isinstance(file_deck, datetime):
-            file_deck = convert_value(file_deck, FileDeck)
+            file_deck = typepigeon.convert_value(file_deck, FileDeck)
         self.__file_deck = file_deck
 
     @property
@@ -946,7 +946,7 @@ class VortexPerturber:
     @mode.setter
     def mode(self, mode: Mode):
         if mode is not None and not isinstance(mode, datetime):
-            mode = convert_value(mode, Mode)
+            mode = typepigeon.convert_value(mode, Mode)
         self.__mode = mode
 
     @property
