@@ -318,7 +318,7 @@ if __name__ == '__main__':
     )
 
     # sample times and nodes
-    # TODO: sample based on sentivity / eigenvalues
+    # TODO: sample based on sensitivity / eigenvalues
     values = max_elevations['zeta_max']
     subset_bounds = (-83, 25, -72, 42)
     if not subset_filename.exists():
