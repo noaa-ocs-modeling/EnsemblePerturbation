@@ -2,12 +2,12 @@ import io
 import math
 from os import PathLike
 import pathlib
+from pathlib import Path
 from typing import Union
 import zipfile
 
 # from affine import Affine
 from adcircpy.forcing import BestTrackForcing
-from adcircpy.forcing.winds.best_track import VortexForcing
 import appdirs
 
 # import gdal
@@ -17,15 +17,18 @@ from matplotlib import cm, gridspec, pyplot
 from matplotlib.axes import Axes
 from matplotlib.axis import Axis
 from matplotlib.cm import get_cmap
+from matplotlib.collections import LineCollection
 from matplotlib.colors import Colormap, LogNorm, Normalize
 from matplotlib.figure import Figure
+from matplotlib.patches import Patch
+from modelforcings.vortex import VortexForcing
 import numpy
 import requests
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.geometry import shape as shapely_shape
 import xarray
 
-from ensembleperturbation.utilities import get_logger
+from ensembleperturbation.utilities import encode_categorical_values, get_logger
 
 LOGGER = get_logger('plotting')
 
@@ -970,3 +973,167 @@ def plot_comparison(
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
     return axes
+
+
+def plot_perturbations(
+    training_perturbations: xarray.Dataset,
+    validation_perturbations: xarray.Dataset,
+    runs: [str],
+    perturbation_types: [str],
+    track_directory: PathLike = None,
+    output_directory: PathLike = None,
+):
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
+    plot_perturbed_variables(
+        training_perturbations,
+        title=f'{len(training_perturbations["run"])} training pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
+        output_filename=output_directory / 'training_perturbations.png'
+        if output_directory is not None
+        else None,
+    )
+    plot_perturbed_variables(
+        validation_perturbations,
+        title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
+        output_filename=output_directory / 'validation_perturbations.png'
+        if output_directory is not None
+        else None,
+    )
+
+    if track_directory is not None:
+        if not isinstance(track_directory, Path):
+            track_directory = Path(track_directory)
+
+        if track_directory.exists():
+            track_filenames = {
+                track_filename.stem: track_filename
+                for track_filename in track_directory.glob('*.22')
+            }
+
+            figure = pyplot.figure()
+            figure.set_size_inches(12, 12 / 1.61803398875)
+            figure.suptitle(f'{len(track_filenames)} perturbations of storm track')
+
+            map_axis = figure.add_subplot(1, 1, 1)
+            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+            unique_perturbation_types = numpy.unique(perturbation_types)
+            encoded_perturbation_types = encode_categorical_values(
+                perturbation_types, unique_values=unique_perturbation_types
+            )
+            linear_normalization = Normalize()
+            colors = get_cmap('jet')(linear_normalization(encoded_perturbation_types))
+
+            bounds = numpy.array([None, None, None, None])
+            for index, run in enumerate(runs):
+                storm = VortexForcing.from_fort22(track_filenames[run]).data
+                points = storm.loc[:, ['longitude', 'latitude']].values.reshape(-1, 1, 2)
+                segments = numpy.concatenate([points[:-1], points[1:]], axis=1)
+                line_collection = LineCollection(
+                    segments,
+                    linewidths=numpy.concatenate(
+                        [
+                            [0],
+                            storm['radius_of_maximum_winds']
+                            / max(storm['radius_of_maximum_winds']),
+                        ]
+                    )
+                    * 4,
+                    color=colors[index],
+                )
+                map_axis.add_collection(line_collection)
+
+                track_bounds = numpy.array(
+                    [
+                        points[:, :, 0].min(),
+                        points[:, :, 1].min(),
+                        points[:, :, 0].max(),
+                        points[:, :, 1].max(),
+                    ]
+                )
+                if bounds[0] is None or track_bounds[0] < bounds[0]:
+                    bounds[0] = track_bounds[0]
+                if bounds[1] is None or track_bounds[1] < bounds[1]:
+                    bounds[1] = track_bounds[1]
+                if bounds[2] is None or track_bounds[2] > bounds[2]:
+                    bounds[2] = track_bounds[2]
+                if bounds[3] is None or track_bounds[3] > bounds[3]:
+                    bounds[3] = track_bounds[3]
+
+            map_axis.set_xlim((bounds[0], bounds[2]))
+            map_axis.set_ylim((bounds[1], bounds[3]))
+
+            unique_perturbation_type_colors = get_cmap('jet')(
+                linear_normalization(numpy.unique(encoded_perturbation_types))
+            )
+            map_axis.legend(
+                [Patch(facecolor=color) for color in unique_perturbation_type_colors],
+                unique_perturbation_types,
+            )
+
+            xlim = map_axis.get_xlim()
+            ylim = map_axis.get_ylim()
+
+            countries.plot(color='lightgrey', ax=map_axis)
+
+            map_axis.set_xlim(xlim)
+            map_axis.set_ylim(ylim)
+
+            if output_directory is not None:
+                figure.savefig(
+                    output_directory / 'storm_tracks.png', dpi=200, bbox_inches='tight',
+                )
+
+
+def plot_sensitivities(sensitivities: xarray.Dataset, output_filename: PathLike = None):
+    figure = pyplot.figure()
+    figure.set_size_inches(12, 12 / 1.61803398875)
+    figure.suptitle(
+        f'Sobol sensitivities of {len(sensitivities["variable"])} variables along {len(sensitivities["node"])} node(s)'
+    )
+
+    axis = figure.add_subplot(1, 1, 1)
+
+    for variable in sensitivities['variable']:
+        axis.scatter(
+            sensitivities['node'], sensitivities.sel(variable=variable), label=variable
+        )
+
+    if output_filename is not None:
+        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
+
+def plot_validations(validation: xarray.Dataset, output_filename: PathLike):
+    validation = validation['results']
+
+    sources = validation['source'].values
+
+    figure = pyplot.figure()
+    figure.set_size_inches(12, 12 / 1.61803398875)
+    figure.suptitle(
+        f'comparison of {len(sources)} sources along {len(validation["node"])} node(s)'
+    )
+
+    type_colors = {'training': 'b', 'validation': 'r'}
+    axes = None
+    for index, result_type in enumerate(validation['type'].values):
+        result_validation = validation.sel(type=result_type)
+        axes = plot_comparison(
+            result_validation,
+            title=f'comparison of {len(sources)} sources along {len(result_validation["node"])} node(s)',
+            reference_line=index == 0,
+            figure=figure,
+            axes=axes,
+            s=1,
+            c=type_colors[result_type],
+            label=result_type,
+        )
+
+    for row in axes.values():
+        for axis in row.values():
+            axis.legend()
+
+    if output_filename is not None:
+        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
