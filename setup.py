@@ -30,6 +30,7 @@ DEPENDENCIES = {
     'python-dateutil': [],
     'requests': [],
     'shapely': [],
+    'scikit-learn': [],
 }
 
 
