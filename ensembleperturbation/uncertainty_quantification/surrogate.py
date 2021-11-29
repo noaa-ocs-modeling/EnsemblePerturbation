@@ -14,7 +14,7 @@ def fit_surrogate(
     polynomials: numpoly.PolyLike,
     quadrature: bool = False,
     quadrature_weights: xarray.DataArray = None,
-):
+) -> numpoly.PolyLike:
     # create surrogate models for selected nodes
     if quadrature:
         LOGGER.info(
@@ -58,7 +58,7 @@ def fit_surrogate(
     return surrogate_model
 
 
-def get_percentiles(
+def get_percentiles_from_surrogate(
     samples: xarray.DataArray,
     percentiles: [float],
     surrogate_model: numpoly.PolyLike,
