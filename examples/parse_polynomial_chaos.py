@@ -129,7 +129,7 @@ def get_validations(
         )
 
         node_validation = xarray.combine_nested(
-            [training_results, node_validation], concat_dim='type'
+            [training_results.drop('type'), node_validation.drop('type')], concat_dim='type'
         )
         node_validation = node_validation.assign_coords(type=['training', 'validation'])
         node_validation = node_validation.to_dataset(name='results')
