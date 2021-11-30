@@ -9,8 +9,6 @@ from coupledmodeldriver.client.initialize_adcirc import (
 )
 from coupledmodeldriver.configure import BestTrackForcingJSON
 
-from ensembleperturbation.perturbation.atcf import perturb_tracks
-
 
 def write_vortex_perturbations(
     perturbations: int,

@@ -41,7 +41,6 @@ def joint_klpc_surrogate(
     exceedance_probabilities: np.ndarray,
     exceedance_heights: np.ndarray,
 ):
-
     # ------------------------#
     # -------- Part 1 --------#
     # ------------------------#

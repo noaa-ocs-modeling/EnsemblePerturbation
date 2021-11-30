@@ -60,7 +60,7 @@ def missing_packages(required_packages: Dict[str, List[str]]) -> Dict[str, List[
             required_package
             for required_package in required_packages
             if re.split('<|<=|==|>=|>', required_package)[0].lower()
-               not in installed_packages()
+            not in installed_packages()
         ]
 
 
@@ -156,7 +156,7 @@ if len(MISSING_DEPENDENCIES) > 0:
                     package_name
                     for package_name in subdependencies + [dependency]
                     if package_name in MISSING_DEPENDENCIES
-                                        or package_name in missing_subdependencies
+                    or package_name in missing_subdependencies
                 ]
                 try:
                     subprocess.run(
