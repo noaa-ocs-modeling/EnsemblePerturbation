@@ -9,118 +9,59 @@ from coupledmodeldriver.client.initialize_adcirc import (
 )
 from coupledmodeldriver.configure import BestTrackForcingJSON
 
+from ensembleperturbation.perturbation.atcf import perturb_tracks
 
-def write_vortex_perturbations(
-    perturbations: int,
-    variables: [str],
-    output_directory: PathLike,
-    modeled_start_time: datetime,
-    modeled_duration: timedelta,
-    forcings: [str],
-    along_quadrature: bool = False,
-    sample_from_distribution: bool = False,
-    overwrite: bool = False,
-    parallel: bool = False,
-):
-    if perturbations is None:
+
+def main():
+    arguments = parse_initialize_adcirc_arguments(
+        extra_arguments={'perturbations': int, 'variables': [str]}
+    )
+
+    if arguments['perturbations'] is None:
         raise ValueError('number of perturbations not given')
 
-    if variables is None or len(variables) == 0:
-        variables = [
+    if arguments['variables'] is None or len(arguments['variables']) == 0:
+        arguments['variables'] = [
             'cross_track',
             'along_track',
             'radius_of_maximum_winds',
             'max_sustained_wind_speed',
         ]
 
-    if not isinstance(output_directory, Path):
-        output_directory = Path(output_directory)
-
-    track_directory = output_directory / 'track_files'
+    track_directory = arguments['output_directory'] / 'track_files'
     if not track_directory.exists():
         track_directory.mkdir(parents=True, exist_ok=True)
-    original_track_filename = track_directory / 'original.22'
+    original_track_filename = track_directory / 'fort.22'
 
     if original_track_filename.exists():
         storm_id = original_track_filename
 
         vortex_forcing = BestTrackForcingJSON.from_fort22(
             original_track_filename,
-            start_date=modeled_start_time,
-            end_date=modeled_start_time + modeled_duration,
+            start_date=arguments['modeled_start_time'],
+            end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
         )
-        forcings.append(vortex_forcing)
-        for index, forcing in enumerate(forcings):
+        arguments['forcings'].append(vortex_forcing)
+        for index, forcing in enumerate(arguments['forcings']):
             if isinstance(forcing, BestTrackForcingJSON):
-                forcings[index] = vortex_forcing
+                arguments['forcings'][index] = vortex_forcing
                 break
-
-        perturber = VortexPerturber.from_file(
-            original_track_filename,
-            start_date=modeled_start_time,
-            end_date=modeled_start_time + modeled_duration,
-        )
     else:
-        for forcing in forcings:
+        for forcing in arguments['forcings']:
             if isinstance(forcing, BestTrackForcingJSON):
                 storm_id = forcing.adcircpy_forcing.storm_id
                 break
         else:
             raise ValueError('no best track forcing specified')
 
-        perturber = VortexPerturber(
-            storm=storm_id,
-            start_date=modeled_start_time,
-            end_date=modeled_start_time + modeled_duration,
-            file_deck=FileDeck.b,
-        )
-
-    track_filenames = [track_directory / 'original.22']
-    track_filenames += perturber.write(
-        perturbations=perturbations,
-        variables=variables,
-        directory=track_directory,
-        sample_from_distribution=sample_from_distribution,
-        quadrature=along_quadrature,
-        overwrite=overwrite,
-        continue_numbering=False,
-        parallel=parallel,
-    )
-
-    perturbations = {
-        track_filename.stem: {
-            'besttrack': {
-                'fort22_filename': Path(os.path.relpath(track_filename, output_directory))
-            }
-        }
-        for index, track_filename in enumerate(track_filenames)
-    }
-
-    return perturbations
-
-
-def main():
-    arguments = parse_initialize_adcirc_arguments(
-        extra_arguments={
-            'perturbations': int,
-            'quadrature': bool,
-            'sample': bool,
-            'variables': [str],
-            'serial': bool,
-        }
-    )
-
-    perturbations = write_vortex_perturbations(
+    perturbations = perturb_tracks(
         perturbations=arguments['perturbations'],
+        directory=Path(arguments['output_directory']) / 'track_files',
+        storm=storm_id,
         variables=arguments['variables'],
-        output_directory=arguments['output_directory'],
-        modeled_start_time=arguments['modeled_start_time'],
-        modeled_duration=arguments['modeled_duration'],
-        forcings=arguments['forcings'],
-        along_quadrature=arguments['quadrature'],
-        sample_from_distribution=arguments['sample'],
+        start_date=arguments['modeled_start_time'],
+        end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
         overwrite=arguments['overwrite'],
-        parallel=not arguments['serial'],
     )
 
     initialize_adcirc(
