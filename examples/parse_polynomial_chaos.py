@@ -92,9 +92,9 @@ def get_sensitivities(
         sensitivities.to_netcdf(filename)
     else:
         LOGGER.info(f'loading sensitivities from "{filename}"')
-        sensitivities = xarray.open_dataset(filename)['sensitivities']
+        sensitivities = xarray.open_dataset(filename)
 
-    return sensitivities
+    return sensitivities['sensitivities']
 
 
 def get_validations(
