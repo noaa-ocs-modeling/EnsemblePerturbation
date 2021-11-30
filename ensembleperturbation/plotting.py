@@ -6,15 +6,11 @@ from pathlib import Path
 from typing import Union
 import zipfile
 
-# from affine import Affine
 from adcircpy.forcing import BestTrackForcing
 import appdirs
-
-# import gdal
 import cartopy
 import geopandas
 from matplotlib import cm, gridspec, pyplot
-from matplotlib.axes import Axes
 from matplotlib.axis import Axis
 from matplotlib.cm import get_cmap
 from matplotlib.collections import LineCollection
@@ -34,27 +30,19 @@ LOGGER = get_logger('plotting')
 
 
 # def geoarray_to_xyz(
-#     data: numpy.array, origin: (float, float), resolution: (float, float), nodata: float = None
-# ) -> numpy.array:
+#     data: numpy.ndarray,
+#     origin: (float, float),
+#     resolution: (float, float),
+#     nodata: float = None,
+# ) -> numpy.ndarray:
 #     """
-#     Extract XYZ points from an array of data using the given raster-like
-#     georeference (origin  and resolution).
+#     extract XYZ points from an array of data using the given raster-like georeference (origin  and resolution)
 #
-#     Parameters
-#     ----------
-#     data
-#         2D array of gridded data
-#     origin
-#         X, Y coordinates of northwest corner
-#     resolution
-#         cell size
-#     nodata
-#         value to exclude from point creation from the input grid
-#
-#     Returns
-#     -------
-#     numpy.array
-#         N x 3 array of XYZ points
+#     :param data: 2D array of gridded data
+#     :param origin: X, Y coordinates of northwest corner
+#     :param resolution: cell size
+#     :param nodata: value to exclude from point creation from the input grid
+#     :returns: N x 3 array of XYZ points
 #     """
 #
 #     if nodata is None:
@@ -74,23 +62,15 @@ LOGGER = get_logger('plotting')
 #     return numpy.stack(
 #         (x_values[data_coverage], y_values[data_coverage], data[data_coverage]), axis=1
 #     )
-#
-#
-# def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.array:
+
+
+# def gdal_to_xyz(dataset: gdal.Dataset, nodata: float = None) -> numpy.ndarray:
 #     """
-#     Extract XYZ points from a GDAL dataset.
+#     extract XYZ points from a GDAL dataset
 #
-#     Parameters
-#     ----------
-#     dataset
-#         GDAL dataset (point cloud or raster)
-#     nodata
-#         value to exclude from point creation
-#
-#     Returns
-#     -------
-#     numpy.array
-#         N x M array of XYZ points
+#     :param dataset: GDAL dataset (point cloud or raster)
+#     :param nodata: value to exclude from point creation
+#     :returns: N x M array of XYZ points
 #     """
 #
 #     coordinates = None
@@ -143,19 +123,11 @@ def bounds_from_opposite_corners(
     corner_1: (float, float), corner_2: (float, float)
 ) -> (float, float, float, float):
     """
-    Get bounds from two XY points.
+    get bounds from two XY points
 
-    Parameters
-    ----------
-    corner_1
-        XY point
-    corner_2
-        XY point
-
-    Returns
-    -------
-    float, float, float, float
-        min X, min Y, max X, max Y
+    :param corner_1: XY point
+    :param corner_2: XY point
+    :returns: min X, min Y, max X, max Y
     """
 
     return numpy.ravel(numpy.sort(numpy.stack((corner_1, corner_2), axis=0), axis=0))
@@ -163,17 +135,10 @@ def bounds_from_opposite_corners(
 
 # def gdal_raster_bounds(raster: gdal.Dataset) -> (float, float, float, float):
 #     """
-#     Get the bounds (grouped by dimension) of the given unrotated raster.
+#     get the bounds (grouped by dimension) of the given unrotated raster
 #
-#     Parameters
-#     ----------
-#     raster
-#         GDAL raster dataset
-#
-#     Returns
-#     -------
-#     float, float, float, float
-#         min X, min Y, max X, max Y
+#     :param raster: GDAL raster dataset
+#     :returns: min X, min Y, max X, max Y
 #     """
 #
 #     geotransform = raster.GetGeoTransform()
@@ -188,21 +153,13 @@ def bounds_from_opposite_corners(
 #     return bounds_from_opposite_corners(origin, origin + numpy.flip(shape) * resolution)
 
 
-def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
+def where_not_nodata(array: numpy.ndarray, nodata: float = None) -> numpy.ndarray:
     """
-    Get a boolean array of where data exists in the given array.
+    get a boolean array of where data exists in the given array
 
-    Parameters
-    ----------
-    array
-        array of gridded data with dimensions (Z)YX
-    nodata
-        value where there is no data in the given array
-
-    Returns
-    -------
-    numpy.array
-        array of booleans indicating where data exists
+    :param array: array of gridded data with dimensions (Z)YX
+    :param nodata: value where there is no data in the given array
+    :returns: array of booleans indicating where data exists
     """
 
     if nodata is None:
@@ -222,22 +179,14 @@ def where_not_nodata(array: numpy.array, nodata: float = None) -> numpy.array:
 
 
 def plot_polygon(
-    geometry: Union[Polygon, MultiPolygon],
-    axis: pyplot.Axes = None,
-    show: bool = False,
-    **kwargs,
+    geometry: Union[Polygon, MultiPolygon], axis: Axis = None, show: bool = False, **kwargs,
 ):
     """
-    Plot the given polygon.
+    plot the given polygon
 
-    Parameters
-    ----------
-    geometry
-        Shapely polygon (or multipolygon)
-    axis
-        `pyplot` axis to plot to
-    show
-        whether to show the plot
+    :param geometry: Shapely polygon (or multipolygon)
+    :param axis: `pyplot` axis to plot to
+    :param show: whether to show the plot
     """
 
     if axis is None:
@@ -270,23 +219,17 @@ def plot_polygon(
 def plot_polygons(
     geometries: [Polygon],
     colors: [str] = None,
-    axis: pyplot.Axes = None,
+    axis: Axis = None,
     show: bool = False,
     **kwargs,
 ):
     """
-    Plot the given polygons using the given colors.
+    plot the given polygons using the given colors
 
-    Parameters
-    ----------
-    geometries
-        list of shapely polygons or multipolygons
-    colors
-        colors to plot each region
-    axis
-        `pyplot` axis to plot to
-    show
-        whether to show the plot
+    :param geometries: list of shapely polygons or multipolygons
+    :param colors: colors to plot each region
+    :param axis: `pyplot` axis to plot to
+    :param show: whether to show the plot
     """
 
     if axis is None:
@@ -309,25 +252,15 @@ def plot_polygons(
 
 
 def plot_bounding_box(
-    sw: (float, float),
-    ne: (float, float),
-    axis: pyplot.Axes = None,
-    show: bool = False,
-    **kwargs,
+    sw: (float, float), ne: (float, float), axis: Axis = None, show: bool = False, **kwargs,
 ):
     """
-    Plot the bounding box of the given extent.
+    plot the bounding box of the given extent
 
-    Parameters
-    ----------
-    sw
-        XY coordinates of southwest corner
-    ne
-        XY coordinates of northeast corner
-    axis
-        `pyplot` axis to plot to
-    show
-        whether to show the plot
+    :param sw: XY coordinates of southwest corner
+    :param ne: XY coordinates of northeast corner
+    :param axis: `pyplot` axis to plot to
+    :param show: whether to show the plot
     """
 
     if axis is None:
@@ -342,31 +275,23 @@ def plot_bounding_box(
 
 
 def plot_points(
-    points: Union[numpy.array, MultiPoint],
+    points: Union[numpy.ndarray, MultiPoint],
     index: int = 0,
-    axis: pyplot.Axes = None,
+    axis: Axis = None,
     show: bool = False,
     save_filename: str = None,
     title: str = None,
     **kwargs,
 ):
     """
-    Create a scatter plot of the given points.
+    create a scatter plot of the given points
 
-    Parameters
-    ----------
-    points
-        N x M array of points
-    index
-        zero-based index of vector layer to read
-    axis
-        `pyplot` axis to plot to
-    show
-        whether to show the plot
-    save_filename
-        whether to save the plot
-    title
-        whether to add a title to the plot
+    :param points: N x M array of points
+    :param index: zero-based index of vector layer to read
+    :param axis: `pyplot` axis to plot to
+    :param show: whether to show the plot
+    :param save_filename: whether to save the plot
+    :param title: whether to add a title to the plot
     """
 
     if type(points) is MultiPoint:
@@ -398,24 +323,22 @@ def plot_points(
         pyplot.close()
 
 
-# def plot_geoarray(array: numpy.array, transform: Affine = None,
-#                   nodata: float = None, axis: pyplot.Axes = None,
-#                   show: bool = False, **kwargs):
+# def plot_geoarray(
+#     array: numpy.ndarray,
+#     transform: Affine = None,
+#     nodata: float = None,
+#     axis: Axis = None,
+#     show: bool = False,
+#     **kwargs,
+# ):
 #     """
-#     Plot the given georeferenced array.
+#     plot the given georeferenced array
 #
-#     Parameters
-#     ----------
-#     array
-#         2D array of gridded data
-#     transform
-#         affine matrix transform
-#     nodata
-#         value representing no data in the given data
-#     axis
-#         `pyplot` axis to plot to
-#     show
-#         whether to show the plot
+#     :param array: 2D array of gridded data
+#     :param transform: affine matrix transform
+#     :param nodata: value representing no data in the given data
+#     :param axis: `pyplot` axis to plot to
+#     :param show: whether to show the plot
 #     """
 #
 #     origin = (transform.c, transform.f)
@@ -435,29 +358,25 @@ def plot_points(
 #     # if resolution[1] < 0:
 #     #     data = numpy.flip(data, axis=0)
 #
-#     bounds = bounds_from_opposite_corners(origin, origin + numpy.flip(
-#         array.shape) * resolution)
+#     bounds = bounds_from_opposite_corners(
+#         origin, origin + numpy.flip(array.shape) * resolution
+#     )
 #     axis.matshow(array, extent=bounds[[0, 2, 1, 3]], aspect='auto', **kwargs)
 #
 #     if show:
 #         pyplot.show()
-#
-#
-# def plot_dataset(dataset: gdal.Dataset, index: int = 0,
-#                  axis: pyplot.Axes = None, show: bool = False, **kwargs):
+
+
+# def plot_dataset(
+#     dataset: gdal.Dataset, index: int = 0, axis: Axis = None, show: bool = False, **kwargs,
+# ):
 #     """
-#     Plot the given GDAL dataset.
+#     plot the given GDAL dataset.
 #
-#     Parameters
-#     ----------
-#     dataset
-#         GDAL dataset (raster or point cloud)
-#     index
-#         zero-based index of raster band / vector layer to read
-#     axis
-#         `pyplot` axis to plot to
-#     show
-#         whether to show the plot
+#     :param dataset: GDAL dataset (raster or point cloud)
+#     :param index: zero-based index of raster band / vector layer to read
+#     :param axis: `pyplot` axis to plot to
+#     :param show: whether to show the plot
 #     """
 #
 #     if dataset.RasterCount > 0:
@@ -470,55 +389,45 @@ def plot_points(
 #             nodata = _maxValue(raster_data)
 #         del raster_band
 #
-#         plot_geoarray(raster_data.astype('float64'), transform, nodata, axis,
-#                       show, **kwargs)
+#         plot_geoarray(raster_data.astype('float64'), transform, nodata, axis, show, **kwargs)
 #     else:
 #         plot_points(gdal_to_xyz(dataset), index, axis, show, **kwargs)
-#
-#
-# def plot_interpolation(original_dataset: gdal.Dataset,
-#                        interpolated_raster: gdal.Dataset,
-#                        method: str, input_index: int = 0,
-#                        output_index: int = 0,
-#                        show: bool = False):
+
+
+# def plot_interpolation(
+#     original_dataset: gdal.Dataset,
+#     interpolated_raster: gdal.Dataset,
+#     method: str,
+#     input_index: int = 0,
+#     output_index: int = 0,
+#     show: bool = False,
+# ):
 #     """
-#     Plot original data side-by-side with an interpolated raster for
-#     comparison.
+#     plot original data side-by-side with an interpolated raster for comparison
 #
-#     Parameters
-#     ----------
-#     original_dataset
-#         GDAL dataset (point cloud or raster) of original data
-#     interpolated_raster
-#         GDAL raster of interpolated data
-#     method
-#         method of interpolation
-#     input_index
-#         zero-based index of layer / band to read from the input dataset
-#     output_index
-#         zero-based index of band to read from the output raster
-#     show
-#         whether to show the plot
+#     :param original_dataset: GDAL dataset (point cloud or raster) of original data
+#     :param interpolated_raster: GDAL raster of interpolated data
+#     :param method: method of interpolation
+#     :param input_index: zero-based index of layer / band to read from the input dataset
+#     :param output_index: zero-based index of band to read from the output raster
+#     :param show: whether to show the plot
 #     """
 #
 #     if original_dataset.RasterCount > 0:
-#         original_raster_band = original_dataset.GetRasterBand(input_index
-#         + 1)
+#         original_raster_band = original_dataset.GetRasterBand(input_index + 1)
 #         original_data = original_raster_band.ReadAsArray()
 #         original_nodata = original_raster_band.GetNoDataValue()
 #         original_data[original_data == original_nodata] = numpy.nan
 #     else:
 #         original_data = gdal_to_xyz(original_dataset)[:, input_index + 2]
 #
-#     interpolated_raster_band = interpolated_raster.GetRasterBand(
-#         output_index + 1)
+#     interpolated_raster_band = interpolated_raster.GetRasterBand(output_index + 1)
 #     interpolated_nodata = interpolated_raster_band.GetNoDataValue()
 #     interpolated_data = interpolated_raster_band.ReadAsArray()
 #     interpolated_data[interpolated_data == interpolated_nodata] = numpy.nan
 #
 #     # get minimum and maximum values for all three dimensions
-#     z_values = numpy.concatenate(
-#         (numpy.ravel(interpolated_data), numpy.ravel(original_data)))
+#     z_values = numpy.concatenate((numpy.ravel(interpolated_data), numpy.ravel(original_data)))
 #     min_z = numpy.nanmin(z_values)
 #     max_z = numpy.nanmax(z_values)
 #
@@ -526,46 +435,37 @@ def plot_points(
 #     figure = pyplot.figure()
 #     left_axis = figure.add_subplot(1, 2, 1)
 #     left_axis.set_title('survey data')
-#     right_axis = figure.add_subplot(1, 2, 2, sharex=left_axis,
-#                                     sharey=left_axis)
+#     right_axis = figure.add_subplot(1, 2, 2, sharex=left_axis, sharey=left_axis)
 #     right_axis.set_title(f'{method} interpolation to raster')
 #
 #     # plot data
-#     plot_dataset(original_dataset, input_index, left_axis, vmin=min_z,
-#                  vmax=max_z)
-#     plot_dataset(interpolated_raster, input_index, right_axis, vmin=min_z,
-#                  vmax=max_z)
+#     plot_dataset(original_dataset, input_index, left_axis, vmin=min_z, vmax=max_z)
+#     plot_dataset(interpolated_raster, input_index, right_axis, vmin=min_z, vmax=max_z)
 #     right_axis.axes.get_yaxis().set_visible(False)
 #
 #     # create colorbar
-#     figure.colorbar(ScalarMappable(norm=Normalize(vmin=min_z, vmax=max_z)),
-#                     ax=(right_axis, left_axis))
+#     figure.colorbar(
+#         ScalarMappable(norm=Normalize(vmin=min_z, vmax=max_z)), ax=(right_axis, left_axis)
+#     )
 #
 #     # pause program execution and show the figure
 #     if show:
 #         pyplot.show()
-#
-#
-# def _maxValue(arr: numpy.array):
-#     """
-#     Returns the most used value in the array as an integer
-#
-#     Takes an input array and finds the most used value in the array, this
-#     value is used by the program to assume the array's nodata value
-#
-#     Parameters
-#     ----------
-#     arr: numpy.array :
-#         An input array
-#
-#     Returns
-#     -------
-#
-#     """
-#
-#     nums, counts = numpy.unique(arr, return_counts=True)
-#     index = numpy.where(counts == numpy.amax(counts))
-#     return int(nums[index])
+
+
+def _maxValue(arr: numpy.ndarray):
+    """
+    returns the most used value in the array as an integer
+
+    Takes an input array and finds the most used value in the array, this
+    value is used by the program to assume the array's nodata value
+
+    :param arr: An input array
+    """
+
+    nums, counts = numpy.unique(arr, return_counts=True)
+    index = numpy.where(counts == numpy.amax(counts))
+    return int(nums[index])
 
 
 def download_coastline(overwrite: bool = False) -> pathlib.Path:
@@ -589,7 +489,7 @@ def download_coastline(overwrite: bool = False) -> pathlib.Path:
     return coastline_filename
 
 
-def plot_coastline(axis: Axes = None, show: bool = False, save_filename: PathLike = None):
+def plot_coastline(axis: Axis = None, show: bool = False, save_filename: PathLike = None):
     if axis is None:
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
@@ -654,7 +554,7 @@ def plot_node_map(
     map_title: str = None,
     colors: [] = None,
     storm: str = None,
-    map_axis: pyplot.Axes = None,
+    map_axis: Axis = None,
 ):
     if map_title is None:
         map_title = f'{len(nodes["node"])} nodes'
