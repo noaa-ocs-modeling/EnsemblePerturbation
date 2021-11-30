@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from os import PathLike
 from pathlib import Path
 import pickle
-from typing import Any, Collection, Mapping, Union
+from typing import Any, Collection, Dict, List, Mapping, Union
 
 import dask
 import geopandas
@@ -491,8 +491,8 @@ def pickle_data(data: Any, filename: PathLike) -> Path:
 
 
 def parse_adcirc_outputs(
-    directory: PathLike = None, file_outputs: [str] = None, parallel: bool = False,
-) -> {str: dict}:
+    directory: PathLike = None, file_outputs: List[str] = None, parallel: bool = False,
+) -> Dict[str, dict]:
     """
     Parse output from multiple ADCIRC runs.
 
@@ -541,7 +541,7 @@ def combine_outputs(
     only_inundated: bool = False,
     output_directory: PathLike = None,
     parallel: bool = False,
-) -> {str: DataFrame}:
+) -> Dict[str, DataFrame]:
     if directory is None:
         directory = Path.cwd()
     elif not isinstance(directory, Path):

@@ -3,14 +3,13 @@ import os
 from os import PathLike
 from pathlib import Path
 
-from adcircpy.forcing.winds.best_track import FileDeck
 from coupledmodeldriver.client.initialize_adcirc import (
     initialize_adcirc,
     parse_initialize_adcirc_arguments,
 )
 from coupledmodeldriver.configure import BestTrackForcingJSON
 
-from ensembleperturbation.perturbation.atcf import VortexPerturber
+from ensembleperturbation.perturbation.atcf import perturb_tracks
 
 
 def write_vortex_perturbations(
@@ -45,6 +44,8 @@ def write_vortex_perturbations(
     original_track_filename = track_directory / 'original.22'
 
     if original_track_filename.exists():
+        storm_id = original_track_filename
+
         vortex_forcing = BestTrackForcingJSON.from_fort22(
             original_track_filename,
             start_date=modeled_start_time,

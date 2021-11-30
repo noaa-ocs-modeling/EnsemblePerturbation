@@ -30,8 +30,8 @@ Variables that can be perturbed:
   mean absolute errors.
 
 By William Pringle, Argonne National Laboratory, Mar-May 2021
-   Zach Burnett, NOS/NOAA
-   Saeed Moghimi, NOS/NOAA
+Zach Burnett, NOS/NOAA
+Saeed Moghimi, NOS/NOAA
 """
 
 from abc import ABC
@@ -157,7 +157,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         self,
         lower_bound: float = None,
         upper_bound: float = None,
-        historical_forecast_errors: {str: DataFrame} = None,
+        historical_forecast_errors: Dict[str, DataFrame] = None,
         default: float = None,
         unit: pint.Unit = None,
     ):
@@ -206,7 +206,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         self.__upper_bound = upper_bound
 
     @property
-    def historical_forecast_errors(self) -> {str: DataFrame}:
+    def historical_forecast_errors(self) -> Dict[str, DataFrame]:
         for classification, dataframe in self.__historical_forecast_errors.items():
             for column in dataframe:
                 pint_type = PintType(self.unit)
@@ -223,7 +223,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         return self.__historical_forecast_errors
 
     @historical_forecast_errors.setter
-    def historical_forecast_errors(self, historical_forecast_errors: {str: DataFrame}):
+    def historical_forecast_errors(self, historical_forecast_errors: Dict[str, DataFrame]):
         for classification, dataframe in historical_forecast_errors.items():
             for column in dataframe:
                 pint_type = PintType(self.unit)
@@ -255,8 +255,8 @@ class VortexPerturbedVariable(VortexVariable, ABC):
     def perturb(
         self,
         vortex_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        values: List[float],
+        times: List[datetime],
         inplace: bool = False,
     ) -> DataFrame:
         """
@@ -598,13 +598,12 @@ class CrossTrack(VortexPerturbedVariable):
     def perturb(
         self,
         vortex_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        values: List[float],
+        times: List[datetime],
         inplace: bool = False,
     ) -> DataFrame:
         """
-        offset_track(df_,VT,cross_track_errors)
-          - Offsets points by a given perpendicular error/distance from the original track
+        offsets points by a given perpendicular error/distance from the original track
 
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: cross-track errors [nm] for each forecast time (VT)
@@ -758,13 +757,12 @@ class AlongTrack(VortexPerturbedVariable):
     def perturb(
         self,
         vortex_dataframe: DataFrame,
-        values: [float],
-        times: [datetime],
+        values: List[float],
+        times: List[datetime],
         inplace: bool = False,
     ) -> DataFrame:
         """
-        interpolate_along_track(df_,VT,along_track_errros)
-        Offsets points by a given error/distance by interpolating along the track
+        offsets points by a given error/distance by interpolating along the track
 
         :param vortex_dataframe: ATCF dataframe containing track info
         :param values: along-track errors for each forecast time (VT)
@@ -1001,7 +999,7 @@ class VortexPerturber:
     def write(
         self,
         perturbations: Union[int, List[float], List[Dict[str, float]], None],
-        variables: [VortexVariable],
+        variables: List[VortexVariable],
         directory: PathLike = None,
         sample_from_distribution: bool = False,
         quadrature: bool = False,
@@ -1009,7 +1007,7 @@ class VortexPerturber:
         overwrite: bool = False,
         continue_numbering: bool = False,
         parallel: bool = True,
-    ) -> [Path]:
+    ) -> List[Path]:
         """
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
@@ -1240,8 +1238,8 @@ class VortexPerturber:
         self,
         filename: PathLike,
         dataframe: DataFrame,
-        perturbation: {str: float},
-        variables: [VortexPerturbedVariable],
+        perturbation: Dict[str, float],
+        variables: List[VortexPerturbedVariable],
         weight: float = None,
     ) -> Path:
         if not isinstance(filename, Path):
@@ -1404,7 +1402,7 @@ class VortexPerturber:
         return filename
 
     @property
-    def validation_times(self) -> [timedelta]:
+    def validation_times(self) -> List[timedelta]:
         """ get the validation time of storm """
         return self.forcing.datetime - self.forcing.start_date
 
@@ -1547,7 +1545,7 @@ def get_offset(
 
 def parse_vortex_perturbations(directory: PathLike = None) -> Dataset:
     """
-    Parse `fort.22` and JSON files into a dataframe.
+    parse `fort.22` and JSON files into a dataframe
 
     :param directory: directory containing `fort.22` and JSON files of tracks
     :returns: dataframe of the variables perturbed with each track
@@ -1599,3 +1597,86 @@ def parse_vortex_perturbations(directory: PathLike = None) -> Dataset:
         },
         coords={'run': run_names, 'variable': variable_names},
     )
+
+
+def perturb_tracks(
+    perturbations: Union[int, List[float], List[Dict[str, float]]],
+    directory: PathLike = None,
+    storm: Union[str, PathLike] = None,
+    variables: List[VortexPerturbedVariable] = None,
+    start_date: datetime = None,
+    end_date: datetime = None,
+    file_deck: FileDeck = None,
+    mode: Mode = None,
+    record_type: str = None,
+    overwrite: bool = False,
+):
+    """
+    write a set of perturbed storm tracks
+
+    :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
+    :param directory: directory to which to write
+    :param storm: ATCF storm ID, or file path to an existing `fort.22` / ATCF file, from which to perturb
+    :param variables: vortex variables to perturb
+    :param start_date: model start time of ensemble
+    :param end_date: model end time of ensemble
+    :param file_deck: letter of file deck, one of `a`, `b`
+    :param mode: either `realtime` / `aid_public` or `historical` / `archive`
+    :param record_type: record type (i.e. `BEST`, `OFCL`)
+    :param overwrite: overwrite existing files
+    :return: mapping of track names to perturbation JSONs
+    """
+
+    if directory is None:
+        directory = Path.cwd()
+    elif not isinstance(directory, Path):
+        directory = Path(directory)
+    if not directory.exists():
+        directory.mkdir(parents=True, exist_ok=True)
+
+    if storm is None:
+        storm = directory / 'original.22'
+
+    if file_deck is None:
+        file_deck = FileDeck.b
+    if mode is None:
+        mode = Mode.realtime
+    if record_type is None:
+        record_type = 'BEST'
+
+    try:
+        if Path(storm).exists():
+            perturber = VortexPerturber.from_file(
+                storm, start_date=start_date, end_date=end_date,
+            )
+        else:
+            raise FileNotFoundError
+    except:
+        if storm is None:
+            raise ValueError('no storm ID specified')
+
+        perturber = VortexPerturber(
+            storm=storm,
+            start_date=start_date,
+            end_date=end_date,
+            file_deck=file_deck,
+            mode=mode,
+            record_type=record_type,
+        )
+
+    filenames = [directory / 'original.22']
+    filenames += perturber.write(
+        perturbations=perturbations,
+        variables=variables,
+        directory=directory,
+        overwrite=overwrite,
+    )
+
+    perturbations = {
+        track_filename.stem: {
+            'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, directory))}
+        }
+        for index, track_filename in enumerate(filenames)
+    }
+
+    return perturbations

@@ -3,7 +3,7 @@ import math
 from os import PathLike
 import pathlib
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 import zipfile
 
 from adcircpy.forcing import BestTrackForcing
@@ -217,8 +217,8 @@ def plot_polygon(
 
 
 def plot_polygons(
-    geometries: [Polygon],
-    colors: [str] = None,
+    geometries: List[Polygon],
+    colors: List[str] = None,
     axis: Axis = None,
     show: bool = False,
     **kwargs,

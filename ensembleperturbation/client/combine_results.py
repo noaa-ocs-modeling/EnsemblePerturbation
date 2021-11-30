@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import logging
 from os import PathLike
 from pathlib import Path
+from typing import Dict
 
 from pandas import DataFrame
 
@@ -63,7 +64,7 @@ def combine_results(
     only_inundated: (float, float, float, float) = None,
     parallel: bool = False,
     verbose: bool = False,
-) -> {str: DataFrame}:
+) -> Dict[str, DataFrame]:
     if verbose:
         get_logger(LOGGER.name, console_level=logging.DEBUG)
 

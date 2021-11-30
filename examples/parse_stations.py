@@ -8,7 +8,7 @@ from shapely.geometry import mapping, Point
 from ensembleperturbation.utilities import repository_root
 
 
-def parse_stations(filename: PathLike) -> {str: Point}:
+def parse_stations(filename: PathLike) -> Dict[str, Point]:
     with open(filename) as stations_file:
         lines = [line.split() for line in list(stations_file.readlines())[2:]]
         return {
