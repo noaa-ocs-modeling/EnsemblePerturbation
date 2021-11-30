@@ -33,7 +33,7 @@ def get_surrogate_model(
     distribution: chaospy.Distribution,
     filename: PathLike,
     use_quadrature: bool = False,
-) -> numpoly.PolyLike:
+) -> numpoly.ndpoly:
     if not isinstance(filename, Path):
         filename = Path(filename)
 
@@ -73,7 +73,7 @@ def get_sensitivities(
     perturbations: xarray.Dataset,
     subset: xarray.Dataset,
     filename: PathLike,
-) -> xarray.Dataset:
+) -> xarray.DataArray:
     if not isinstance(filename, Path):
         filename = Path(filename)
 
@@ -148,7 +148,7 @@ def get_statistics(
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
     filename: PathLike,
-):
+) -> xarray.Dataset:
     if not isinstance(filename, Path):
         filename = Path(filename)
 
