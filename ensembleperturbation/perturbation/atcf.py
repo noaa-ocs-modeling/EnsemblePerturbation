@@ -1003,7 +1003,7 @@ class VortexPerturber:
         directory: PathLike = None,
         sample_from_distribution: bool = False,
         quadrature: bool = False,
-        weights: [float] = None,
+        weights: List[float] = None,
         overwrite: bool = False,
         continue_numbering: bool = False,
         parallel: bool = True,
@@ -1451,7 +1451,7 @@ class VortexPerturber:
         return instance
 
 
-def distribution_from_variables(variables: [VortexPerturbedVariable]) -> Distribution:
+def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Distribution:
     """
     :param variables: names of perturbed variables
     :return: chaospy joint distribution encompassing variables

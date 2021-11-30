@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import logging
 from os import PathLike
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Tuple
 
 from pandas import DataFrame
 
@@ -58,10 +58,10 @@ def parse_combine_results():
 def combine_results(
     output: PathLike,
     directory: PathLike = None,
-    filenames: [str] = None,
-    bounds: (float, float, float, float) = None,
+    filenames: List[str] = None,
+    bounds: Tuple[float, float, float, float] = None,
     max_depth: float = None,
-    only_inundated: (float, float, float, float) = None,
+    only_inundated: Tuple[float, float, float, float] = None,
     parallel: bool = False,
     verbose: bool = False,
 ) -> Dict[str, DataFrame]:

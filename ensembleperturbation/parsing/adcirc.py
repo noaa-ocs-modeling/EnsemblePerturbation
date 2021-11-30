@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from os import PathLike
 from pathlib import Path
 import pickle
-from typing import Any, Collection, Dict, List, Mapping, Union
+from typing import Any, Collection, Dict, List, Mapping, Tuple, Union
 
 import dask
 import geopandas
@@ -22,18 +22,18 @@ LOGGER = get_logger('parsing.adcirc')
 
 class AdcircOutput(ABC):
     filename: PathLike
-    variables: [str]
-    drop_variables: [str] = ['neta', 'max_nvdll', 'max_nvell']
+    variables: List[str]
+    drop_variables: List[str] = ['neta', 'max_nvdll', 'max_nvell']
     nodata: float = -99999.0
 
     @classmethod
     @abstractmethod
-    def read(cls, filename: PathLike, names: [str] = None) -> Union[DataFrame, DataArray]:
+    def read(cls, filename: PathLike, names: List[str] = None) -> Union[DataFrame, DataArray]:
         raise NotImplementedError
 
     @classmethod
     def async_read(
-        cls, filename: PathLike, pickle_filename: PathLike, variables: [str] = None
+        cls, filename: PathLike, pickle_filename: PathLike, variables: List[str] = None
     ) -> (Path, Path):
         if not isinstance(filename, Path):
             filename = Path(filename)
@@ -47,7 +47,7 @@ class AdcircOutput(ABC):
 
     @classmethod
     def read_directory(
-        cls, directory: PathLike, variables: [str] = None, parallel: bool = False
+        cls, directory: PathLike, variables: List[str] = None, parallel: bool = False
     ) -> Dataset:
         """
         Compile a dataset from output files in the given directory.
@@ -127,7 +127,7 @@ class TimeSeriesOutput(ABC):
 class StationTimeSeriesOutput(AdcircOutput, TimeSeriesOutput, ABC):
     @classmethod
     @abstractmethod
-    def read(cls, filename: PathLike, names: [str] = None) -> GeoDataFrame:
+    def read(cls, filename: PathLike, names: List[str] = None) -> GeoDataFrame:
         raise NotImplementedError
 
     @classmethod
@@ -160,7 +160,7 @@ class ElevationStationOutput(StationTimeSeriesOutput):
     variables = ['station_name', 'zeta']
 
     @classmethod
-    def read(cls, filename: PathLike, names: [str] = None) -> GeoDataFrame:
+    def read(cls, filename: PathLike, names: List[str] = None) -> GeoDataFrame:
         dataset = xarray.open_dataset(filename, drop_variables=cls.drop_variables)
 
         coordinate_variables = ['x', 'y']
@@ -201,7 +201,7 @@ class VelocityStationOutput(StationTimeSeriesOutput):
     variables = ['station_name', 'u-vel', 'v-vel']
 
     @classmethod
-    def read(cls, filename: PathLike, names: [str] = None) -> GeoDataFrame:
+    def read(cls, filename: PathLike, names: List[str] = None) -> GeoDataFrame:
         dataset = xarray.open_dataset(filename, drop_variables=cls.drop_variables)
 
         coordinate_variables = ['x', 'y']
@@ -238,7 +238,7 @@ class VelocityStationOutput(StationTimeSeriesOutput):
 
 class FieldOutput(AdcircOutput, ABC):
     @classmethod
-    def read(cls, filename: PathLike, names: [str] = None) -> Union[DataFrame, DataArray]:
+    def read(cls, filename: PathLike, names: List[str] = None) -> Union[DataFrame, DataArray]:
         """
         Parse ADCIRC output files
 
@@ -449,7 +449,7 @@ class SurfaceWindTimeSeriesOutput(FieldTimeSeriesOutput):
     variables = ['windx', 'windy']
 
 
-def adcirc_file_data_variables(cls: type = None) -> {str: [str]}:
+def adcirc_file_data_variables(cls: type = None) -> Dict[str, List[str]]:
     file_data_variables = {}
     if cls is None:
         cls = AdcircOutput
@@ -535,8 +535,8 @@ def parse_adcirc_outputs(
 
 def combine_outputs(
     directory: PathLike = None,
-    file_data_variables: {str: [str]} = None,
-    bounds: (float, float, float, float) = None,
+    file_data_variables: Dict[str : List[str]] = None,
+    bounds: Tuple[float, float, float, float] = None,
     maximum_depth: float = None,
     only_inundated: bool = False,
     output_directory: PathLike = None,

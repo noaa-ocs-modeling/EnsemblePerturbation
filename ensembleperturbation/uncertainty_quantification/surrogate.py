@@ -1,3 +1,5 @@
+from typing import List
+
 import chaospy
 import numpoly
 from sklearn.linear_model import OrthogonalMatchingPursuit
@@ -11,10 +13,10 @@ LOGGER = get_logger('quadrature')
 def fit_surrogate(
     samples: xarray.DataArray,
     perturbations: xarray.DataArray,
-    polynomials: numpoly.PolyLike,
+    polynomials: numpoly.ndpoly,
     quadrature: bool = False,
     quadrature_weights: xarray.DataArray = None,
-) -> numpoly.PolyLike:
+) -> numpoly.ndpoly:
     # create surrogate models for selected nodes
     if quadrature:
         LOGGER.info(
@@ -60,8 +62,8 @@ def fit_surrogate(
 
 def get_percentiles_from_surrogate(
     samples: xarray.DataArray,
-    percentiles: [float],
-    surrogate_model: numpoly.PolyLike,
+    percentiles: List[float],
+    surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')

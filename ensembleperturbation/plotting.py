@@ -3,7 +3,7 @@ import math
 from os import PathLike
 import pathlib
 from pathlib import Path
-from typing import List, Union
+from typing import Dict, List, Union
 import zipfile
 
 from adcircpy.forcing import BestTrackForcing
@@ -506,7 +506,7 @@ def plot_coastline(axis: Axis = None, show: bool = False, save_filename: PathLik
 
 
 def node_color_map(
-    nodes: xarray.Dataset, colors: [] = None
+    nodes: xarray.Dataset, colors: list = None
 ) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
     if colors is None:
         color_map = cm.get_cmap('jet')
@@ -552,7 +552,7 @@ def node_color_map(
 def plot_node_map(
     nodes: xarray.Dataset,
     map_title: str = None,
-    colors: [] = None,
+    colors: list = None,
     storm: str = None,
     map_axis: Axis = None,
 ):
@@ -694,8 +694,8 @@ def plot_nodes_across_runs(
 
 
 def comparison_plot_grid(
-    variables: [str], figure: Figure = None
-) -> ({str: {str: Axis}}, gridspec.GridSpec):
+    variables: List[str], figure: Figure = None
+) -> (Dict[str, Dict[str, Axis]], gridspec.GridSpec):
     if figure is None:
         figure = pyplot.figure()
 
@@ -829,7 +829,7 @@ def plot_comparison(
     output_filename: PathLike = None,
     reference_line: bool = True,
     figure: Figure = None,
-    axes: {str: {str: Axis}} = None,
+    axes: Dict[str, Dict[str, Axis]] = None,
     **kwargs,
 ):
     if 'source' not in nodes.dims:
@@ -878,8 +878,8 @@ def plot_comparison(
 def plot_perturbations(
     training_perturbations: xarray.Dataset,
     validation_perturbations: xarray.Dataset,
-    runs: [str],
-    perturbation_types: [str],
+    runs: List[str],
+    perturbation_types: List[str],
     track_directory: PathLike = None,
     output_directory: PathLike = None,
 ):

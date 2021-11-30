@@ -1,5 +1,6 @@
 from os import PathLike
 from pathlib import Path
+from typing import List
 
 from adcircpy.forcing import BestTrackForcing
 import chaospy
@@ -190,7 +191,7 @@ def get_statistics(
 
 
 def get_percentiles(
-    percentiles: [float],
+    percentiles: List[float],
     surrogate_model: numpoly.PolyLike,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,

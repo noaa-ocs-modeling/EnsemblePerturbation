@@ -40,7 +40,11 @@ DEPENDENCIES = {
 
 def installed_packages() -> List[str]:
     installed_distributions = importlib_metadata.distributions()
-    return [distribution.metadata['Name'].lower() for distribution in installed_distributions if distribution.metadata['Name'] is not None]
+    return [
+        distribution.metadata['Name'].lower()
+        for distribution in installed_distributions
+        if distribution.metadata['Name'] is not None
+    ]
 
 
 def missing_packages(required_packages: Dict[str, List[str]]) -> Dict[str, List[str]]:

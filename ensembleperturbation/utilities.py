@@ -119,7 +119,7 @@ class ProcessPoolExecutorStackTraced(ProcessPoolExecutor):
             raise sys.exc_info()[0](traceback.format_exc())
 
 
-def encode_categorical_values(values: [], unique_values: [] = None) -> []:
+def encode_categorical_values(values: list, unique_values: list = None) -> list:
     if unique_values is None:
         unique_values = numpy.unique(values)
 
