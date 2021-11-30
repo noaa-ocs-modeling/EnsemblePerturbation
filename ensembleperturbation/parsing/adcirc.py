@@ -23,7 +23,7 @@ LOGGER = get_logger('parsing.adcirc')
 class AdcircOutput(ABC):
     filename: PathLike
     variables: [str]
-    drop_variables: [str] = ['neta', 'max_nvdll']
+    drop_variables: [str] = ['neta', 'max_nvdll', 'max_nvell']
     nodata: float = -99999.0
 
     @classmethod
@@ -518,8 +518,8 @@ def parse_adcirc_outputs(
         }
 
     for basename, output_class in file_outputs.items():
-        if isinstance(output_class, AdcircOutput):
-            file_outputs[basename] = output_class.__class__
+        if issubclass(output_class, AdcircOutput):
+            file_outputs[basename] = output_class
 
     output_tree = {}
     for basename, output_class in file_outputs.items():

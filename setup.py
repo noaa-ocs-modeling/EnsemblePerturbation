@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from importlib import metadata as importlib_metadata
 import os
 from pathlib import Path
 import re
@@ -38,12 +39,8 @@ DEPENDENCIES = {
 
 
 def installed_packages() -> List[str]:
-    return [
-        re.split('#egg=', re.split('==| @ ', package.decode())[0])[-1].lower()
-        for package in subprocess.run(
-            f'{sys.executable} -m pip freeze', shell=True, capture_output=True,
-        ).stdout.splitlines()
-    ]
+    installed_distributions = importlib_metadata.distributions()
+    return [distribution.metadata['Name'].lower() for distribution in installed_distributions if distribution.metadata['Name'] is not None]
 
 
 def missing_packages(required_packages: Dict[str, List[str]]) -> Dict[str, List[str]]:
