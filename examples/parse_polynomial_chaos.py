@@ -69,7 +69,7 @@ def get_surrogate_model(
 
 
 def get_sensitivities(
-    surrogate_model: numpoly.PolyLike,
+    surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     perturbations: xarray.Dataset,
     subset: xarray.Dataset,
@@ -99,7 +99,7 @@ def get_sensitivities(
 
 
 def get_validations(
-    surrogate_model: numpoly.PolyLike,
+    surrogate_model: numpoly.ndpoly,
     training_set: xarray.Dataset,
     training_perturbations: xarray.Dataset,
     validation_set: xarray.Dataset,
@@ -145,7 +145,7 @@ def get_validations(
 
 
 def get_statistics(
-    surrogate_model: numpoly.PolyLike,
+    surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
     filename: PathLike,
@@ -192,7 +192,7 @@ def get_statistics(
 
 def get_percentiles(
     percentiles: List[float],
-    surrogate_model: numpoly.PolyLike,
+    surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
     filename: PathLike,
