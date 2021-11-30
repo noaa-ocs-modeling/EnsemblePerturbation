@@ -535,7 +535,7 @@ def parse_adcirc_outputs(
 
 def combine_outputs(
     directory: PathLike = None,
-    file_data_variables: Dict[str : List[str]] = None,
+    file_data_variables: Dict[str, List[str]] = None,
     bounds: Tuple[float, float, float, float] = None,
     maximum_depth: float = None,
     only_inundated: bool = False,
