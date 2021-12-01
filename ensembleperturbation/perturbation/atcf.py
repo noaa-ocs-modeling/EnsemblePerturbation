@@ -1,39 +1,3 @@
-#! /usr/bin/env python3
-"""
-Script to:
-(1) extract an ATCF best track dataset;
-(2) randomly perturb different parameters (e.g., intensity,
-size, track coordinates) to generate an ensemble; and
-(3) write out each ensemble member to the fort.22 ATCF
-tropical cyclone vortex format file.
-
-Variables that can be perturbed:
-- "max_sustained_wind_speed" (Vmax) is made weaker/stronger
-  based on random gaussian distribution with sigma scaled by
-  historical mean absolute errors. central_pressure (pc)
-  is then changed proportionally based on Holland B
-
-- "radius_of_maximum_winds" (Rmax) is made small/larger
-  based on random number in a range bounded by the 15th and
-  85th percentile CDF of historical forecast errors.
-
-- "along_track" variable is used to offset the coordinate of
-  the tropical cyclone center at each forecast time forward or
-  backward along the given track based on a random gaussian
-  distribution with sigma scaled by historical mean absolute
-  errors.
-
-- "cross_track" variable is used to offset the coordinate of
-  the tropical cyclone center at each forecast time a certain
-  perpendicular distance from the given track based on a
-  random gaussian distribution with sigma scaled by historical
-  mean absolute errors.
-
-By William Pringle, Argonne National Laboratory, Mar-May 2021
-Zach Burnett, NOS/NOAA
-Saeed Moghimi, NOS/NOAA
-"""
-
 from abc import ABC
 import concurrent.futures
 from concurrent.futures import ProcessPoolExecutor
@@ -251,9 +215,22 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         return vortex_dataframe
 
 
-class MaximumSustainedWindSpeed(VortexPerturbedVariable):
-    name = 'max_sustained_wind_speed'
+class VortexGaussianPerturbedVariable(VortexPerturbedVariable):
     perturbation_type = PerturbationType.GAUSSIAN
+
+
+class VortexUniformPerturbedVariable(VortexPerturbedVariable):
+    perturbation_type = PerturbationType.UNIFORM
+
+
+class MaximumSustainedWindSpeed(VortexGaussianPerturbedVariable):
+    """
+    ``max_sustained_wind_speed`` (``Vmax``) represents the maximum wind speed sustained by the storm.
+    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    ``central_pressure`` (``pc``) is then changed proportionally based on the Holland B parameter.
+    """
+
+    name = 'max_sustained_wind_speed'
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
@@ -290,9 +267,13 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         )
 
 
-class RadiusOfMaximumWinds(VortexPerturbedVariable):
+class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
+    """
+    ``radius_of_maximum_winds`` (``Rmax``)
+    It is perturbed along a random distribution between the 15th and 85th percentile CDFs of historical forecast errors.
+    """
+
     name = 'radius_of_maximum_winds'
-    perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
         super().__init__(
@@ -444,9 +425,13 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
         )
 
 
-class CrossTrack(VortexPerturbedVariable):
+class CrossTrack(VortexGaussianPerturbedVariable):
+    """
+    ``cross_track``  represents a perpendicular offset of the tropical cyclone center track, accomplished by moving each forecast time left or right perpedicular to the track line.
+    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    """
+
     name = 'cross_track'
-    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 8: Adjusted cross-track errors [nm] for 2015-2019
@@ -603,9 +588,13 @@ class CrossTrack(VortexPerturbedVariable):
         return vortex_dataframe
 
 
-class AlongTrack(VortexPerturbedVariable):
+class AlongTrack(VortexGaussianPerturbedVariable):
+    """
+    ``along_track`` represents a parallel offset of the tropical cyclone center track, accomplished by moving each forecast time forward or backward along the track line.
+    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    """
+
     name = 'along_track'
-    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 7: Adjusted along-track errors [nm] for 2015-2019

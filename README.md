@@ -7,7 +7,8 @@
 [![license](https://img.shields.io/github/license/noaa-ocs-modeling/EnsemblePerturbation)](https://creativecommons.org/share-your-work/public-domain/cc0)
 [![style](https://sourceforge.net/p/oitnb/code/ci/default/tree/_doc/_static/oitnb.svg?format=raw)](https://sourceforge.net/p/oitnb/code)
 
-Python library for perturbing coupled model inputs into ensemble runs. Provides perturbation and results comparison.
+Python library for perturbing coupled model inputs into ensemble runs. Provides
+perturbation and results comparison.
 
 ```bash
 pip install ensembleperturbation
@@ -17,5 +18,7 @@ pip install ensembleperturbation
 
 `ensembleperturbation` exposes the following CLI commands:
 
-- `perturb_tracks`
 - `make_storm_ensemble`
+- `perturb_tracks`
+- `combine_results`
+- `plot_results`
