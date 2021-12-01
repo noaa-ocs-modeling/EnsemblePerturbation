@@ -95,3 +95,14 @@ ij_yaml_keep_line_breaks = true
 ij_yaml_space_before_colon = false
 ij_yaml_spaces_within_braces = true
 ij_yaml_spaces_within_brackets = true
+
+[{*.rst,*.rst.txt}]
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_size = 3
+max_line_length = 80
+
+# MD-Files
+[*.md]
+trim_trailing_whitespace = true
+max_line_length = 80
