@@ -280,22 +280,15 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         return self.historical_forecast_errors[storm_classification]
 
 
-class VortexGaussianPerturbedVariable(VortexPerturbedVariable):
-    perturbation_type = PerturbationType.GAUSSIAN
-
-
-class VortexUniformPerturbedVariable(VortexPerturbedVariable):
-    perturbation_type = PerturbationType.UNIFORM
-
-
-class MaximumSustainedWindSpeed(VortexGaussianPerturbedVariable):
+class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     """
     ``max_sustained_wind_speed`` (``Vmax``) represents the maximum wind speed sustained by the storm.
-    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors.
     ``central_pressure`` (``pc``) is then changed proportionally based on the Holland B parameter.
     """
 
     name = 'max_sustained_wind_speed'
+    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
@@ -332,13 +325,14 @@ class MaximumSustainedWindSpeed(VortexGaussianPerturbedVariable):
         )
 
 
-class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
+class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
     ``radius_of_maximum_winds`` (``Rmax``)
     It is perturbed along a random distribution between the 15th and 85th percentile CDFs of historical forecast errors.
     """
 
     name = 'radius_of_maximum_winds'
+    perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
         super().__init__(
@@ -516,13 +510,14 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
         return self.historical_forecast_errors[storm_classification]
 
 
-class CrossTrack(VortexGaussianPerturbedVariable):
+class CrossTrack(VortexPerturbedVariable):
     """
     ``cross_track``  represents a perpendicular offset of the tropical cyclone center track, accomplished by moving each forecast time left or right perpedicular to the track line.
-    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors.
     """
 
     name = 'cross_track'
+    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 8: Adjusted cross-track errors [nm] for 2015-2019
@@ -679,13 +674,14 @@ class CrossTrack(VortexGaussianPerturbedVariable):
         return vortex_dataframe
 
 
-class AlongTrack(VortexGaussianPerturbedVariable):
+class AlongTrack(VortexPerturbedVariable):
     """
     ``along_track`` represents a parallel offset of the tropical cyclone center track, accomplished by moving each forecast time forward or backward along the track line.
-    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors.
     """
 
     name = 'along_track'
+    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 7: Adjusted along-track errors [nm] for 2015-2019
@@ -852,17 +848,42 @@ class AlongTrack(VortexGaussianPerturbedVariable):
 
 class VortexPerturber:
     """
-    ``VortexPerturber`` takes a best track from an input storm and perturbs it based on several variables (of the class ``VortexPerturbedVariable``)
+    ``VortexPerturber`` takes an ATCF track from an input storm and perturbs it based on several variables (of the class ``VortexPerturbedVariable``)
 
     .. code-block::
 
+        # retrieve initial storm track for Florence 2018 (defaults to archival best track)
         perturber = VortexPerturber(storm='florence2018')
 
-        perturbed_filenames += perturber.write(
-            perturbations=perturbations,
-            variables=variables,
-            directory=directory,
-            overwrite=overwrite,
+        # write 3 tracks perturbed using specified perturbation values (perturbations are of sigma values (``0`` - ``1`` for uniform or ``-1`` - ``1`` for gaussian) that are then scaled to historical errors per-variable
+        perturber.write(
+            perturbations=[
+                -1.0,
+                {
+                    MaximumSustainedWindSpeed: -0.25,
+                    CrossTrack: 0.25,
+                    'along_track': 0.75,
+                    'radius_of_maximum_winds': -1,
+                },
+                0.75,
+            ],
+            variables=[MaximumSustainedWindSpeed, RadiusOfMaximumWinds, CrossTrack, AlongTrack],
+            directory='./3_tracks_perturbed_specifically',
+        )
+
+        # write 5 randomly-perturbed tracks, drawing randomly from the distribution of each variable except for ``CrossTrack``
+        perturber.write(
+            perturbations=5,
+            variables=[MaximumSustainedWindSpeed, RadiusOfMaximumWinds, AlongTrack],
+            directory='./5_tracks_perturbed_randomly_except_crosstrack',
+        )
+
+        # write tracks perturbed along the quadrature (`4^n` where `n` is the number of variables)
+        perturber.write(
+            perturbations=None,
+            quadrature=True,
+            variables=[MaximumSustainedWindSpeed, RadiusOfMaximumWinds, CrossTrack, AlongTrack],
+            directory='./256_tracks_perturbed_along_quadrature',
         )
 
     """
