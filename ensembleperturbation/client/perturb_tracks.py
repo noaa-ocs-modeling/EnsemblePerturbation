@@ -11,7 +11,7 @@ from ensembleperturbation.perturbation.atcf import perturb_tracks
 
 def main():
     arguments = parse_initialize_adcirc_arguments(
-        extra_arguments={'perturbations': int, 'variables': [str]}
+        extra_arguments={'perturbations': int, 'variables': [str], 'sample': bool, 'quadrature': bool}
     )
 
     if arguments['perturbations'] is None:
@@ -56,6 +56,8 @@ def main():
         directory=Path(arguments['output_directory']) / 'track_files',
         storm=storm_id,
         variables=arguments['variables'],
+        sample_from_distribution=arguments['sample'],
+        quadrature=arguments['quadrature'],
         start_date=arguments['modeled_start_time'],
         end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
         overwrite=arguments['overwrite'],

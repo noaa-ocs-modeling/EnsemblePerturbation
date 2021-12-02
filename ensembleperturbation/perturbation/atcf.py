@@ -32,7 +32,7 @@ import typepigeon
 import xarray
 from xarray import Dataset
 
-from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
+from ensembleperturbation.utilities import ProcessPoolExecutorStackTraced, get_logger, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -251,9 +251,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         all_values = variable_values - values
         vortex_dataframe[self.name] = [
-            min(self.upper_bound, max(value, self.lower_bound)).magnitude
-            for value in all_values
-        ] * self.unit
+                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
+                                          for value in all_values
+                                      ] * self.unit
 
         return vortex_dataframe
 
@@ -1628,6 +1628,8 @@ def perturb_tracks(
     directory: PathLike = None,
     storm: Union[str, PathLike] = None,
     variables: List[VortexPerturbedVariable] = None,
+    sample_from_distribution: bool = False,
+    quadrature: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
     file_deck: FileDeck = None,
@@ -1642,6 +1644,8 @@ def perturb_tracks(
     :param directory: directory to which to write
     :param storm: ATCF storm ID, or file path to an existing `fort.22` / ATCF file, from which to perturb
     :param variables: vortex variables to perturb
+    :param sample_from_distribution: override given perturbations with random samples from the joint distribution
+    :param quadrature: add perturbations along quadrature
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
     :param file_deck: letter of file deck, one of `a`, `b`
@@ -1693,6 +1697,8 @@ def perturb_tracks(
         perturbations=perturbations,
         variables=variables,
         directory=directory,
+        sample_from_distribution=sample_from_distribution,
+        quadrature=quadrature,
         overwrite=overwrite,
     )
 
