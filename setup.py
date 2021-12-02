@@ -233,6 +233,7 @@ setup(
             'sphinx',
             'sphinx-rtd-theme',
             'sphinxcontrib-programoutput',
+            'sphinxcontrib-bibtex',
         ],
     },
     entry_points={
