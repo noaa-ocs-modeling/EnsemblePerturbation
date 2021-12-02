@@ -851,6 +851,22 @@ class AlongTrack(VortexGaussianPerturbedVariable):
 
 
 class VortexPerturber:
+    """
+    ``VortexPerturber`` takes a best track from an input storm and perturbs it based on several variables (of the class ``VortexPerturbedVariable``)
+
+    .. code-block::
+
+        perturber = VortexPerturber(storm='florence2018')
+
+        perturbed_filenames += perturber.write(
+            perturbations=perturbations,
+            variables=variables,
+            directory=directory,
+            overwrite=overwrite,
+        )
+
+    """
+
     def __init__(
         self,
         storm: str,
@@ -861,8 +877,6 @@ class VortexPerturber:
         record_type: str = None,
     ):
         """
-        build storm perturber
-
         :param storm: NHC storm code, for instance `al062018`
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble

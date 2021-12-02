@@ -11,7 +11,7 @@ CLI Commands
 ``perturb_tracks``
 ------------------
 
-``perturb_tracks`` is an extension of ``initialize_adcirc`` from `CoupledModelDriver <https://coupledmodeldriver.readthedocs.io/en/latest/client.html#initialize-adcirc-create-json-configuration-files>`_
+``perturb_tracks`` is an extension of ``initialize_adcirc`` `from CoupledModelDriver <https://coupledmodeldriver.readthedocs.io/en/latest/client.html#initialize-adcirc-create-json-configuration-files>`_
 
 .. program-output:: perturb_tracks -h
 

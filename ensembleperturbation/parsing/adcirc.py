@@ -154,7 +154,11 @@ class StationTimeSeriesOutput(AdcircOutput, TimeSeriesOutput, ABC):
 
 
 class ElevationStationOutput(StationTimeSeriesOutput):
-    """ Elevation Time Series at Specified Elevation Recording Stations (fort.61) """
+    """
+    ``fort.61`` - Elevation Time Series at Specified Elevation Recording Stations
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/elevation-time-series-specified-elevation-recording-stations-fort-61
+    """
 
     filename = 'fort.61.nc'
     variables = ['station_name', 'zeta']
@@ -195,7 +199,11 @@ class ElevationStationOutput(StationTimeSeriesOutput):
 
 
 class VelocityStationOutput(StationTimeSeriesOutput):
-    """ Depth-averaged Velocity Time Series at Specified Velocity Recording Stations (fort.62) """
+    """
+    ``fort.62`` - Depth-averaged Velocity Time Series at Specified Velocity Recording Stations
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/depth-averaged-velocity-time-series-specified-velocity-recording-stations-fort-62
+    """
 
     filename = 'fort.62.nc'
     variables = ['station_name', 'u-vel', 'v-vel']
@@ -346,49 +354,77 @@ class FieldOutput(AdcircOutput, ABC):
 
 
 class MaximumElevationOutput(FieldOutput):
-    """ Maximum Elevation at All Nodes in the Model Grid (maxele.63) """
+    """
+    ``maxele.63`` - Maximum Elevation at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
 
     filename = 'maxele.63.nc'
     variables = ['zeta_max', 'time_of_zeta_max']
 
 
 class MaximumVelocityOutput(FieldOutput):
-    """ Maximum Speed at All Nodes in the Model Grid (maxvel.63) """
+    """
+    ``maxvel.63`` - Maximum Speed at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
 
     filename = 'maxvel.63.nc'
     variables = ['vel_max', 'time_of_vel_max']
 
 
 class MinimumSurfacePressureOutput(FieldOutput):
-    """ Minimum Sea-level Pressure at All Nodes in the Model Grid (minpr.63) """
+    """
+    ``minpr.63`` - Minimum Sea-level Pressure at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
 
     filename = 'minpr.63.nc'
     variables = ['pressure_min', 'time_of_pressure_min']
 
 
 class MaximumSurfaceWindOutput(FieldOutput):
-    """ Maximum Surface Wind Speed at All Nodes in the Model Grid (maxwvel.63) """
+    """
+    ``maxwvel.63`` - Maximum Surface Wind Speed at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
 
     filename = 'maxwvel.63.nc'
     variables = ['wind_max', 'time_of_wind_max']
 
 
 class MaximumSurfaceRadiationStressOutput(FieldOutput):
-    """ Maximum Radiation Surface Stress at All Nodes in the Model Grid (maxrs.63) """
+    """
+    ``maxrs.63`` - Maximum Radiation Surface Stress at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
 
     filename = 'maxrs.63.nc'
     variables = ['radstress_max', 'time_of_radstress_max']
 
 
 class HotStartOutput(FieldOutput):
-    """ Hot Start Output (fort.67) """
+    """
+    ``fort.67`` - Hot Start Output
+
+    https://adcirc.org/home/documentation/users-manual-v52/input-file-descriptions/hot-start-files-fort-67-fort-68/
+    """
 
     filename = 'fort.67.nc'
     variables = ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel']
 
 
 class HotStartOutput2(HotStartOutput):
-    """ Hot Start Output (fort.68) """
+    """
+    ``fort.68`` - Hot Start Output
+
+    https://adcirc.org/home/documentation/users-manual-v52/input-file-descriptions/hot-start-files-fort-67-fort-68/
+    """
 
     filename = 'fort.68.nc'
 
@@ -398,7 +434,11 @@ class FieldTimeSeriesOutput(FieldOutput, TimeSeriesOutput, ABC):
 
 
 class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
-    """ Depth-averaged Velocity Time Series at Specified Velocity Recording Stations (fort.62) """
+    """
+    ``fort.63`` - Elevation Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/elevation-time-series-nodes-model-grid-fort-63
+    """
 
     filename = 'fort.63.nc'
     variables = ['zeta']
@@ -429,21 +469,33 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
 
 
 class VelocityTimeSeriesOutput(FieldTimeSeriesOutput):
-    """ Depth-averaged Velocity Time Series at All Nodes in the Model Grid (fort.64) """
+    """
+    ``fort.64`` - Depth-averaged Velocity Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/depth-averaged-velocity-time-series-nodes-model-grid-fort-64
+    """
 
     filename = 'fort.64.nc'
     variables = ['u-vel', 'v-vel']
 
 
 class SurfacePressureTimeSeriesOutput(FieldTimeSeriesOutput):
-    """ Sea-level Pressure Time Series at All Nodes in the Model Grid (fort.73) """
+    """
+    ``fort.73`` - Sea-level Pressure Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/output-file-descriptions/atmospheric-pressure-time-series-nodes-model-grid-fort-73
+    """
 
     filename = 'fort.73.nc'
     variables = ['pressure']
 
 
 class SurfaceWindTimeSeriesOutput(FieldTimeSeriesOutput):
-    """ Surface Wind Velocity Time Series at All Nodes in the Model Grid (fort.74) """
+    """
+    ``fort.74`` - Surface Wind Velocity Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/wind-stress-velocity-time-series-nodes-model-grid-fort-74
+    """
 
     filename = 'fort.74.nc'
     variables = ['windx', 'windy']
