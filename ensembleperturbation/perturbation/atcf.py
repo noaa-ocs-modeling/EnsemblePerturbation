@@ -850,7 +850,7 @@ class VortexPerturber:
     """
     ``VortexPerturber`` takes an ATCF track from an input storm and perturbs it based on several variables (of the class ``VortexPerturbedVariable``)
 
-    .. code-block::
+    .. code-block:: python
 
         # retrieve initial storm track for Florence 2018 (defaults to archival best track)
         perturber = VortexPerturber(storm='florence2018')
