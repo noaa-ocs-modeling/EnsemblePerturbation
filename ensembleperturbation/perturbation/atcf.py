@@ -1665,13 +1665,6 @@ def perturb_tracks(
     if storm is None:
         storm = directory / 'original.22'
 
-    if file_deck is None:
-        file_deck = FileDeck.b
-    if mode is None:
-        mode = Mode.realtime
-    if record_type is None:
-        record_type = 'BEST'
-
     try:
         if Path(storm).exists():
             perturber = VortexPerturber.from_file(
