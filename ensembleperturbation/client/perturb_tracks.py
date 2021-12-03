@@ -28,7 +28,7 @@ def main():
     track_directory = arguments['output_directory'] / 'track_files'
     if not track_directory.exists():
         track_directory.mkdir(parents=True, exist_ok=True)
-    original_track_filename = track_directory / 'fort.22'
+    original_track_filename = track_directory / 'original.22'
 
     if original_track_filename.exists():
         storm_id = original_track_filename
