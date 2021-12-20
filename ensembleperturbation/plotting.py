@@ -20,8 +20,7 @@ from matplotlib.patches import Patch
 from modelforcings.vortex import VortexForcing
 import numpy
 import requests
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon
-from shapely.geometry import shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon, shape as shapely_shape
 import xarray
 
 from ensembleperturbation.utilities import encode_categorical_values, get_logger
@@ -533,8 +532,8 @@ def node_color_map(
         colors = numpy.array(colors)
 
         color_map = cm.get_cmap('jet')
-        min_value = numpy.min(colors)
-        max_value = numpy.max(colors)
+        min_value = numpy.nanmin(colors)
+        max_value = numpy.nanmax(colors)
         try:
             normalization = LogNorm(vmin=min_value, vmax=max_value)
         except ValueError:
@@ -549,6 +548,28 @@ def node_color_map(
     return color_values, normalization, color_map, colors
 
 
+def colorbar_axis(normalization: Normalize, axis: Axis = None, color_map: str = None, orientation: str = None) -> Axis:
+    if axis is None:
+        axis = pyplot.gca()
+
+    if color_map is None:
+        color_map = 'jet'
+    color_map = cm.get_cmap(color_map)
+
+    if orientation is None:
+        orientation = 'horizontal'
+
+    axis.set_visible(False)
+    axis.xaxis.set_visible(False)
+    axis.yaxis.set_visible(False)
+
+    return axis.figure.colorbar(
+        mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
+        orientation=orientation,
+        ax=axis,
+    )
+
+
 def plot_node_map(
     nodes: xarray.Dataset,
     map_title: str = None,
@@ -556,9 +577,7 @@ def plot_node_map(
     storm: str = None,
     map_axis: Axis = None,
 ):
-    if map_title is None:
-        map_title = f'{len(nodes["node"])} nodes'
-    if isinstance(colors, str):
+    if isinstance(colors, str) and map_title is not None:
         map_title = f'"{colors}" of {map_title}'
 
     color_values, normalization, color_map, colors = node_color_map(nodes, colors=colors)
@@ -575,28 +594,33 @@ def plot_node_map(
     ]
 
     countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
-    if storm is not None and not isinstance(storm, VortexForcing):
-        try:
-            storm = BestTrackForcing.from_fort22(storm)
-        except FileNotFoundError:
-            storm = BestTrackForcing(storm)
-
     countries.plot(color='lightgrey', ax=map_axis)
-    storm.data.plot(
-        x='longitude',
-        y='latitude',
-        ax=map_axis,
-        label=storm.name,
-        legend=storm.name is not None,
-    )
+
+    if storm is not None:
+        if not isinstance(storm, VortexForcing):
+            try:
+                storm = BestTrackForcing.from_fort22(storm)
+            except FileNotFoundError:
+                storm = BestTrackForcing(storm)
+
+        map_axis.plot(
+            storm.data['longitude'],
+            storm.data['latitude'],
+            label=storm.name,
+        )
+
+        if storm.name is not None:
+            map_axis.legend()
 
     map_axis.scatter(
-        x=nodes['x'], y=nodes['y'], c=colors, s=2, norm=normalization, transform=map_crs
+        x=nodes['x'], y=nodes['y'], c=colors, s=2, norm=normalization, transform=map_crs,
     )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
-    map_axis.set_title(map_title)
+
+    if map_title is not None:
+        map_axis.set_title(map_title)
 
 
 def plot_nodes_across_runs(
@@ -611,13 +635,20 @@ def plot_nodes_across_runs(
     if title is not None:
         figure.suptitle(title)
 
-    grid = gridspec.GridSpec(len(nodes.data_vars), 2, figure=figure)
+    grid = gridspec.GridSpec(len(nodes.data_vars), 3, figure=figure)
 
     map_crs = cartopy.crs.PlateCarree()
-    map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
+    map_axis = figure.add_subplot(grid[:, 1], projection=map_crs)
 
     color_values, normalization, color_map, map_colors = node_color_map(nodes, colors=colors)
     plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis)
+
+    if colors is not None:
+        colorbar_axis(
+            normalization=Normalize(vmin=numpy.nanmin(color_values), vmax=numpy.nanmax(color_values)),
+            axis=figure.add_subplot(grid[:, 0]),
+            orientation='vertical',
+        )
 
     shared_axis = None
     for variable_index, (variable_name, variable) in enumerate(nodes.data_vars.items()):
@@ -625,7 +656,7 @@ def plot_nodes_across_runs(
         if shared_axis is not None:
             axis_kwargs['sharex'] = shared_axis
 
-        variable_axis = figure.add_subplot(grid[variable_index, 1], **axis_kwargs)
+        variable_axis = figure.add_subplot(grid[variable_index, 2], **axis_kwargs)
 
         if shared_axis is None:
             shared_axis = variable_axis
@@ -784,26 +815,28 @@ def plot_perturbed_variables(
 
     perturbation_colors = perturbations['weights']
     if not perturbation_colors.isnull().values.all():
-        color_map_axis = figure.add_subplot(grid[-1, -1])
-        color_map_axis.set_visible(False)
         min_value = float(perturbation_colors.min().values)
         max_value = float(perturbation_colors.max().values)
-        perturbation_colors.loc[perturbation_colors.isnull()] = 0
+
+        orientation = 'horizontal'
+
         try:
             normalization = LogNorm(vmin=min_value, vmax=max_value)
-            colorbar = figure.colorbar(
-                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
-                orientation='horizontal',
-                ax=color_map_axis,
+            colorbar = colorbar_axis(
+                normalization=normalization,
+                axis=figure.add_subplot(grid[-1, -1]),
+                orientation=orientation,
             )
         except ValueError:
             normalization = Normalize(vmin=min_value, vmax=max_value)
-            colorbar = figure.colorbar(
-                mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
-                orientation='horizontal',
-                ax=color_map_axis,
+            colorbar = colorbar_axis(
+                normalization=normalization,
+                axis=figure.add_subplot(grid[-1, -1]),
+                orientation=orientation,
             )
         colorbar.set_label('weight')
+
+        perturbation_colors.loc[perturbation_colors.isnull()] = 0
     else:
         perturbation_colors = numpy.arange(len(perturbation_colors))
         normalization = None
@@ -940,7 +973,7 @@ def plot_perturbations(
                             / max(storm['radius_of_maximum_winds']),
                         ]
                     )
-                    * 4,
+                               * 4,
                     color=colors[index],
                 )
                 map_axis.add_collection(line_collection)
@@ -987,19 +1020,49 @@ def plot_perturbations(
                 )
 
 
-def plot_sensitivities(sensitivities: xarray.Dataset, output_filename: PathLike = None):
+def plot_sensitivities(sensitivities: xarray.Dataset, storm: str = None, output_filename: PathLike = None):
     figure = pyplot.figure()
     figure.set_size_inches(12, 12 / 1.61803398875)
     figure.suptitle(
-        f'Sobol sensitivities of {len(sensitivities["variable"])} variables along {len(sensitivities["node"])} node(s)'
+        f'Sobol sensitivities of {len(sensitivities["variable"])} variable(s) and {len(sensitivities["order"])} order(s) along {len(sensitivities["node"])} node(s)'
     )
 
-    axis = figure.add_subplot(1, 1, 1)
+    grid = gridspec.GridSpec(len(sensitivities['order']), len(sensitivities['variable']) + 1, figure=figure, wspace=0,
+                             hspace=0)
+    map_crs = cartopy.crs.PlateCarree()
 
-    for variable in sensitivities['variable']:
-        axis.scatter(
-            sensitivities['node'], sensitivities.sel(variable=variable), label=variable
-        )
+    for order_index, order in enumerate(sensitivities['order']):
+        for variable_index, variable in enumerate(sensitivities['variable']):
+            axis = figure.add_subplot(grid[order_index, variable_index], projection=map_crs)
+            order_variable_sensitivities = sensitivities.sel(order=order, variable=variable)
+
+            plot_node_map(
+                order_variable_sensitivities,
+                map_title=None,
+                colors=order_variable_sensitivities,
+                storm=storm,
+                map_axis=axis,
+            )
+
+            if variable_index == 0:
+                axis.yaxis.set_visible(True)
+                axis.set_ylabel(str(order.values))
+            elif variable_index > 0:
+                axis.yaxis.set_visible(False)
+
+            if order_index == 0:
+                axis.xaxis.set_visible(True)
+                axis.set_xlabel(str(variable.values))
+                axis.xaxis.set_label_position('top')
+                axis.xaxis.tick_top()
+            elif order_index > 0:
+                axis.xaxis.set_visible(False)
+
+    colorbar_axis(
+        normalization=Normalize(vmin=0, vmax=1),
+        axis=figure.add_subplot(grid[:, -1]),
+        orientation='vertical',
+    )
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')

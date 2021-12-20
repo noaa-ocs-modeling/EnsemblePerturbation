@@ -11,7 +11,7 @@ import numpy
 import pyproj
 import xarray
 
-from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
+from ensembleperturbation.parsing.adcirc import FieldOutput, combine_outputs
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting import (
     plot_nodes_across_runs,
@@ -35,6 +35,17 @@ def get_surrogate_model(
     filename: PathLike,
     use_quadrature: bool = False,
 ) -> numpoly.ndpoly:
+    """
+    use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
+
+    :param training_set: array of data along nodes in the mesh to use to fit the model
+    :param training_perturbations: peturbations along each variable space that comprise the cloud of model inputs
+    :param distribution: ``chaospy`` distribution
+    :param filename: path to file to store polynomial
+    :param use_quadrature: assume that the variable perturbations and training set are built along a quadrature, and fit accordingly
+    :return: polynomial
+    """
+
     if not isinstance(filename, Path):
         filename = Path(filename)
 
@@ -71,20 +82,44 @@ def get_surrogate_model(
 def get_sensitivities(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
-    perturbations: xarray.Dataset,
-    subset: xarray.Dataset,
+    variables: [str],
+    nodes: xarray.Dataset,
     filename: PathLike,
 ) -> xarray.DataArray:
+    """
+    Get sensitivities of a given order for the surrogate model and distribution.
+
+    :param surrogate_model: polynomial representing the surrogate model
+    :param distribution: single or joint distribution of variable space
+    :param variables: variable names
+    :param nodes: dataset containing node information (nodes and XYZ coordinates) of mesh
+    :param filename: filename to store sensitivities
+    :return: array of sensitivities per node per variable
+    """
+
     if not isinstance(filename, Path):
         filename = Path(filename)
 
     if not filename.exists():
         LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
-        sensitivities = chaospy.Sens_m(surrogate_model, distribution)
+
+        sensitivities = [
+            chaospy.Sens_t(surrogate_model, distribution),
+            chaospy.Sens_m(surrogate_model, distribution),
+        ]
+
+        sensitivities = numpy.stack(sensitivities)
+
         sensitivities = xarray.DataArray(
             sensitivities,
-            coords={'variable': perturbations['variable'], 'node': subset['node']},
-            dims=('variable', 'node'),
+            coords={
+                'order': ['total', 'main'],
+                'variable': variables,
+                'node': nodes['node'],
+                'x': nodes['x'],
+                'y': nodes['y'],
+                'depth': nodes['depth']},
+            dims=('order', 'variable', 'node'),
         ).T
 
         sensitivities = sensitivities.to_dataset(name='sensitivities')
@@ -103,8 +138,21 @@ def get_validations(
     training_set: xarray.Dataset,
     training_perturbations: xarray.Dataset,
     validation_set: xarray.Dataset,
+    validation_perturbations: xarray.Dataset,
     filename: PathLike,
 ) -> xarray.Dataset:
+    """
+
+
+    :param surrogate_model: polynomial of surrogate model to query
+    :param training_set: set of training data (across nodes and perturbations)
+    :param training_perturbations: array of perturbations corresponding to training set
+    :param validation_set: set of validation data (across nodes and perturbations)
+    :param validation_perturbations: array of perturbations corresponding to validation set
+    :param filename: file path to which to save
+    :return: array of validations
+    """
+
     if not isinstance(filename, Path):
         filename = Path(filename)
 
@@ -384,12 +432,13 @@ if __name__ == '__main__':
         sensitivities = get_sensitivities(
             surrogate_model=surrogate_model,
             distribution=distribution,
-            perturbations=perturbations,
-            subset=subset,
+            variables=perturbations['variable'],
+            nodes=subset,
             filename=sensitivities_filename,
         )
         plot_sensitivities(
             sensitivities=sensitivities,
+            storm=storm,
             output_filename=input_directory / 'sensitivities.png' if save_plots else None,
         )
 
@@ -399,6 +448,7 @@ if __name__ == '__main__':
             training_set=training_set,
             training_perturbations=training_perturbations,
             validation_set=validation_set,
+            validation_perturbations=validation_perturbations,
             filename=validation_filename,
         )
 
