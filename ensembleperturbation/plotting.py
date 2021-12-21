@@ -548,7 +548,7 @@ def node_color_map(
     return color_values, normalization, color_map, colors
 
 
-def colorbar_axis(normalization: Normalize, axis: Axis = None, color_map: str = None, orientation: str = None) -> Axis:
+def colorbar_axis(normalization: Normalize, axis: Axis = None, color_map: str = None, orientation: str = None, own_axis:bool=False) -> Axis:
     if axis is None:
         axis = pyplot.gca()
 
@@ -559,9 +559,10 @@ def colorbar_axis(normalization: Normalize, axis: Axis = None, color_map: str = 
     if orientation is None:
         orientation = 'horizontal'
 
-    axis.set_visible(False)
-    axis.xaxis.set_visible(False)
-    axis.yaxis.set_visible(False)
+    if own_axis:
+        axis.set_visible(False)
+        axis.xaxis.set_visible(False)
+        axis.yaxis.set_visible(False)
 
     return axis.figure.colorbar(
         mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
@@ -635,10 +636,10 @@ def plot_nodes_across_runs(
     if title is not None:
         figure.suptitle(title)
 
-    grid = gridspec.GridSpec(len(nodes.data_vars), 3, figure=figure)
+    grid = gridspec.GridSpec(len(nodes.data_vars), 2, figure=figure)
 
     map_crs = cartopy.crs.PlateCarree()
-    map_axis = figure.add_subplot(grid[:, 1], projection=map_crs)
+    map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
 
     color_values, normalization, color_map, map_colors = node_color_map(nodes, colors=colors)
     plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis)
@@ -646,7 +647,7 @@ def plot_nodes_across_runs(
     if colors is not None:
         colorbar_axis(
             normalization=Normalize(vmin=numpy.nanmin(color_values), vmax=numpy.nanmax(color_values)),
-            axis=figure.add_subplot(grid[:, 0]),
+            axis=map_axis,
             orientation='vertical',
         )
 
@@ -656,7 +657,7 @@ def plot_nodes_across_runs(
         if shared_axis is not None:
             axis_kwargs['sharex'] = shared_axis
 
-        variable_axis = figure.add_subplot(grid[variable_index, 2], **axis_kwargs)
+        variable_axis = figure.add_subplot(grid[variable_index, 1], **axis_kwargs)
 
         if shared_axis is None:
             shared_axis = variable_axis
