@@ -11,7 +11,7 @@ import numpy
 import pyproj
 import xarray
 
-from ensembleperturbation.parsing.adcirc import FieldOutput, combine_outputs
+from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting import (
     plot_nodes_across_runs,
@@ -118,7 +118,8 @@ def get_sensitivities(
                 'node': nodes['node'],
                 'x': nodes['x'],
                 'y': nodes['y'],
-                'depth': nodes['depth']},
+                'depth': nodes['depth'],
+            },
             dims=('order', 'variable', 'node'),
         ).T
 

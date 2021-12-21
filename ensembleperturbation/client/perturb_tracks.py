@@ -11,7 +11,12 @@ from ensembleperturbation.perturbation.atcf import perturb_tracks
 
 def main():
     arguments = parse_initialize_adcirc_arguments(
-        extra_arguments={'perturbations': int, 'variables': [str], 'sample': bool, 'quadrature': bool}
+        extra_arguments={
+            'perturbations': int,
+            'variables': [str],
+            'sample': bool,
+            'quadrature': bool,
+        }
     )
 
     if arguments['perturbations'] is None:

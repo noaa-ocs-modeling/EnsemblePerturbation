@@ -20,7 +20,8 @@ from matplotlib.patches import Patch
 from modelforcings.vortex import VortexForcing
 import numpy
 import requests
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import shape as shapely_shape
 import xarray
 
 from ensembleperturbation.utilities import encode_categorical_values, get_logger
@@ -548,7 +549,13 @@ def node_color_map(
     return color_values, normalization, color_map, colors
 
 
-def colorbar_axis(normalization: Normalize, axis: Axis = None, color_map: str = None, orientation: str = None, own_axis:bool=False) -> Axis:
+def colorbar_axis(
+    normalization: Normalize,
+    axis: Axis = None,
+    color_map: str = None,
+    orientation: str = None,
+    own_axis: bool = False,
+) -> Axis:
     if axis is None:
         axis = pyplot.gca()
 
@@ -605,9 +612,7 @@ def plot_node_map(
                 storm = BestTrackForcing(storm)
 
         map_axis.plot(
-            storm.data['longitude'],
-            storm.data['latitude'],
-            label=storm.name,
+            storm.data['longitude'], storm.data['latitude'], label=storm.name,
         )
 
         if storm.name is not None:
@@ -646,7 +651,9 @@ def plot_nodes_across_runs(
 
     if colors is not None:
         colorbar_axis(
-            normalization=Normalize(vmin=numpy.nanmin(color_values), vmax=numpy.nanmax(color_values)),
+            normalization=Normalize(
+                vmin=numpy.nanmin(color_values), vmax=numpy.nanmax(color_values)
+            ),
             axis=map_axis,
             orientation='vertical',
         )
@@ -974,7 +981,7 @@ def plot_perturbations(
                             / max(storm['radius_of_maximum_winds']),
                         ]
                     )
-                               * 4,
+                    * 4,
                     color=colors[index],
                 )
                 map_axis.add_collection(line_collection)
@@ -1021,15 +1028,22 @@ def plot_perturbations(
                 )
 
 
-def plot_sensitivities(sensitivities: xarray.Dataset, storm: str = None, output_filename: PathLike = None):
+def plot_sensitivities(
+    sensitivities: xarray.Dataset, storm: str = None, output_filename: PathLike = None
+):
     figure = pyplot.figure()
     figure.set_size_inches(12, 12 / 1.61803398875)
     figure.suptitle(
         f'Sobol sensitivities of {len(sensitivities["variable"])} variable(s) and {len(sensitivities["order"])} order(s) along {len(sensitivities["node"])} node(s)'
     )
 
-    grid = gridspec.GridSpec(len(sensitivities['order']), len(sensitivities['variable']) + 1, figure=figure, wspace=0,
-                             hspace=0)
+    grid = gridspec.GridSpec(
+        len(sensitivities['order']),
+        len(sensitivities['variable']) + 1,
+        figure=figure,
+        wspace=0,
+        hspace=0,
+    )
     map_crs = cartopy.crs.PlateCarree()
 
     for order_index, order in enumerate(sensitivities['order']):

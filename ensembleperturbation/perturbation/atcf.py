@@ -32,7 +32,7 @@ import typepigeon
 import xarray
 from xarray import Dataset
 
-from ensembleperturbation.utilities import ProcessPoolExecutorStackTraced, get_logger, units
+from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -251,9 +251,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         all_values = variable_values - values
         vortex_dataframe[self.name] = [
-                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
-                                          for value in all_values
-                                      ] * self.unit
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            for value in all_values
+        ] * self.unit
 
         return vortex_dataframe
 

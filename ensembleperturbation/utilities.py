@@ -58,7 +58,9 @@ def get_logger(
         if '.' in name:
             if isinstance(logger.parent, logging.RootLogger):
                 for existing_console_handler in [
-                    handler for handler in logger.parent.handlers if not isinstance(handler, logging.FileHandler)
+                    handler
+                    for handler in logger.parent.handlers
+                    if not isinstance(handler, logging.FileHandler)
                 ]:
                     logger.parent.removeHandler(existing_console_handler)
             logger.parent = get_logger(name.rsplit('.', 1)[0])
@@ -66,7 +68,9 @@ def get_logger(
             # otherwise create a new split-console logger
             if console_level != logging.NOTSET:
                 for existing_console_handler in [
-                    handler for handler in logger.handlers if not isinstance(handler, logging.FileHandler)
+                    handler
+                    for handler in logger.handlers
+                    if not isinstance(handler, logging.FileHandler)
                 ]:
                     logger.removeHandler(existing_console_handler)
 
