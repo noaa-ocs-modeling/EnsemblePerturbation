@@ -1569,10 +1569,10 @@ def get_offset(
 
 def parse_vortex_perturbations(directory: PathLike = None) -> Dataset:
     """
-    parse `fort.22` and JSON files into a dataframe
+    parse `fort.22` and JSON files into a xarray dataset
 
     :param directory: directory containing `fort.22` and JSON files of tracks
-    :returns: dataframe of the variables perturbed with each track
+    :returns: array of variables perturbed with each track
     """
 
     if directory is None:
