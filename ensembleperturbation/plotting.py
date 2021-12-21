@@ -834,6 +834,7 @@ def plot_perturbed_variables(
                 normalization=normalization,
                 axis=figure.add_subplot(grid[-1, -1]),
                 orientation=orientation,
+                own_axis=True,
             )
         except ValueError:
             normalization = Normalize(vmin=min_value, vmax=max_value)
@@ -841,6 +842,7 @@ def plot_perturbed_variables(
                 normalization=normalization,
                 axis=figure.add_subplot(grid[-1, -1]),
                 orientation=orientation,
+                own_axis=True,
             )
         colorbar.set_label('weight')
 
@@ -1077,6 +1079,7 @@ def plot_sensitivities(
         normalization=Normalize(vmin=0, vmax=1),
         axis=figure.add_subplot(grid[:, -1]),
         orientation='vertical',
+        own_axis=True,
     )
 
     if output_filename is not None:
