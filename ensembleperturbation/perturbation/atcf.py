@@ -1,5 +1,6 @@
 from abc import ABC
 import concurrent.futures
+from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
 from glob import glob
@@ -659,6 +660,9 @@ class CrossTrack(VortexPerturbedVariable):
             normal_offset = numpy.mean([previous_offset, next_offset])
             alpha = abs(cross_track_error) / numpy.sqrt(numpy.sum(normal_offset ** 2))
 
+            if numpy.isinf(alpha):
+                alpha = 0
+
             # compute the next point and retrieve back the lat-lon geographic coordinate
             new_point = current_point - alpha * normal_offset
             new_coordinates.append(
@@ -1230,7 +1234,7 @@ class VortexPerturber:
                     'filename': output_filename,
                     'dataframe': original_data,
                     'perturbation': perturbation_values,
-                    'variables': variable_names,
+                    'variables': copy(variable_names),
                     'weight': float(perturbation['weights'].values),
                 }
 
@@ -1490,7 +1494,7 @@ def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Dis
 def utm_crs_from_longitude(longitude: float) -> CRS:
     """
     utm_from_lon - UTM zone for a longitude
-    Not right for some polar regions (Norway, Svalbard, Antartica)
+    Not right for some polar regions (Norway, Svalbard, Antarctica)
 
     :param longitude: longitude
     :return: coordinate reference system
@@ -1693,6 +1697,7 @@ def perturb_tracks(
         sample_from_distribution=sample_from_distribution,
         quadrature=quadrature,
         overwrite=overwrite,
+        parallel=False,
     )
 
     perturbations = {
