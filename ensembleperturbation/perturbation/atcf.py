@@ -1697,7 +1697,6 @@ def perturb_tracks(
         sample_from_distribution=sample_from_distribution,
         quadrature=quadrature,
         overwrite=overwrite,
-        parallel=False,
     )
 
     perturbations = {
