@@ -540,7 +540,7 @@ def node_color_map(
         except ValueError:
             normalization = Normalize(vmin=min_value, vmax=max_value)
 
-        if len(colors.shape) < 2 or colors.shape[1] != 4:
+        if (len(colors.shape) < 2 or colors.shape[1] != 4) and numpy.any(~numpy.isnan(colors)):
             color_values = colors
             colors = color_map(normalization(color_values))
         else:

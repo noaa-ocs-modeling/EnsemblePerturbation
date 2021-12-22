@@ -39,7 +39,7 @@ def get_surrogate_model(
     use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
 
     :param training_set: array of data along nodes in the mesh to use to fit the model
-    :param training_perturbations: peturbations along each variable space that comprise the cloud of model inputs
+    :param training_perturbations: perturbations along each variable space that comprise the cloud of model inputs
     :param distribution: ``chaospy`` distribution
     :param filename: path to file to store polynomial
     :param use_quadrature: assume that the variable perturbations and training set are built along a quadrature, and fit accordingly
@@ -376,8 +376,15 @@ if __name__ == '__main__':
         num_nodes = len(values['node'])
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = elevations['node'].where(
-                FieldOutput.subset(elevations['node'], bounds=subset_bounds), drop=True,
+                xarray.ufuncs.logical_and(
+                    ~elevations['zeta'].isnull().any('time').any('run')['node'],
+                    FieldOutput.subset(
+                        elevations['node'], maximum_depth=0, bounds=subset_bounds
+                    ),
+                ),
+                drop=True,
             )
+
             subset = values.drop_sel(run='original')
             subset = subset.sel(node=subsetted_nodes)
         if len(subset['node']) != num_nodes:
