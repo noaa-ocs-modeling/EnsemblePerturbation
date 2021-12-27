@@ -1701,7 +1701,7 @@ def perturb_tracks(
 
     perturbations = {
         track_filename.stem: {
-            'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, directory))}
+            'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, directory.parent))}
         }
         for index, track_filename in enumerate(filenames)
     }
