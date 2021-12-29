@@ -8,10 +8,9 @@ import dask
 from matplotlib import pyplot
 import numpoly
 import numpy
-import pyproj
 import xarray
 
-from ensembleperturbation.parsing.adcirc import combine_outputs, FieldOutput
+from ensembleperturbation.parsing.adcirc import FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting import (
     plot_nodes_across_runs,
@@ -21,7 +20,6 @@ from ensembleperturbation.plotting import (
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
-    karhunen_loeve_pc_coefficients,
     karhunen_loeve_prediction,
 )
 from ensembleperturbation.uncertainty_quantification.surrogate import (
@@ -32,10 +30,9 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parse_nodes')
 
+
 def get_karhunenloeve_expansion(
-    training_set: xarray.Dataset,
-    filename: PathLike,
-    variance_explained: float = 0.95,
+    training_set: xarray.Dataset, filename: PathLike, variance_explained: float = 0.95,
 ) -> dict:
     """
     use karhunen_loeve_expansion class of EnsemblePerturbation to build the Karhunen-Loeve expansion
@@ -46,13 +43,14 @@ def get_karhunenloeve_expansion(
     :return: kl_dict
     """
 
-    print('Evaluating the Karhunen-Loeve expansion...')
+    LOGGER.info('Evaluating the Karhunen-Loeve expansion...')
 
     ymodel = training_set.T
     ngrid = ymodel.shape[0]  # number of points
     nens = ymodel.shape[1]  # number of ensembles
-    print(ngrid)
-    print(nens)
+
+    LOGGER.info(f'grid nodes: {ngrid}')
+    LOGGER.info(f'members: {nens}')
 
     ## Evaluating the KL mode
     # Components of the dictionary:
@@ -60,21 +58,17 @@ def get_karhunenloeve_expansion(
     # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
     # eigenvalues is the eigenvalue vector                                    : size (neig,)
     # samples are the samples for the KL coefficients                         : size (nens, neig)
-    kl_dict = karhunen_loeve_expansion(
-        ymodel, 
-        neig=variance_explained, 
-        plot=True,
-    )
+    kl_dict = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot=True,)
 
     neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
-    print(f'Number of KL modes = {neig}')
+    LOGGER.info(f'KL modes: {neig}')
 
-    # evaluate the fit of the KL prediction
-    # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
-    ypred = karhunen_loeve_prediction(kl_dict)
+    # # evaluate the fit of the KL prediction
+    # # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
+    # ypred = karhunen_loeve_prediction(kl_dict)
 
     # plot scatter points to compare ymodel and ypred spatially
-    #for example in numpy.linspace(0, nens, num=10, endpoint=False, dtype=int):
+    # for example in numpy.linspace(0, nens, num=10, endpoint=False, dtype=int):
     #    # plot_coastline()
     #    plot_points(
     #        np.hstack((points_subset, ymodel[:, [example]])),
@@ -92,7 +86,7 @@ def get_karhunenloeve_expansion(
     #        vmax=3.0,
     #        vmin=0.0,
     #    )
-    
+
     return kl_dict
 
 
@@ -436,9 +430,7 @@ if __name__ == '__main__':
             subsetted_nodes = values['node'].where(
                 xarray.ufuncs.logical_and(
                     ~values.isnull().any('run')['node'],
-                    FieldOutput.subset(
-                        values['node'], bounds=subset_bounds
-                    ),
+                    FieldOutput.subset(values['node'], bounds=subset_bounds),
                 ),
                 drop=True,
             )
@@ -455,6 +447,11 @@ if __name__ == '__main__':
         LOGGER.info(f'loading subset from "{subset_filename}"')
         subset = xarray.open_dataset(subset_filename)[values.name]
 
+    if storm_name is not None:
+        storm = BestTrackForcing(storm_name)
+    else:
+        storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
+
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         training_set = subset.sel(run=training_perturbations['run'])
         validation_set = subset.sel(run=validation_perturbations['run'])
@@ -464,12 +461,10 @@ if __name__ == '__main__':
 
     # Evaluating the Karhunen-Loeve expansion
     kl_expansion = get_karhunenloeve_expansion(
-        training_set=training_set,
-        variance_explained=variance_explained, 
-        filename=kl_filename,
+        training_set=training_set, variance_explained=variance_explained, filename=kl_filename,
     )
 
-    print(kl_expansion)
+    LOGGER.info(f'Karhunen-Loeve expansion: {kl_expansion}')
 
     surrogate_model = get_surrogate_model(
         training_set=training_set,
