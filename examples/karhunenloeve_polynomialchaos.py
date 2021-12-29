@@ -20,7 +20,6 @@ from ensembleperturbation.plotting import (
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
-    karhunen_loeve_prediction,
 )
 from ensembleperturbation.uncertainty_quantification.surrogate import (
     fit_surrogate,
@@ -43,14 +42,11 @@ def get_karhunenloeve_expansion(
     :return: kl_dict
     """
 
-    LOGGER.info('Evaluating the Karhunen-Loeve expansion...')
-
     ymodel = training_set.T
     ngrid = ymodel.shape[0]  # number of points
     nens = ymodel.shape[1]  # number of ensembles
 
-    LOGGER.info(f'grid nodes: {ngrid}')
-    LOGGER.info(f'members: {nens}')
+    LOGGER.info(f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members')
 
     ## Evaluating the KL mode
     # Components of the dictionary:
@@ -58,10 +54,10 @@ def get_karhunenloeve_expansion(
     # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
     # eigenvalues is the eigenvalue vector                                    : size (neig,)
     # samples are the samples for the KL coefficients                         : size (nens, neig)
-    kl_dict = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot=True,)
+    kl_dict = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot=False)
 
     neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
-    LOGGER.info(f'KL modes: {neig}')
+    LOGGER.info(f'found {neig} Karhunen-Loeve modes')
 
     # # evaluate the fit of the KL prediction
     # # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)

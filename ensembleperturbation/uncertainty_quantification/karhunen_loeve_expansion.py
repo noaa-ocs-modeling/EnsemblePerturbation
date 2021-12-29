@@ -1,8 +1,10 @@
+from typing import Union
+
 from matplotlib import pyplot
 import numpy as np
 
 
-def karhunen_loeve_expansion(ymodel, neig=None, plot: bool = False):
+def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot: bool = False):
     # get the shape of the data
     ngrid, nens = ymodel.shape
 

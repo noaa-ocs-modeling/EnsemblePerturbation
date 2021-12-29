@@ -377,7 +377,7 @@ if __name__ == '__main__':
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = elevations['node'].where(
                 xarray.ufuncs.logical_and(
-                    ~elevations['zeta'].isnull().any('time').any('run')['node'],
+                    ~elevations['zeta'].isnull().any('time').any('run')['node'], # all above-0 elevations that were never dry
                     FieldOutput.subset(
                         elevations['node'], maximum_depth=0, bounds=subset_bounds
                     ),
