@@ -23,7 +23,7 @@ LOGGER = get_logger('parsing.adcirc')
 class AdcircOutput(ABC):
     filename: PathLike
     variables: List[str]
-    drop_variables: List[str] = ['neta', 'max_nvdll', 'max_nvell']
+    drop_variables: List[str] = ['neta', 'nvel', 'max_nvdll', 'max_nvell']
     nodata: float = -99999.0
 
     @classmethod
