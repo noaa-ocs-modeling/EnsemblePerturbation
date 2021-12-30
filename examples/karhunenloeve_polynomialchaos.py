@@ -1,12 +1,10 @@
 from os import PathLike
 from pathlib import Path
-from typing import List
 
 from adcircpy.forcing import BestTrackForcing
 import chaospy
 import dask
 from matplotlib import pyplot
-import numpoly
 import numpy
 import xarray
 
@@ -22,12 +20,15 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
     karhunen_loeve_expansion,
 )
 from ensembleperturbation.uncertainty_quantification.surrogate import (
-    fit_surrogate,
-    get_percentiles_from_surrogate,
+    percentiles_from_surrogate,
+    sensitivities_from_surrogate,
+    statistics_from_surrogate,
+    surrogate_from_training_set,
+    validations_from_surrogate,
 )
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('parse_nodes')
+LOGGER = get_logger('parse_karhunen_loeve')
 
 
 def get_karhunenloeve_expansion(
@@ -46,7 +47,9 @@ def get_karhunenloeve_expansion(
     ngrid = ymodel.shape[0]  # number of points
     nens = ymodel.shape[1]  # number of ensembles
 
-    LOGGER.info(f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members')
+    LOGGER.info(
+        f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
+    )
 
     ## Evaluating the KL mode
     # Components of the dictionary:
@@ -84,261 +87,6 @@ def get_karhunenloeve_expansion(
     #    )
 
     return kl_dict
-
-
-def get_surrogate_model(
-    training_set: xarray.Dataset,
-    training_perturbations: xarray.Dataset,
-    distribution: chaospy.Distribution,
-    filename: PathLike,
-    use_quadrature: bool = False,
-    polynomial_order: int = 3,
-) -> numpoly.ndpoly:
-    """
-    use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
-
-    :param training_set: array of data along nodes in the mesh to use to fit the model
-    :param training_perturbations: perturbations along each variable space that comprise the cloud of model inputs
-    :param distribution: ``chaospy`` distribution
-    :param filename: path to file to store polynomial
-    :param use_quadrature: assume that the variable perturbations and training set are built along a quadrature, and fit accordingly
-    :param polynomial_order: order of the polynomial chaos expansion
-    :return: polynomial
-    """
-
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-
-    if not filename.exists():
-        # expand polynomials with polynomial chaos
-        polynomial_expansion = chaospy.generate_expansion(
-            order=polynomial_order, dist=distribution, rule='three_terms_recurrence',
-        )
-
-        if not use_quadrature:
-            training_shape = training_set.shape
-            training_set = training_set.sel(node=~training_set.isnull().any('run'))
-            if training_set.shape != training_shape:
-                LOGGER.info(f'dropped `NaN`s to {training_set.shape}')
-
-        surrogate_model = fit_surrogate(
-            samples=training_set,
-            perturbations=training_perturbations['perturbations'],
-            polynomials=polynomial_expansion,
-            quadrature=use_quadrature,
-            quadrature_weights=training_perturbations['weights'] if use_quadrature else None,
-        )
-
-        with open(filename, 'wb') as surrogate_file:
-            LOGGER.info(f'saving surrogate model to "{filename}"')
-            surrogate_model.dump(surrogate_file)
-    else:
-        LOGGER.info(f'loading surrogate model from "{filename}"')
-        surrogate_model = chaospy.load(filename, allow_pickle=True)
-
-    return surrogate_model
-
-
-def get_sensitivities(
-    surrogate_model: numpoly.ndpoly,
-    distribution: chaospy.Distribution,
-    variables: [str],
-    nodes: xarray.Dataset,
-    filename: PathLike,
-) -> xarray.DataArray:
-    """
-    Get sensitivities of a given order for the surrogate model and distribution.
-
-    :param surrogate_model: polynomial representing the surrogate model
-    :param distribution: single or joint distribution of variable space
-    :param variables: variable names
-    :param nodes: dataset containing node information (nodes and XYZ coordinates) of mesh
-    :param filename: filename to store sensitivities
-    :return: array of sensitivities per node per variable
-    """
-
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-
-    if not filename.exists():
-        LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
-
-        sensitivities = [
-            chaospy.Sens_t(surrogate_model, distribution),
-            chaospy.Sens_m(surrogate_model, distribution),
-        ]
-
-        sensitivities = numpy.stack(sensitivities)
-
-        sensitivities = xarray.DataArray(
-            sensitivities,
-            coords={
-                'order': ['total', 'main'],
-                'variable': variables,
-                'node': nodes['node'],
-                'x': nodes['x'],
-                'y': nodes['y'],
-                'depth': nodes['depth'],
-            },
-            dims=('order', 'variable', 'node'),
-        ).T
-
-        sensitivities = sensitivities.to_dataset(name='sensitivities')
-
-        LOGGER.info(f'saving sensitivities to "{filename}"')
-        sensitivities.to_netcdf(filename)
-    else:
-        LOGGER.info(f'loading sensitivities from "{filename}"')
-        sensitivities = xarray.open_dataset(filename)
-
-    return sensitivities['sensitivities']
-
-
-def get_validations(
-    surrogate_model: numpoly.ndpoly,
-    training_set: xarray.Dataset,
-    training_perturbations: xarray.Dataset,
-    validation_set: xarray.Dataset,
-    validation_perturbations: xarray.Dataset,
-    filename: PathLike,
-) -> xarray.Dataset:
-    """
-
-
-    :param surrogate_model: polynomial of surrogate model to query
-    :param training_set: set of training data (across nodes and perturbations)
-    :param training_perturbations: array of perturbations corresponding to training set
-    :param validation_set: set of validation data (across nodes and perturbations)
-    :param validation_perturbations: array of perturbations corresponding to validation set
-    :param filename: file path to which to save
-    :return: array of validations
-    """
-
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-
-    if not filename.exists():
-        LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
-        training_results = surrogate_model(*training_perturbations['perturbations'].T).T
-        training_results = numpy.stack([training_set, training_results], axis=0)
-        training_results = xarray.DataArray(
-            training_results,
-            coords={'source': ['model', 'surrogate'], **training_set.coords},
-            dims=('source', 'run', 'node'),
-            name='training',
-        )
-
-        LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
-        node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
-        node_validation = numpy.stack([validation_set, node_validation], axis=0)
-        node_validation = xarray.DataArray(
-            node_validation,
-            coords={'source': ['model', 'surrogate'], **validation_set.coords},
-            dims=('source', 'run', 'node'),
-            name='validation',
-        )
-
-        node_validation = xarray.combine_nested(
-            [training_results.drop('type'), node_validation.drop('type')], concat_dim='type'
-        )
-        node_validation = node_validation.assign_coords(type=['training', 'validation'])
-        node_validation = node_validation.to_dataset(name='results')
-
-        LOGGER.info(f'saving validation to "{filename}"')
-        node_validation.to_netcdf(filename)
-    else:
-        LOGGER.info(f'loading validation from "{filename}"')
-        node_validation = xarray.open_dataset(filename)
-
-    return node_validation
-
-
-def get_statistics(
-    surrogate_model: numpoly.ndpoly,
-    distribution: chaospy.Distribution,
-    training_set: xarray.Dataset,
-    filename: PathLike,
-) -> xarray.Dataset:
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-
-    if not filename.exists():
-        LOGGER.info(
-            f'gathering mean and standard deviation from surrogate on {training_set.shape} training samples'
-        )
-        surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
-        surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
-        modeled_mean = training_set.mean('run')
-        modeled_std = training_set.std('run')
-
-        surrogate_mean = xarray.DataArray(
-            surrogate_mean, coords=modeled_mean.coords, dims=modeled_mean.dims,
-        )
-        surrogate_std = xarray.DataArray(
-            surrogate_std, coords=modeled_std.coords, dims=modeled_std.dims,
-        )
-
-        node_statistics = xarray.Dataset(
-            {
-                'mean': xarray.combine_nested(
-                    [surrogate_mean, modeled_mean], concat_dim='source'
-                ).assign_coords({'source': ['surrogate', 'model']}),
-                'std': xarray.combine_nested(
-                    [surrogate_std, modeled_std], concat_dim='source'
-                ).assign_coords({'source': ['surrogate', 'model']}),
-                'difference': xarray.ufuncs.fabs(surrogate_std - modeled_std),
-            }
-        )
-
-        LOGGER.info(f'saving statistics to "{filename}"')
-        node_statistics.to_netcdf(filename)
-    else:
-        LOGGER.info(f'loading statistics from "{filename}"')
-        node_statistics = xarray.open_dataset(filename)
-
-    return node_statistics
-
-
-def get_percentiles(
-    percentiles: List[float],
-    surrogate_model: numpoly.ndpoly,
-    distribution: chaospy.Distribution,
-    training_set: xarray.Dataset,
-    filename: PathLike,
-) -> xarray.Dataset:
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-
-    if not filename.exists():
-        surrogate_percentiles = get_percentiles_from_surrogate(
-            samples=training_set,
-            percentiles=percentiles,
-            surrogate_model=surrogate_model,
-            distribution=distribution,
-        )
-
-        modeled_percentiles = training_set.quantile(
-            dim='run', q=surrogate_percentiles['quantile'] / 100
-        )
-        modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
-
-        node_percentiles = xarray.combine_nested(
-            [surrogate_percentiles, modeled_percentiles], concat_dim='source'
-        ).assign_coords(source=['surrogate', 'model'])
-
-        node_percentiles = node_percentiles.to_dataset(name='quantiles')
-
-        node_percentiles = node_percentiles.assign(
-            differences=xarray.ufuncs.fabs(surrogate_percentiles - modeled_percentiles)
-        )
-
-        LOGGER.info(f'saving percentiles to "{filename}"')
-        node_percentiles.to_netcdf(filename)
-    else:
-        LOGGER.info(f'loading percentiles from "{filename}"')
-        node_percentiles = xarray.open_dataset(filename)
-
-    return node_percentiles
 
 
 if __name__ == '__main__':
@@ -462,7 +210,7 @@ if __name__ == '__main__':
 
     LOGGER.info(f'Karhunen-Loeve expansion: {kl_expansion}')
 
-    surrogate_model = get_surrogate_model(
+    surrogate_model = surrogate_from_training_set(
         training_set=training_set,
         training_perturbations=training_perturbations,
         distribution=distribution,
@@ -472,7 +220,7 @@ if __name__ == '__main__':
     )
 
     if make_sensitivities_plot:
-        sensitivities = get_sensitivities(
+        sensitivities = sensitivities_from_surrogate(
             surrogate_model=surrogate_model,
             distribution=distribution,
             variables=perturbations['variable'],
@@ -486,7 +234,7 @@ if __name__ == '__main__':
         )
 
     if make_validation_plot:
-        node_validation = get_validations(
+        node_validation = validations_from_surrogate(
             surrogate_model=surrogate_model,
             training_set=training_set,
             training_perturbations=training_perturbations,
@@ -501,7 +249,7 @@ if __name__ == '__main__':
         )
 
     if make_statistics_plot:
-        node_statistics = get_statistics(
+        node_statistics = statistics_from_surrogate(
             surrogate_model=surrogate_model,
             distribution=distribution,
             training_set=training_set,
@@ -518,7 +266,7 @@ if __name__ == '__main__':
 
     if make_percentile_plot:
         percentiles = [10, 50, 90]
-        node_percentiles = get_percentiles(
+        node_percentiles = percentiles_from_surrogate(
             surrogate_model=surrogate_model,
             distribution=distribution,
             training_set=training_set,

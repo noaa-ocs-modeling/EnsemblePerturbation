@@ -506,7 +506,11 @@ def plot_coastline(axis: Axis = None, show: bool = False, save_filename: PathLik
 
 
 def node_color_map(
-    nodes: xarray.Dataset, colors: list = None
+    nodes: xarray.Dataset,
+    colors: list = None,
+    min_value: float = None,
+    max_value: float = None,
+    logarithmic: bool = False,
 ) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
     if colors is None:
         color_map = cm.get_cmap('jet')
@@ -520,8 +524,10 @@ def node_color_map(
             color_values = color_values.mean(
                 [dim for dim in color_values.dims if dim != 'node']
             )
-        min_value = float(color_values.min().values)
-        max_value = float(color_values.max().values)
+        if min_value is None:
+            min_value = float(color_values.min().values)
+        if max_value is None:
+            max_value = float(color_values.max().values)
         try:
             normalization = LogNorm(vmin=min_value, vmax=max_value)
             normalized_color_values = normalization(color_values)
@@ -533,11 +539,14 @@ def node_color_map(
         colors = numpy.array(colors)
 
         color_map = cm.get_cmap('jet')
-        min_value = numpy.nanmin(colors)
-        max_value = numpy.nanmax(colors)
-        try:
+        if min_value is None:
+            min_value = numpy.nanmin(colors)
+        if max_value is None:
+            max_value = numpy.nanmax(colors)
+
+        if logarithmic:
             normalization = LogNorm(vmin=min_value, vmax=max_value)
-        except ValueError:
+        else:
             normalization = Normalize(vmin=min_value, vmax=max_value)
 
         if (len(colors.shape) < 2 or colors.shape[1] != 4) and numpy.any(~numpy.isnan(colors)):
@@ -584,11 +593,15 @@ def plot_node_map(
     colors: list = None,
     storm: str = None,
     map_axis: Axis = None,
+    min_value: float = None,
+    max_value: float = None,
 ):
     if isinstance(colors, str) and map_title is not None:
         map_title = f'"{colors}" of {map_title}'
 
-    color_values, normalization, color_map, colors = node_color_map(nodes, colors=colors)
+    color_values, normalization, color_map, colors = node_color_map(
+        nodes, colors=colors, min_value=min_value, max_value=max_value
+    )
 
     map_crs = cartopy.crs.PlateCarree()
     if map_axis is None:
@@ -1059,6 +1072,8 @@ def plot_sensitivities(
                 colors=order_variable_sensitivities,
                 storm=storm,
                 map_axis=axis,
+                min_value=0,
+                max_value=1,
             )
 
             if variable_index == 0:
