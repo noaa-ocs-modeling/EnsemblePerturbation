@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 
 from pandas import DataFrame
 
-from ensembleperturbation.parsing.adcirc import combine_outputs
+from ensembleperturbation.parsing.adcirc import ElevationSelection, combine_outputs
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing')
@@ -31,9 +31,8 @@ def parse_combine_results():
     )
     argument_parser.add_argument('--max-depth', help='maximum depth value to filter by')
     argument_parser.add_argument(
-        '--only-inundated',
-        action='store_true',
-        help='filter by inundation (nodes that were both wet and dry) based on sea level',
+        '--elevation-selection',
+        help='filter elevation nodes based on sea level (one of `wet`, `inundated`, `dry`)',
     )
     argument_parser.add_argument(
         '--parallel', action='store_true', help='load concurrently with Dask'
@@ -49,7 +48,7 @@ def parse_combine_results():
         'filenames': arguments.filenames,
         'max_depth': float(arguments.max_depth) if arguments.max_depth is not None else None,
         'bounds': arguments.bounds,
-        'only_inundated': arguments.only_inundated,
+        'elevation_selection': arguments.elevation_selection,
         'parallel': arguments.parallel,
         'verbose': arguments.verbose,
     }
@@ -61,7 +60,7 @@ def combine_results(
     filenames: List[str] = None,
     bounds: Tuple[float, float, float, float] = None,
     max_depth: float = None,
-    only_inundated: Tuple[float, float, float, float] = None,
+    elevation_selection: ElevationSelection = None,
     parallel: bool = False,
     verbose: bool = False,
 ) -> Dict[str, DataFrame]:
@@ -73,7 +72,7 @@ def combine_results(
         file_data_variables=filenames,
         bounds=bounds,
         maximum_depth=max_depth,
-        only_inundated=only_inundated,
+        elevation_selection=elevation_selection,
         output_directory=output,
         parallel=parallel,
     )

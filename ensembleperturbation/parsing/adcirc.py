@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from os import PathLike
 from pathlib import Path
 import pickle
@@ -11,6 +12,7 @@ import numpy
 import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
+from typepigeon import convert_value
 import xarray
 from xarray import DataArray, Dataset
 
@@ -18,6 +20,12 @@ from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
+
+
+class ElevationSelection(Enum):
+    wet = 'inundated'
+    inundated = 'inundated'
+    dry = 'inundated'
 
 
 class AdcircOutput(ABC):
@@ -449,21 +457,29 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
         dataset: Union[Dataset, DataArray],
         bounds: (float, float, float, float) = None,
         maximum_depth: float = None,
-        only_inundated: bool = False,
+        elevation_selection: ElevationSelection = None,
         **kwargs,
     ) -> Union[Dataset, DataArray]:
         subset = super().subset(dataset, bounds=bounds, maximum_depth=maximum_depth)
 
-        if only_inundated:
+        if elevation_selection is not None:
+            if not isinstance(elevation_selection, ElevationSelection):
+                elevation_selection = convert_value(elevation_selection, ElevationSelection)
+
             dry_subset = dataset['zeta'].isnull()
 
-            # get all nodes that experienced inundation (were both wet and dry at any time)
-            inundated_subset = dry_subset.any('time') & ~dry_subset.all('time')
+            if elevation_selection == ElevationSelection.wet:
+                elevation_subset = ~dry_subset.any('time')
+            elif elevation_selection == ElevationSelection.inundated:
+                # get all nodes that experienced inundation (were both wet and dry at any time)
+                elevation_subset = dry_subset.any('time') & ~dry_subset.all('time')
+            else:
+                elevation_subset = dry_subset.all('time')
 
             if 'run' in dataset:
-                inundated_subset = inundated_subset.any('run')
+                elevation_subset = elevation_subset.any('run')
 
-            subset = xarray.ufuncs.logical_and(subset, inundated_subset)
+            subset = xarray.ufuncs.logical_and(subset, elevation_subset)
 
         return subset
 
@@ -590,7 +606,7 @@ def combine_outputs(
     file_data_variables: Dict[str, List[str]] = None,
     bounds: Tuple[float, float, float, float] = None,
     maximum_depth: float = None,
-    only_inundated: bool = False,
+    elevation_selection: ElevationSelection = None,
     output_directory: PathLike = None,
     parallel: bool = False,
 ) -> Dict[str, DataFrame]:
@@ -638,7 +654,7 @@ def combine_outputs(
     )
 
     elevation_time_series_filename = 'fort.63.nc'
-    if only_inundated:
+    if elevation_selection is not None:
         if elevation_time_series_filename in parsed_files:
             output_data[elevation_time_series_filename] = parsed_files[
                 elevation_time_series_filename
@@ -652,7 +668,7 @@ def combine_outputs(
     output_data.update(parsed_files)
 
     # generate subset
-    inundated_subset = None
+    elevation_subset = None
     for basename, file_data in output_data.items():
         if 'node' in file_data:
             num_nodes = len(file_data['node'])
@@ -668,8 +684,8 @@ def combine_outputs(
 
             subset = ~file_data['node'].isnull()
 
-            if inundated_subset is not None:
-                subset = xarray.ufuncs.logical_and(subset, inundated_subset)
+            if elevation_subset is not None:
+                subset = xarray.ufuncs.logical_and(subset, elevation_subset)
 
             subset = xarray.ufuncs.logical_and(
                 subset,
@@ -677,7 +693,7 @@ def combine_outputs(
                     file_data,
                     bounds=bounds,
                     maximum_depth=maximum_depth,
-                    only_inundated=only_inundated,
+                    elevation_selection=elevation_selection,
                 ),
             )
 
@@ -688,8 +704,8 @@ def combine_outputs(
                     f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
                 )
 
-                if only_inundated:
-                    inundated_subset = subset
+                if elevation_selection is not None:
+                    elevation_subset = subset
 
             output_data[basename] = file_data
 

@@ -670,7 +670,9 @@ def plot_nodes_across_runs(
     color_values, normalization, color_map, map_colors = node_color_map(
         nodes, colors=colors, min_value=min_value, max_value=max_value, logarithmic=logarithmic
     )
-    plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis, logarithmic=logarithmic)
+    plot_node_map(
+        nodes, colors=map_colors, storm=storm, map_axis=map_axis, logarithmic=logarithmic
+    )
 
     if colors is not None:
         colorbar_axis(
