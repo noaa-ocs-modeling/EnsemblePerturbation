@@ -122,7 +122,10 @@ if __name__ == '__main__':
         num_nodes = len(values['node'])
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = elevations['node'].where(
-                FieldOutput.subset(elevations['node'], maximum_depth=0, bounds=subset_bounds),
+                xarray.ufuncs.logical_and(
+                    ~elevations['zeta'].isnull().any('time').any('run'), # only wet nodes
+                    FieldOutput.subset(elevations['node'], maximum_depth=0, bounds=subset_bounds),
+                ),
                 drop=True,
             )
 
@@ -220,6 +223,7 @@ if __name__ == '__main__':
             colors='mean',
             storm=storm,
             output_filename=input_directory / 'elevations.png' if save_plots else None,
+            logarithmic=True,
         )
 
     if make_percentile_plot:
@@ -246,6 +250,7 @@ if __name__ == '__main__':
             colors='90.0',
             storm=storm,
             output_filename=input_directory / 'percentiles.png' if save_plots else None,
+            logarithmic=True,
         )
 
         plot_nodes_across_runs(
@@ -268,6 +273,7 @@ if __name__ == '__main__':
             output_filename=input_directory / 'percentile_differences.png'
             if save_plots
             else None,
+            logarithmic=True,
         )
 
     if show_plots:

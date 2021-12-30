@@ -595,12 +595,17 @@ def plot_node_map(
     map_axis: Axis = None,
     min_value: float = None,
     max_value: float = None,
+    logarithmic: bool = False,
 ):
     if isinstance(colors, str) and map_title is not None:
         map_title = f'"{colors}" of {map_title}'
 
     color_values, normalization, color_map, colors = node_color_map(
-        nodes, colors=colors, min_value=min_value, max_value=max_value
+        nodes,
+        colors=colors,
+        min_value=min_value,
+        max_value=max_value,
+        logarithmic=logarithmic,
     )
 
     map_crs = cartopy.crs.PlateCarree()
@@ -648,6 +653,9 @@ def plot_nodes_across_runs(
     colors: [] = None,
     storm: str = None,
     output_filename: PathLike = None,
+    min_value: float = None,
+    max_value: float = None,
+    logarithmic: bool = False,
 ):
     figure = pyplot.figure()
     figure.set_size_inches(12, 12 / 1.61803398875)
@@ -659,8 +667,10 @@ def plot_nodes_across_runs(
     map_crs = cartopy.crs.PlateCarree()
     map_axis = figure.add_subplot(grid[:, 0], projection=map_crs)
 
-    color_values, normalization, color_map, map_colors = node_color_map(nodes, colors=colors)
-    plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis)
+    color_values, normalization, color_map, map_colors = node_color_map(
+        nodes, colors=colors, min_value=min_value, max_value=max_value, logarithmic=logarithmic
+    )
+    plot_node_map(nodes, colors=map_colors, storm=storm, map_axis=map_axis, logarithmic=logarithmic)
 
     if colors is not None:
         colorbar_axis(

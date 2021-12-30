@@ -293,9 +293,13 @@ def percentiles_from_samples(
         surrogate_percentiles,
         coords={
             'quantile': percentiles,
-            **{coord: values for coord, values in samples.coords.items() if coord != 'run'},
+            **{
+                coord: values
+                for coord, values in samples.coords.items()
+                if coord not in ['run', 'type']
+            },
         },
-        dims=('quantile', *(dim for dim in samples.dims if dim != 'run')),
+        dims=('quantile', *(dim for dim in samples.dims if dim not in ['run', 'type'])),
     )
 
     return surrogate_percentiles
