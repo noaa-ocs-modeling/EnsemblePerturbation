@@ -15,9 +15,11 @@ from ensembleperturbation.plotting import (
     plot_perturbations,
     plot_sensitivities,
     plot_validations,
+    plot_points,
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
+    karhunen_loeve_prediction,
 )
 from ensembleperturbation.uncertainty_quantification.surrogate import (
     percentiles_from_surrogate,
@@ -31,69 +33,16 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parse_karhunen_loeve')
 
 
-def get_karhunenloeve_expansion(
-    training_set: xarray.Dataset, output_directory: PathLike, variance_explained: float = 0.95 
-) -> dict:
-    """
-    use karhunen_loeve_expansion class of EnsemblePerturbation to build the Karhunen-Loeve expansion
-
-    :param training_set: array of data along nodes in the mesh to use to fit the model
-    :param output_directory: path to directory to store Karhunen-Loeve eigenvalues/eignenvectors as a dictionary and to save the KL plots 
-    :param variance_explained: the cutoff for the variance explained by the KL expansion, so that the number of eigenvalues retained is reduced
-    :return: kl_dict
-    """
-
-    ymodel = training_set.values.T
-    # just get a subset of nodes
-    point_spacing = 10 
-    ymodel = ymodel[::point_spacing, :]
-    ngrid, nens = ymodel.shape
-
-    LOGGER.info(
-        f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
-    )
-
-    ## Evaluating the KL mode
-    # Components of the dictionary:
-    # mean_vector is the average field                                        : size (ngrid,)
-    # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
-    # eigenvalues is the eigenvalue vector                                    : size (neig,)
-    # samples are the samples for the KL coefficients                         : size (nens, neig)
-    kl_dict = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot_directory=output_directory)
-
-    neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
-    LOGGER.info(f'found {neig} Karhunen-Loeve modes')
-
-    if plot_directory is not None:
-        # evaluate and plot the fit of the KL prediction
-        # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
-        ypred = karhunen_loeve_prediction(kl_dict)
-
-        # plot scatter points to compare ymodel and ypred spatially
-        for example in numpy.linspace(0, nens, num=10, endpoint=False, dtype=int):
-            plot_points(
-                np.hstack((points_subset, ymodel[:, [example]])),
-                save_filename='modeled_zmax' + str(example),
-                title='modeled zmax, ensemble #' + str(example),
-                vmax=3.0,
-                vmin=0.0,
-            )
-   
-            plot_points(
-                np.hstack((points_subset, ypred[:, [example]])),
-                save_filename='predicted_zmax' + str(example),
-                title='predicted zmax, ensemble #' + str(example),
-                vmax=3.0,
-                vmin=0.0,
-            )
-
-    return kl_dict
-
-
 if __name__ == '__main__':
+    # PC parameters
     use_quadrature = True
     polynomial_order = 3
-    variance_explained = 0.95
+    # KL parameters
+    variance_explained = 0.97
+    #subsetting parameters  
+    subset_bounds = (-81, 32, -75, 37)
+    depth_bounds = 25.0
+    point_spacing = 10 
 
     make_perturbations_plot = False
     make_sensitivities_plot = False
@@ -170,8 +119,6 @@ if __name__ == '__main__':
 
     # sample based on subset and always wet locations
     values = max_elevations['zeta_max']
-    subset_bounds = (-81, 32, -75, 37)
-    depth_bounds = 25.0
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         num_nodes = len(values['node'])
@@ -183,6 +130,7 @@ if __name__ == '__main__':
                 ),
                 drop=True,
             )
+            subsetted_nodes = subsetted_nodes[::point_spacing]  
 
             subset = values.drop_sel(run='original')
             subset = subset.sel(node=subsetted_nodes)
@@ -209,22 +157,23 @@ if __name__ == '__main__':
     LOGGER.info(f'total {validation_set.shape} validation samples')
 
     # Evaluating the Karhunen-Loeve expansion
-    ymodel = training_set.values.T
-    # just get a subset of nodes
-    point_spacing = 10 
-    ymodel = ymodel[::point_spacing, :]
-    ngrid, nens = ymodel.shape
-
+    nens, ngrid = training_set.shape
     LOGGER.info(
         f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
     )
 
-    kl_expansion = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot_directory=output_directory)
+    kl_expansion = karhunen_loeve_expansion(training_set.values.T, neig=variance_explained, plot_directory=output_directory)
 
     neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
     LOGGER.info(f'found {neig} Karhunen-Loeve modes')
-
     LOGGER.info(f'Karhunen-Loeve expansion: {kl_expansion}')
+    # plot prediction versus actual simulated
+    kl_predicted = karhunen_loeve_prediction(
+        kl_dict=kl_expansion,
+        actual_values=training_set.T,
+        ensembles_to_plot=[0,nens-1], 
+        plot_directory=output_directory,
+    )
 
     surrogate_model = surrogate_from_training_set(
         training_set=training_set,

@@ -4,6 +4,8 @@ from matplotlib import pyplot
 import numpy as np
 from os import PathLike
 
+from ensembleperturbation.plotting import plot_points
+
 
 def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot_directory: PathLike = None):
     
@@ -127,29 +129,47 @@ def karhunen_loeve_pc_coefficients(
     return klpc_coefficients  #: size (num_points, num_coefficients)
 
 
-def karhunen_loeve_prediction(kl_dict: dict, samples=None, ymodel=None):
+def karhunen_loeve_prediction(kl_dict: dict, samples=None, actual_values=None, 
+    ensembles_to_plot=None, plot_directory: PathLike=None):
     """
-    Evaluating the model prediction based on KL modes
+    Evaluating the KL model prediction (against actual values if provided)
     
     """
 
     if samples is None:
         samples = kl_dict['samples']
 
-    ypred = kl_dict['mean_vector'] + np.dot(
+    kl_prediction = kl_dict['mean_vector'] + np.dot(
         np.dot(samples, np.diag(np.sqrt(kl_dict['eigenvalues']))), kl_dict['modes'].T
     )
-    ypred = ypred.T
+    kl_prediction = kl_prediction.T
 
-    if ymodel is not None:
-        # Plot to make sure ypred and ymodel are close
-        pyplot.plot(ymodel, ypred, 'o')
+    if actual_values is not None:
+        # Plot to make sure kl_prediction and actual_values are close
+        pyplot.plot(actual_values, kl_prediction, '.')
         pyplot.gca().set_xlabel('actual')
         pyplot.gca().set_ylabel('prediction')
-        pyplot.savefig('KLfit.png')
+        pyplot.savefig(plot_directory / 'KL_fit.png')
         pyplot.close()
 
-    return ypred
+        for example in ensembles_to_plot:
+            plot_points(
+                np.vstack((actual_values['x'], actual_values['y'], actual_values[:, example].T)).T,
+                save_filename=plot_directory / f'modeled_{str(example)}',
+                title='actual value, ensemble #' + str(example),
+                vmax=3.0,
+                vmin=0.0,
+            )
+   
+            plot_points(
+                np.vstack((actual_values['x'], actual_values['y'], kl_prediction[:, example].T)).T,
+                save_filename=plot_directory / f'predicted_{str(example)}',
+                title='predicted value, ensemble #' + str(example),
+                vmax=3.0,
+                vmin=0.0,
+            )
+
+    return kl_prediction
 
 
 def trapezoidal_rule_weights(length: int):
