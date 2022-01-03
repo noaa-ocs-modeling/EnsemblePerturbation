@@ -2,9 +2,11 @@ from typing import Union
 
 from matplotlib import pyplot
 import numpy as np
+from os import PathLike
 
 
-def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot: bool = False):
+def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot_directory: PathLike = None):
+    
     # get the shape of the data
     ngrid, nens = ymodel.shape
 
@@ -59,27 +61,26 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot: bool 
         xi = xi[:, :neig]
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
-
-    if plot:
+    
+    # plot the eigenvalues and KL modes 
+    if plot_directory is not None:
         pyplot.figure()
         pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
         pyplot.gca().set_xlabel('x')
         pyplot.gca().set_ylabel('Eigenvalue')
-        pyplot.savefig('eig.png')
-        pyplot.gca().set_yscale('log')
-        pyplot.savefig('eig_log.png')
+        pyplot.savefig(plot_directory / 'KL_eigenvalues.png', dpi=200, bbox_inches='tight')
         pyplot.close()
 
-        pyplot.figure(figsize=(12, 9))
+        pyplot.figure()
         pyplot.plot(range(ngrid), mean_vector, label='Mean')
         for imode in range(neig):
             pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
         pyplot.gca().set_xlabel('x')
         pyplot.gca().set_ylabel('KL Modes')
         pyplot.legend()
-        pyplot.savefig('KLmodes.png')
+        pyplot.savefig(plot_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
         pyplot.close()
-
+    
     # return KL dictionary
     kl_dict = {
         'mean_vector': mean_vector,

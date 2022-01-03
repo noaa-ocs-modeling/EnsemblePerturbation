@@ -69,6 +69,7 @@ def surrogate_from_training_set(
     distribution: chaospy.Distribution,
     filename: PathLike = None,
     use_quadrature: bool = False,
+    polynomial_order: int = 3,
 ) -> numpoly.ndpoly:
     """
     use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
@@ -78,6 +79,7 @@ def surrogate_from_training_set(
     :param distribution: ``chaospy`` distribution
     :param filename: path to file to store polynomial
     :param use_quadrature: assume that the variable perturbations and training set are built along a quadrature, and fit accordingly
+    :param polynomial_order: order of the polynomial chaos expansion
     :return: polynomial
     """
 
@@ -87,7 +89,7 @@ def surrogate_from_training_set(
     if filename is None or not filename.exists():
         # expand polynomials with polynomial chaos
         polynomial_expansion = chaospy.generate_expansion(
-            order=3, dist=distribution, rule='three_terms_recurrence',
+            order=polynomial_order, dist=distribution, rule='three_terms_recurrence',
         )
 
         if not use_quadrature:

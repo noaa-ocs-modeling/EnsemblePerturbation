@@ -1,4 +1,4 @@
-from os import PathLike
+from os import PathLike, mkdir, path
 from pathlib import Path
 
 from adcircpy.forcing import BestTrackForcing
@@ -32,20 +32,22 @@ LOGGER = get_logger('parse_karhunen_loeve')
 
 
 def get_karhunenloeve_expansion(
-    training_set: xarray.Dataset, filename: PathLike, variance_explained: float = 0.95,
+    training_set: xarray.Dataset, output_directory: PathLike, variance_explained: float = 0.95 
 ) -> dict:
     """
     use karhunen_loeve_expansion class of EnsemblePerturbation to build the Karhunen-Loeve expansion
 
     :param training_set: array of data along nodes in the mesh to use to fit the model
-    :param filename: path to file to store Karhunen-Loeve eigenvalues/eignenvectors as a dictionary 
+    :param output_directory: path to directory to store Karhunen-Loeve eigenvalues/eignenvectors as a dictionary and to save the KL plots 
     :param variance_explained: the cutoff for the variance explained by the KL expansion, so that the number of eigenvalues retained is reduced
     :return: kl_dict
     """
 
-    ymodel = training_set.T
-    ngrid = ymodel.shape[0]  # number of points
-    nens = ymodel.shape[1]  # number of ensembles
+    ymodel = training_set.values.T
+    # just get a subset of nodes
+    point_spacing = 10 
+    ymodel = ymodel[::point_spacing, :]
+    ngrid, nens = ymodel.shape
 
     LOGGER.info(
         f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
@@ -57,34 +59,33 @@ def get_karhunenloeve_expansion(
     # modes is the KL modes ('principal directions')                          : size (ngrid,neig)
     # eigenvalues is the eigenvalue vector                                    : size (neig,)
     # samples are the samples for the KL coefficients                         : size (nens, neig)
-    kl_dict = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot=False)
+    kl_dict = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot_directory=output_directory)
 
     neig = len(kl_dict['eigenvalues'])  # number of eigenvalues
     LOGGER.info(f'found {neig} Karhunen-Loeve modes')
 
-    # # evaluate the fit of the KL prediction
-    # # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
-    # ypred = karhunen_loeve_prediction(kl_dict)
+    if plot_directory is not None:
+        # evaluate and plot the fit of the KL prediction
+        # ypred is the predicted value of ymodel -> equal in the limit neig = ngrid  : size (ngrid,nens)
+        ypred = karhunen_loeve_prediction(kl_dict)
 
-    # plot scatter points to compare ymodel and ypred spatially
-    # for example in numpy.linspace(0, nens, num=10, endpoint=False, dtype=int):
-    #    # plot_coastline()
-    #    plot_points(
-    #        np.hstack((points_subset, ymodel[:, [example]])),
-    #        save_filename='modeled_zmax' + str(example),
-    #        title='modeled zmax, ensemble #' + str(example),
-    #        vmax=3.0,
-    #        vmin=0.0,
-    #    )
-    #
-    #    # plot_coastline()
-    #    plot_points(
-    #        np.hstack((points_subset, ypred[:, [example]])),
-    #        save_filename='predicted_zmax' + str(example),
-    #        title='predicted zmax, ensemble #' + str(example),
-    #        vmax=3.0,
-    #        vmin=0.0,
-    #    )
+        # plot scatter points to compare ymodel and ypred spatially
+        for example in numpy.linspace(0, nens, num=10, endpoint=False, dtype=int):
+            plot_points(
+                np.hstack((points_subset, ymodel[:, [example]])),
+                save_filename='modeled_zmax' + str(example),
+                title='modeled zmax, ensemble #' + str(example),
+                vmax=3.0,
+                vmin=0.0,
+            )
+   
+            plot_points(
+                np.hstack((points_subset, ypred[:, [example]])),
+                save_filename='predicted_zmax' + str(example),
+                title='predicted zmax, ensemble #' + str(example),
+                vmax=3.0,
+                vmin=0.0,
+            )
 
     return kl_dict
 
@@ -106,15 +107,18 @@ if __name__ == '__main__':
     storm_name = None
 
     input_directory = Path.cwd()
-    subset_filename = input_directory / 'subset.nc'
-    kl_filename = input_directory / 'karhunen_loeve.npy'
-    surrogate_filename = input_directory / 'surrogate.npy'
-    sensitivities_filename = input_directory / 'sensitivities.nc'
-    validation_filename = input_directory / 'validation.nc'
-    statistics_filename = input_directory / 'statistics.nc'
-    percentile_filename = input_directory / 'percentiles.nc'
+    output_directory = input_directory / 'outputs'
+    if not path.isdir(output_directory):
+        mkdir(output_directory)
+    subset_filename = output_directory / 'subset.nc'
+    kl_filename = output_directory / 'karhunen_loeve.npy'
+    surrogate_filename = output_directory / 'surrogate.npy'
+    sensitivities_filename = output_directory / 'sensitivities.nc'
+    validation_filename = output_directory / 'validation.nc'
+    statistics_filename = output_directory / 'statistics.nc'
+    percentile_filename = output_directory / 'percentiles.nc'
 
-    filenames = ['perturbations.nc', 'maxele.63.nc']
+    filenames = [ 'perturbations.nc', 'maxele.63.nc']
 
     datasets = {}
     existing_filenames = []
@@ -149,7 +153,7 @@ if __name__ == '__main__':
             runs=perturbations['run'].values,
             perturbation_types=perturbations['type'].values,
             track_directory=input_directory / 'track_files',
-            output_directory=input_directory if save_plots else None,
+            output_directory=output_directory if save_plots else None,
         )
 
     variables = {
@@ -166,15 +170,16 @@ if __name__ == '__main__':
 
     # sample based on subset and always wet locations
     values = max_elevations['zeta_max']
-    subset_bounds = (-81, 32, -76, 36.5)
+    subset_bounds = (-81, 32, -75, 37)
+    depth_bounds = 25.0
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         num_nodes = len(values['node'])
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = values['node'].where(
                 xarray.ufuncs.logical_and(
-                    ~values.isnull().any('run')['node'],
-                    FieldOutput.subset(values['node'], bounds=subset_bounds),
+                    ~values.isnull().any('run'),
+                    FieldOutput.subset(values['node'], maximum_depth=depth_bounds, bounds=subset_bounds),
                 ),
                 drop=True,
             )
@@ -204,9 +209,20 @@ if __name__ == '__main__':
     LOGGER.info(f'total {validation_set.shape} validation samples')
 
     # Evaluating the Karhunen-Loeve expansion
-    kl_expansion = get_karhunenloeve_expansion(
-        training_set=training_set, variance_explained=variance_explained, filename=kl_filename,
+    ymodel = training_set.values.T
+    # just get a subset of nodes
+    point_spacing = 10 
+    ymodel = ymodel[::point_spacing, :]
+    ngrid, nens = ymodel.shape
+
+    LOGGER.info(
+        f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
     )
+
+    kl_expansion = karhunen_loeve_expansion(ymodel, neig=variance_explained, plot_directory=output_directory)
+
+    neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
+    LOGGER.info(f'found {neig} Karhunen-Loeve modes')
 
     LOGGER.info(f'Karhunen-Loeve expansion: {kl_expansion}')
 
@@ -230,7 +246,7 @@ if __name__ == '__main__':
         plot_sensitivities(
             sensitivities=sensitivities,
             storm=storm,
-            output_filename=input_directory / 'sensitivities.png' if save_plots else None,
+            output_filename=output_directory / 'sensitivities.png' if save_plots else None,
         )
 
     if make_validation_plot:
@@ -245,7 +261,7 @@ if __name__ == '__main__':
 
         plot_validations(
             validation=node_validation,
-            output_filename=input_directory / 'validation.png' if save_plots else None,
+            output_filename=output_directory / 'validation.png' if save_plots else None,
         )
 
     if make_statistics_plot:
@@ -261,7 +277,7 @@ if __name__ == '__main__':
             title=f'surrogate-predicted and modeled elevation(s) for {len(node_statistics["node"])} node(s) across {len(training_set["run"])} run(s)',
             colors='mean',
             storm=storm,
-            output_filename=input_directory / 'elevations.png' if save_plots else None,
+            output_filename=output_directory / 'elevations.png' if save_plots else None,
         )
 
     if make_percentile_plot:
@@ -287,7 +303,7 @@ if __name__ == '__main__':
             title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
             colors='90.0',
             storm=storm,
-            output_filename=input_directory / 'percentiles.png' if save_plots else None,
+            output_filename=output_directory / 'percentiles.png' if save_plots else None,
         )
 
         plot_nodes_across_runs(
@@ -307,7 +323,7 @@ if __name__ == '__main__':
             title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
             colors='90.0',
             storm=storm,
-            output_filename=input_directory / 'percentile_differences.png'
+            output_filename=output_directory / 'percentile_differences.png'
             if save_plots
             else None,
         )

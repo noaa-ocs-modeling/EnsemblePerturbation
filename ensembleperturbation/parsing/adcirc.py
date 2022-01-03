@@ -356,7 +356,7 @@ class FieldOutput(AdcircOutput, ABC):
 
         if maximum_depth is not None:
             LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
-            subset = xarray.ufuncs.logical_and(subset, -dataset['depth'] < maximum_depth)
+            subset = xarray.ufuncs.logical_and(subset, dataset['depth'] < maximum_depth)
 
         return subset
 
