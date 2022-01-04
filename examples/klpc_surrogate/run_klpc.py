@@ -166,13 +166,18 @@ def joint_klpc_surrogate(
         )
 
         # shows comparison of predicted against "real" result
-        pyplot.plot(qoi, qoi_pc, 'o', label='poly order = ' + str(pc_order))
-        pyplot.plot([-2, 3], [-2, 3], 'k--', lw=1)
-        pyplot.gca().set_xlabel('predicted')
-        pyplot.gca().set_ylabel('actual')
-        pyplot.title(f'mode-{mode + 1}')
-        pyplot.legend()
-        pyplot.savefig(f'mode-{mode + 1}')
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+
+        axis.plot(qoi, qoi_pc, 'o', label='poly order = ' + str(pc_order))
+        axis.plot([-2, 3], [-2, 3], 'k--', lw=1)
+
+        axis.set_xlabel('predicted')
+        axis.set_ylabel('actual')
+        axis.title(f'mode-{mode + 1}')
+        axis.legend()
+
+        figure.savefig(f'mode-{mode + 1}')
         pyplot.close()
 
     # ------------------------#

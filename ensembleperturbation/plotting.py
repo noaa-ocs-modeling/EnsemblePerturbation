@@ -190,7 +190,8 @@ def plot_polygon(
     """
 
     if axis is None:
-        axis = pyplot.gca()
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
 
     if 'c' not in kwargs:
         try:
@@ -233,7 +234,8 @@ def plot_polygons(
     """
 
     if axis is None:
-        axis = pyplot.gca()
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
 
     if 'c' in kwargs:
         colors = [kwargs['c'] for _ in range(len(geometries))]
@@ -264,7 +266,8 @@ def plot_bounding_box(
     """
 
     if axis is None:
-        axis = pyplot.gca()
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
 
     corner_points = numpy.array([sw, (ne[0], sw[1]), ne, (sw[0], ne[1]), sw])
 
@@ -298,7 +301,8 @@ def plot_points(
         points = numpy.squeeze(numpy.stack((point._get_coords() for point in points), axis=0))
 
     if axis is None:
-        axis = pyplot.gca()
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
 
     if 'c' not in kwargs and points.shape[1] > 2:
         kwargs['c'] = points[:, index + 2]
@@ -566,7 +570,8 @@ def colorbar_axis(
     own_axis: bool = False,
 ) -> Axis:
     if axis is None:
-        axis = pyplot.gca()
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
 
     if color_map is None:
         color_map = 'jet'

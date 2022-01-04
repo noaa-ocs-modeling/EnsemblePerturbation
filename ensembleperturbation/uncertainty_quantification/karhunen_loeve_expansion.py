@@ -83,27 +83,35 @@ def karhunen_loeve_expansion(
 
     # plot the eigenvalues and KL modes, and save to file
     if output_directory is not None:
-        pyplot.figure()
-        pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
-        pyplot.gca().set_xlabel('x')
-        pyplot.gca().set_ylabel('Eigenvalue')
-        pyplot.savefig(output_directory / 'KL_eigenvalues.png', dpi=200, bbox_inches='tight')
-        pyplot.close()
-
-        pyplot.figure()
-        pyplot.plot(range(ngrid), mean_vector, label='Mean')
-        for imode in range(neig):
-            pyplot.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
-        pyplot.gca().set_xlabel('x')
-        pyplot.gca().set_ylabel('KL Modes')
-        pyplot.legend()
-        pyplot.savefig(output_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
-        pyplot.close()
-
         filename = output_directory / 'karhunen_loeve.pkl'
         with open(filename, 'wb') as kl_handle:
             LOGGER.info(f'saving Karhunen-Loeve expansion to "{filename}"')
             pickle.dump(kl_dict, kl_handle)
+
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+
+        axis.plot(range(1, neig + 1), eigen_values, 'o-')
+
+        axis.set_xlabel('x')
+        axis.set_ylabel('Eigenvalue')
+
+        figure.savefig(output_directory / 'KL_eigenvalues.png', dpi=200, bbox_inches='tight')
+        pyplot.close()
+
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+
+        axis.plot(range(ngrid), mean_vector, label='Mean')
+        for imode in range(neig):
+            axis.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
+
+        axis.set_xlabel('x')
+        axis.set_ylabel('KL Modes')
+        axis.legend()
+
+        figure.savefig(output_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
+        pyplot.close()
 
     return kl_dict
 
@@ -168,11 +176,16 @@ def karhunen_loeve_prediction(
     kl_prediction = kl_prediction.T
 
     if actual_values is not None:
+        figure = pyplot.figure()
+        axis = figure.add_subplot(1, 1, 1)
+
         # Plot to make sure kl_prediction and actual_values are close
-        pyplot.plot(actual_values, kl_prediction, '.')
-        pyplot.gca().set_xlabel('actual')
-        pyplot.gca().set_ylabel('prediction')
-        pyplot.savefig(plot_directory / 'KL_fit.png')
+        axis.plot(actual_values, kl_prediction, '.')
+
+        axis.set_xlabel('actual')
+        axis.set_ylabel('prediction')
+
+        figure.savefig(plot_directory / 'KL_fit.png')
         pyplot.close()
 
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)

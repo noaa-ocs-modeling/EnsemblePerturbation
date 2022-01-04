@@ -69,13 +69,18 @@ if __name__ == '__main__':
     eigen_values = eigen_values[::-1]
 
     if plot_eigen_values:
-        pyplot.figure(figsize=(12, 9))
-        pyplot.plot(range(1, num_nodes + 1), eigen_values, 'o-')
-        pyplot.gca().set_xlabel('x')
-        pyplot.gca().set_ylabel('Eigenvalue')
-        pyplot.savefig('eig.png')
-        pyplot.gca().set_yscale('log')
-        pyplot.savefig('eig_log.png')
+        figure = pyplot.figure(figsize=(12, 9))
+        axis = figure.add_subplot(1, 1, 1)
+
+        axis.plot(range(1, num_nodes + 1), eigen_values, 'o-')
+        axis.set_xlabel('x')
+        axis.set_ylabel('Eigenvalue')
+
+        figure.savefig('eig.png')
+
+        axis.set_yscale('log')
+
+        figure.savefig('eig_log.png')
 
         pyplot.close()
 
@@ -87,14 +92,18 @@ if __name__ == '__main__':
         # savefig('eig_log.png')
         # clf()
 
-        pyplot.figure(figsize=(12, 9))
-        pyplot.plot(range(num_nodes), mean_vector, label='Mean')
+        figure = pyplot.figure(figsize=(12, 9))
+        axis = figure.add_subplot(1, 1, 1)
+
+        axis.plot(range(num_nodes), mean_vector, label='Mean')
         for imode in range(num_nodes):
-            pyplot.plot(range(num_nodes), modes[:, imode], label='Mode ' + str(imode + 1))
-        pyplot.gca().set_xlabel('x')
-        pyplot.gca().set_ylabel('KL Modes')
-        pyplot.legend()
-        pyplot.savefig('KLmodes.png')
+            axis.plot(range(num_nodes), modes[:, imode], label='Mode ' + str(imode + 1))
+
+        axis.set_xlabel('x')
+        axis.set_ylabel('KL Modes')
+        axis.legend()
+
+        figure.savefig('KLmodes.png')
         pyplot.close()
 
     # pick the first neig eigenvalues, look at rel_diag array or eig.png to choose how many eigenmodes you should pick without losing much accuracy
