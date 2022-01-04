@@ -279,7 +279,7 @@ def plot_points(
     index: int = 0,
     axis: Axis = None,
     show: bool = False,
-    save_filename: str = None,
+    save_filename: PathLike = None,
     title: str = None,
     **kwargs,
 ):
