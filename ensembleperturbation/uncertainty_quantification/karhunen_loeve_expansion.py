@@ -1,9 +1,10 @@
+from os import PathLike
+from pathlib import Path
+import pickle
 from typing import Union
 
 from matplotlib import pyplot
 import numpy as np
-from os import PathLike
-import pickle
 
 from ensembleperturbation.plotting import plot_points
 from ensembleperturbation.utilities import get_logger
@@ -11,7 +12,12 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('karhunen_loeve')
 
 
-def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_directory: PathLike = None):
+def karhunen_loeve_expansion(
+    ymodel, neig: Union[int, float] = None, output_directory: PathLike = None
+):
+    if output_directory is not None and not isinstance(output_directory, Path):
+        output_directory = Path(output_directory)
+
     # get the shape of the data
     ngrid, nens = ymodel.shape
 
@@ -66,7 +72,7 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_dire
         xi = xi[:, :neig]
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
-    
+
     # form into KL dictionary
     kl_dict = {
         'mean_vector': mean_vector,
@@ -74,12 +80,9 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_dire
         'eigenvalues': eigen_values,
         'samples': xi,
     }
-    
-    # plot the eigenvalues and KL modes, and save to file 
-    if output_directory is not None:
-        if not isinstance(output_directory, Path):
-            output_directory = Path(output_directory)
 
+    # plot the eigenvalues and KL modes, and save to file
+    if output_directory is not None:
         pyplot.figure()
         pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
         pyplot.gca().set_xlabel('x')
@@ -96,7 +99,7 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_dire
         pyplot.legend()
         pyplot.savefig(output_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
         pyplot.close()
-   
+
         filename = output_directory / 'karhunen_loeve.pkl'
         with open(filename, 'wb') as kl_handle:
             LOGGER.info(f'saving KL expansion to "{filename}"')
@@ -141,12 +144,20 @@ def karhunen_loeve_pc_coefficients(
     return klpc_coefficients  #: size (num_points, num_coefficients)
 
 
-def karhunen_loeve_prediction(kl_dict: dict, samples=None, actual_values=None, 
-    ensembles_to_plot=None, plot_directory: PathLike=None):
+def karhunen_loeve_prediction(
+    kl_dict: dict,
+    samples=None,
+    actual_values=None,
+    ensembles_to_plot=None,
+    plot_directory: PathLike = None,
+):
     """
     Evaluating the KL model prediction (against actual values if provided)
     
     """
+
+    if plot_directory is not None and not isinstance(plot_directory, Path):
+        plot_directory = Path(plot_directory)
 
     if samples is None:
         samples = kl_dict['samples']
@@ -164,20 +175,24 @@ def karhunen_loeve_prediction(kl_dict: dict, samples=None, actual_values=None,
         pyplot.savefig(plot_directory / 'KL_fit.png')
         pyplot.close()
 
-        vmax = np.round_(actual_values.quantile(0.98),decimals=1)
+        vmax = np.round_(actual_values.quantile(0.98), decimals=1)
         for example in ensembles_to_plot:
             plot_points(
-                np.vstack((actual_values['x'], actual_values['y'], actual_values[:, example].T)).T,
-                save_filename=plot_directory / f'modeled_{str(example)}',
-                title='actual value, ensemble #' + str(example),
+                np.vstack(
+                    (actual_values['x'], actual_values['y'], actual_values[:, example].T)
+                ).T,
+                save_filename=plot_directory / f'modeled_{example}',
+                title=f'actual value, ensemble #{example}',
                 vmax=vmax,
                 vmin=0.0,
             )
-   
+
             plot_points(
-                np.vstack((actual_values['x'], actual_values['y'], kl_prediction[:, example].T)).T,
-                save_filename=plot_directory / f'predicted_{str(example)}',
-                title='predicted value, ensemble #' + str(example),
+                np.vstack(
+                    (actual_values['x'], actual_values['y'], kl_prediction[:, example].T)
+                ).T,
+                save_filename=plot_directory / f'predicted_{example}',
+                title=f'predicted value, ensemble #{example}',
                 vmax=vmax,
                 vmin=0.0,
             )

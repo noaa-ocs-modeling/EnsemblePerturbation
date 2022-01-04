@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 
 from pandas import DataFrame
 
-from ensembleperturbation.parsing.adcirc import ElevationSelection, combine_outputs
+from ensembleperturbation.parsing.adcirc import combine_outputs, ElevationSelection
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing')

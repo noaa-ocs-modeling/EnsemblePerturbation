@@ -1,5 +1,6 @@
-from os import PathLike, mkdir, path
+from os import mkdir, path
 from pathlib import Path
+import pickle
 
 from adcircpy.forcing import BestTrackForcing
 import chaospy
@@ -7,7 +8,6 @@ import dask
 from matplotlib import pyplot
 import numpy
 import xarray
-import pickle
 
 from ensembleperturbation.parsing.adcirc import FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
@@ -16,7 +16,6 @@ from ensembleperturbation.plotting import (
     plot_perturbations,
     plot_sensitivities,
     plot_validations,
-    plot_points,
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
@@ -33,17 +32,16 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parse_karhunen_loeve')
 
-
 if __name__ == '__main__':
     # PC parameters
     use_quadrature = True
     polynomial_order = 3
     # KL parameters
     variance_explained = 0.99
-    #subsetting parameters  
+    # subsetting parameters
     subset_bounds = (-81, 32, -75, 37)
     depth_bounds = 25.0
-    point_spacing = 10 
+    point_spacing = 10
 
     make_perturbations_plot = False
     make_sensitivities_plot = False
@@ -68,7 +66,7 @@ if __name__ == '__main__':
     statistics_filename = output_directory / 'statistics.nc'
     percentile_filename = output_directory / 'percentiles.nc'
 
-    filenames = [ 'perturbations.nc', 'maxele.63.nc']
+    filenames = ['perturbations.nc', 'maxele.63.nc']
 
     datasets = {}
     existing_filenames = []
@@ -127,11 +125,13 @@ if __name__ == '__main__':
             subsetted_nodes = values['node'].where(
                 xarray.ufuncs.logical_and(
                     ~values.isnull().any('run'),
-                    FieldOutput.subset(values['node'], maximum_depth=depth_bounds, bounds=subset_bounds),
+                    FieldOutput.subset(
+                        values['node'], maximum_depth=depth_bounds, bounds=subset_bounds
+                    ),
                 ),
                 drop=True,
             )
-            subsetted_nodes = subsetted_nodes[::point_spacing]  
+            subsetted_nodes = subsetted_nodes[::point_spacing]
 
             subset = values.drop_sel(run='original')
             subset = subset.sel(node=subsetted_nodes)
@@ -165,9 +165,7 @@ if __name__ == '__main__':
         )
 
         kl_expansion = karhunen_loeve_expansion(
-            training_set.values.T, 
-            neig=variance_explained, 
-            output_directory=output_directory,
+            training_set.values.T, neig=variance_explained, output_directory=output_directory,
         )
     else:
         LOGGER.info(f'loading Karhunen-Loeve expansion from "{kl_filename}"')
@@ -181,7 +179,7 @@ if __name__ == '__main__':
     kl_predicted = karhunen_loeve_prediction(
         kl_dict=kl_expansion,
         actual_values=training_set.T,
-        ensembles_to_plot=[0,int(nens/2),nens-1], 
+        ensembles_to_plot=[0, int(nens / 2), nens - 1],
         plot_directory=output_directory,
     )
 
