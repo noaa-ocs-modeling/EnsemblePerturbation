@@ -12,7 +12,6 @@ LOGGER = get_logger('karhunen_loeve')
 
 
 def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_directory: PathLike = None):
-    
     # get the shape of the data
     ngrid, nens = ymodel.shape
 
@@ -78,6 +77,9 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_dire
     
     # plot the eigenvalues and KL modes, and save to file 
     if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
         pyplot.figure()
         pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
         pyplot.gca().set_xlabel('x')
