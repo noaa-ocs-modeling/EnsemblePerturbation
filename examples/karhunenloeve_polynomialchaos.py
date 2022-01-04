@@ -1,4 +1,3 @@
-from os import mkdir, path
 from pathlib import Path
 import pickle
 
@@ -56,8 +55,9 @@ if __name__ == '__main__':
 
     input_directory = Path.cwd()
     output_directory = input_directory / 'outputs'
-    if not path.isdir(output_directory):
-        mkdir(output_directory)
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True, exist_ok=True)
+
     subset_filename = output_directory / 'subset.nc'
     kl_filename = output_directory / 'karhunen_loeve.pkl'
     surrogate_filename = output_directory / 'surrogate.npy'
@@ -159,11 +159,10 @@ if __name__ == '__main__':
 
     # Evaluating the Karhunen-Loeve expansion
     nens, ngrid = training_set.shape
-    if not subset_filename.exists():
+    if not kl_filename.exists():
         LOGGER.info(
             f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
         )
-
         kl_expansion = karhunen_loeve_expansion(
             training_set.values.T, neig=variance_explained, output_directory=output_directory,
         )

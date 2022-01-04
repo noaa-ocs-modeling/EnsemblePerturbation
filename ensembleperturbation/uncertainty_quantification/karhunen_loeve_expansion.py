@@ -102,7 +102,7 @@ def karhunen_loeve_expansion(
 
         filename = output_directory / 'karhunen_loeve.pkl'
         with open(filename, 'wb') as kl_handle:
-            LOGGER.info(f'saving KL expansion to "{filename}"')
+            LOGGER.info(f'saving Karhunen-Loeve expansion to "{filename}"')
             pickle.dump(kl_dict, kl_handle)
 
     return kl_dict
