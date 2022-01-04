@@ -7,6 +7,7 @@ import dask
 from matplotlib import pyplot
 import numpy
 import xarray
+import pickle
 
 from ensembleperturbation.parsing.adcirc import FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
@@ -38,7 +39,7 @@ if __name__ == '__main__':
     use_quadrature = True
     polynomial_order = 3
     # KL parameters
-    variance_explained = 0.97
+    variance_explained = 0.99
     #subsetting parameters  
     subset_bounds = (-81, 32, -75, 37)
     depth_bounds = 25.0
@@ -60,7 +61,7 @@ if __name__ == '__main__':
     if not path.isdir(output_directory):
         mkdir(output_directory)
     subset_filename = output_directory / 'subset.nc'
-    kl_filename = output_directory / 'karhunen_loeve.npy'
+    kl_filename = output_directory / 'karhunen_loeve.pkl'
     surrogate_filename = output_directory / 'surrogate.npy'
     sensitivities_filename = output_directory / 'sensitivities.nc'
     validation_filename = output_directory / 'validation.nc'
@@ -158,11 +159,20 @@ if __name__ == '__main__':
 
     # Evaluating the Karhunen-Loeve expansion
     nens, ngrid = training_set.shape
-    LOGGER.info(
-        f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
-    )
+    if not subset_filename.exists():
+        LOGGER.info(
+            f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
+        )
 
-    kl_expansion = karhunen_loeve_expansion(training_set.values.T, neig=variance_explained, plot_directory=output_directory)
+        kl_expansion = karhunen_loeve_expansion(
+            training_set.values.T, 
+            neig=variance_explained, 
+            output_directory=output_directory,
+        )
+    else:
+        LOGGER.info(f'loading Karhunen-Loeve expansion from "{kl_filename}"')
+        with open(kl_filename, 'rb') as kl_handle:
+            kl_expansion = pickle.load(kl_handle)
 
     neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
     LOGGER.info(f'found {neig} Karhunen-Loeve modes')
@@ -171,10 +181,11 @@ if __name__ == '__main__':
     kl_predicted = karhunen_loeve_prediction(
         kl_dict=kl_expansion,
         actual_values=training_set.T,
-        ensembles_to_plot=[0,nens-1], 
+        ensembles_to_plot=[0,int(nens/2),nens-1], 
         plot_directory=output_directory,
     )
 
+    # evalue the surrogate for each KL mode
     surrogate_model = surrogate_from_training_set(
         training_set=training_set,
         training_perturbations=training_perturbations,

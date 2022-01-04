@@ -3,11 +3,15 @@ from typing import Union
 from matplotlib import pyplot
 import numpy as np
 from os import PathLike
+import pickle
 
 from ensembleperturbation.plotting import plot_points
+from ensembleperturbation.utilities import get_logger
+
+LOGGER = get_logger('karhunen_loeve')
 
 
-def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot_directory: PathLike = None):
+def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, output_directory: PathLike = None):
     
     # get the shape of the data
     ngrid, nens = ymodel.shape
@@ -64,13 +68,21 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot_direct
         eigen_values = eigen_values[:neig]
         modes = modes[:, :neig]
     
-    # plot the eigenvalues and KL modes 
-    if plot_directory is not None:
+    # form into KL dictionary
+    kl_dict = {
+        'mean_vector': mean_vector,
+        'modes': modes,
+        'eigenvalues': eigen_values,
+        'samples': xi,
+    }
+    
+    # plot the eigenvalues and KL modes, and save to file 
+    if output_directory is not None:
         pyplot.figure()
         pyplot.plot(range(1, neig + 1), eigen_values, 'o-')
         pyplot.gca().set_xlabel('x')
         pyplot.gca().set_ylabel('Eigenvalue')
-        pyplot.savefig(plot_directory / 'KL_eigenvalues.png', dpi=200, bbox_inches='tight')
+        pyplot.savefig(output_directory / 'KL_eigenvalues.png', dpi=200, bbox_inches='tight')
         pyplot.close()
 
         pyplot.figure()
@@ -80,16 +92,14 @@ def karhunen_loeve_expansion(ymodel, neig: Union[int, float] = None, plot_direct
         pyplot.gca().set_xlabel('x')
         pyplot.gca().set_ylabel('KL Modes')
         pyplot.legend()
-        pyplot.savefig(plot_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
+        pyplot.savefig(output_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
         pyplot.close()
-    
-    # return KL dictionary
-    kl_dict = {
-        'mean_vector': mean_vector,
-        'modes': modes,
-        'eigenvalues': eigen_values,
-        'samples': xi,
-    }
+   
+        filename = output_directory / 'karhunen_loeve.pkl'
+        with open(filename, 'wb') as kl_handle:
+            LOGGER.info(f'saving KL expansion to "{filename}"')
+            pickle.dump(kl_dict, kl_handle)
+
     return kl_dict
 
 
@@ -152,12 +162,13 @@ def karhunen_loeve_prediction(kl_dict: dict, samples=None, actual_values=None,
         pyplot.savefig(plot_directory / 'KL_fit.png')
         pyplot.close()
 
+        vmax = np.round_(actual_values.quantile(0.98),decimals=1)
         for example in ensembles_to_plot:
             plot_points(
                 np.vstack((actual_values['x'], actual_values['y'], actual_values[:, example].T)).T,
                 save_filename=plot_directory / f'modeled_{str(example)}',
                 title='actual value, ensemble #' + str(example),
-                vmax=3.0,
+                vmax=vmax,
                 vmin=0.0,
             )
    
@@ -165,7 +176,7 @@ def karhunen_loeve_prediction(kl_dict: dict, samples=None, actual_values=None,
                 np.vstack((actual_values['x'], actual_values['y'], kl_prediction[:, example].T)).T,
                 save_filename=plot_directory / f'predicted_{str(example)}',
                 title='predicted value, ensemble #' + str(example),
-                vmax=3.0,
+                vmax=vmax,
                 vmin=0.0,
             )
 
