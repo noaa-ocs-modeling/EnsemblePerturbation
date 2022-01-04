@@ -123,7 +123,7 @@ if __name__ == '__main__':
         num_nodes = len(values['node'])
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = values['node'].where(
-                xarray.ufuncs.logical_and(
+                numpy.logical_and(
                     ~values.isnull().any('run'),
                     FieldOutput.subset(
                         values['node'], maximum_depth=depth_bounds, bounds=subset_bounds

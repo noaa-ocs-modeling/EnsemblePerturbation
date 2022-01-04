@@ -266,7 +266,7 @@ def statistics_from_surrogate(
                 'std': xarray.combine_nested(
                     [surrogate_std, modeled_std], concat_dim='source'
                 ).assign_coords({'source': ['surrogate', 'model']}),
-                'difference': xarray.ufuncs.fabs(surrogate_std - modeled_std),
+                'difference': numpy.fabs(surrogate_std - modeled_std),
             }
         )
 
@@ -337,7 +337,7 @@ def percentiles_from_surrogate(
         node_percentiles = node_percentiles.to_dataset(name='quantiles')
 
         node_percentiles = node_percentiles.assign(
-            differences=xarray.ufuncs.fabs(surrogate_percentiles - modeled_percentiles)
+            differences=numpy.fabs(surrogate_percentiles - modeled_percentiles)
         )
 
         if filename is not None:

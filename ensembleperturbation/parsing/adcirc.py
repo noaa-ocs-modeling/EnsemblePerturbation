@@ -150,13 +150,13 @@ class StationTimeSeriesOutput(AdcircOutput, TimeSeriesOutput, ABC):
         if bounds is not None:
             LOGGER.debug(f'filtering within bounds {bounds}')
             if bounds[0] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['x'] > bounds[0])
+                subset = numpy.logical_and(subset, dataset['x'] > bounds[0])
             if bounds[2] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['x'] < bounds[2])
+                subset = numpy.logical_and(subset, dataset['x'] < bounds[2])
             if bounds[1] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['y'] > bounds[1])
+                subset = numpy.logical_and(subset, dataset['y'] > bounds[1])
             if bounds[3] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['y'] < bounds[3])
+                subset = numpy.logical_and(subset, dataset['y'] < bounds[3])
 
         return subset
 
@@ -346,17 +346,17 @@ class FieldOutput(AdcircOutput, ABC):
         if bounds is not None:
             LOGGER.debug(f'filtering within bounds {bounds}')
             if bounds[0] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['x'] > bounds[0])
+                subset = numpy.logical_and(subset, dataset['x'] > bounds[0])
             if bounds[2] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['x'] < bounds[2])
+                subset = numpy.logical_and(subset, dataset['x'] < bounds[2])
             if bounds[1] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['y'] > bounds[1])
+                subset = numpy.logical_and(subset, dataset['y'] > bounds[1])
             if bounds[3] is not None:
-                subset = xarray.ufuncs.logical_and(subset, dataset['y'] < bounds[3])
+                subset = numpy.logical_and(subset, dataset['y'] < bounds[3])
 
         if maximum_depth is not None:
             LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
-            subset = xarray.ufuncs.logical_and(subset, dataset['depth'] < maximum_depth)
+            subset = numpy.logical_and(subset, dataset['depth'] < maximum_depth)
 
         return subset
 
@@ -479,7 +479,7 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
             if 'run' in dataset:
                 elevation_subset = elevation_subset.any('run')
 
-            subset = xarray.ufuncs.logical_and(subset, elevation_subset)
+            subset = numpy.logical_and(subset, elevation_subset)
 
         return subset
 
@@ -685,9 +685,9 @@ def combine_outputs(
             subset = ~file_data['node'].isnull()
 
             if elevation_subset is not None:
-                subset = xarray.ufuncs.logical_and(subset, elevation_subset)
+                subset = numpy.logical_and(subset, elevation_subset)
 
-            subset = xarray.ufuncs.logical_and(
+            subset = numpy.logical_and(
                 subset,
                 file_data_variable.subset(
                     file_data,
