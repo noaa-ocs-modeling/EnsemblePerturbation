@@ -43,11 +43,12 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
 
-    make_perturbations_plot = False
-    make_sensitivities_plot = False
-    make_validation_plot = False
+    make_perturbations_plot = True
+    make_klprediction_plot = True
+    make_sensitivities_plot = True
+    make_validation_plot = True
     make_statistics_plot = False
-    make_percentile_plot = False
+    make_percentile_plot = True
 
     save_plots = True
     show_plots = False
@@ -176,13 +177,15 @@ if __name__ == '__main__':
     neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
     LOGGER.info(f'found {neig} Karhunen-Loeve modes')
     LOGGER.info(f'Karhunen-Loeve expansion: {list(kl_expansion)}')
+
     # plot prediction versus actual simulated
-    kl_predicted = karhunen_loeve_prediction(
-        kl_dict=kl_expansion,
-        actual_values=training_set.T,
-        ensembles_to_plot=[0, int(nens / 2), nens - 1],
-        plot_directory=output_directory,
-    )
+    if make_klprediction_plot:
+        kl_predicted = karhunen_loeve_prediction(
+            kl_dict=kl_expansion,
+            actual_values=training_set.T,
+            ensembles_to_plot=[0, int(nens / 2), nens - 1],
+            plot_directory=output_directory,
+        )
 
     # evaluate the surrogate for each KL sample
     kl_training_set = xarray.DataArray(data=kl_expansion['samples'], dims=['run', 'mode'])
@@ -197,7 +200,7 @@ if __name__ == '__main__':
 
     # convert the KL surrogate model to the overall surrogate at each node
     surrogate_model = surrogate_from_karhunen_loeve(
-        mean_vector=kl_expansion['mean_vectory'],
+        mean_vector=kl_expansion['mean_vector'],
         eigenvalues=kl_expansion['eigenvalues'],
         modes=kl_expansion['modes'],
         kl_surrogate_model=kl_surrogate_model,
