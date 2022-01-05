@@ -182,16 +182,16 @@ if __name__ == '__main__':
         plot_directory=output_directory,
     )
 
-    # evalue the surrogate for each KL mode
+    # evaluate the surrogate for each KL sample
     surrogate_model = surrogate_from_training_set(
-        training_set=training_set,
+        training_set=xarray.DataArray(data=kl_expansion['samples'], dims=["run", "mode"]),
         training_perturbations=training_perturbations,
         distribution=distribution,
         filename=surrogate_filename,
         use_quadrature=use_quadrature,
         polynomial_order=polynomial_order,
     )
-
+    
     if make_sensitivities_plot:
         sensitivities = sensitivities_from_surrogate(
             surrogate_model=surrogate_model,
