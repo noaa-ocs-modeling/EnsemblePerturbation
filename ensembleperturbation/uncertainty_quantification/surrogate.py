@@ -31,7 +31,7 @@ def surrogate_from_karhunen_loeve(
     ev -> eigenvalue
     ef -> eigenfunction
     """
-    
+
     if filename is not None and not isinstance(filename, Path):
         filename = Path(filename)
 
@@ -41,7 +41,7 @@ def surrogate_from_karhunen_loeve(
     assert num_modes == len(
         kl_surrogate_model
     ), 'number of kl_dict eigenvalues must be equal to the length of the kl_surrogate_model'
-    
+
     if filename is None or not filename.exists():
         # get the coefficients of the PC for each point in z (spatiotemporal dimension)
         pc_exponents = kl_surrogate_model.exponents
@@ -60,7 +60,7 @@ def surrogate_from_karhunen_loeve(
         surrogate_model = numpoly.ndpoly.from_attributes(
             exponents=pc_exponents, coefficients=klpc_coefficients,
         )
-        
+
         if filename is not None:
             with open(filename, 'wb') as surrogate_file:
                 LOGGER.info(f'saving surrogate model to "{filename}"')
@@ -70,7 +70,7 @@ def surrogate_from_karhunen_loeve(
         surrogate_model = chaospy.load(filename, allow_pickle=True)
 
     return surrogate_model
-    
+
 
 def surrogate_from_samples(
     samples: xarray.DataArray,

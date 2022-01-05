@@ -24,8 +24,8 @@ from ensembleperturbation.uncertainty_quantification.surrogate import (
     percentiles_from_surrogate,
     sensitivities_from_surrogate,
     statistics_from_surrogate,
-    surrogate_from_training_set,
     surrogate_from_karhunen_loeve,
+    surrogate_from_training_set,
     validations_from_surrogate,
 )
 from ensembleperturbation.utilities import get_logger
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     )
 
     # evaluate the surrogate for each KL sample
-    kl_training_set = xarray.DataArray(data=kl_expansion['samples'], dims=["run", "mode"])
+    kl_training_set = xarray.DataArray(data=kl_expansion['samples'], dims=['run', 'mode'])
     kl_surrogate_model = surrogate_from_training_set(
         training_set=kl_training_set,
         training_perturbations=training_perturbations,
