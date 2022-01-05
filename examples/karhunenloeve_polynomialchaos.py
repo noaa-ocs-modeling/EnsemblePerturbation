@@ -25,6 +25,7 @@ from ensembleperturbation.uncertainty_quantification.surrogate import (
     sensitivities_from_surrogate,
     statistics_from_surrogate,
     surrogate_from_training_set,
+    surrogate_from_karhunen_loeve,
     validations_from_surrogate,
 )
 from ensembleperturbation.utilities import get_logger
@@ -60,6 +61,7 @@ if __name__ == '__main__':
 
     subset_filename = output_directory / 'subset.nc'
     kl_filename = output_directory / 'karhunen_loeve.pkl'
+    kl_surrogate_filename = output_directory / 'kl_surrogate.npy'
     surrogate_filename = output_directory / 'surrogate.npy'
     sensitivities_filename = output_directory / 'sensitivities.nc'
     validation_filename = output_directory / 'validation.nc'
@@ -183,13 +185,21 @@ if __name__ == '__main__':
     )
 
     # evaluate the surrogate for each KL sample
-    surrogate_model = surrogate_from_training_set(
-        training_set=xarray.DataArray(data=kl_expansion['samples'], dims=["run", "mode"]),
+    kl_training_set = xarray.DataArray(data=kl_expansion['samples'], dims=["run", "mode"])
+    kl_surrogate_model = surrogate_from_training_set(
+        training_set=kl_training_set,
         training_perturbations=training_perturbations,
         distribution=distribution,
-        filename=surrogate_filename,
+        filename=kl_surrogate_filename,
         use_quadrature=use_quadrature,
         polynomial_order=polynomial_order,
+    )
+
+    # convert the KL surrogate model to the overall surrogate at each node
+    surrogate_model = surrogate_from_karhunen_loeve(
+        kl_dict=kl_expansion, 
+        kl_surrogate_model=kl_surrogate_model,
+        filename=surrogate_filename,
     )
     
     if make_sensitivities_plot:

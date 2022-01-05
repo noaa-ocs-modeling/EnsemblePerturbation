@@ -13,6 +13,62 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('surrogate')
 
 
+def surrogate_from_karhunen_loeve(
+    kl_dict: dict,
+    kl_surrogate_model: numpoly.ndpoly,
+    filename: PathLike = None,
+) -> numpoly.ndpoly:
+    """
+    Get the joint Karhunen-Loeve / Polynomial Chaos polynomial
+    from Eq (6) in Sargsyan, K. and Ricciuto D. (2021):
+    sum_{k=0}^{K} (kroneckerdelta_{k0}*mean(f(z)) +  
+                   sum_{j=0}^{L} [c_{jk}*\sqrt(ev_j)*ef_j(z)]) 
+    K -> num PC coefficients
+    L -> num KL modes
+    c -> PC coefficient 
+    ev -> eigenvalue
+    ef -> eigenfunction
+    """
+    
+    if filename is not None and not isinstance(filename, Path):
+        filename = Path(filename)
+
+    num_points = len(kl_dict['mean_vector'])
+    num_modes = len(kl_dict['eigenvalues'])
+    assert (
+        num_modes == len(kl_surrogate_model)
+    ), 'number of kl_dict eigenvalues must be equal to the length of the kl_surrogate_model'
+    
+    if filename is None or not filename.exists():
+        # get the coefficients of the PC for each point in z (spatiotemporal dimension)
+        pc_exponents = kl_surrogate_model.exponents
+        pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
+        num_coefficients = pc_coefficients.shape[0]
+        klpc_coefficients = numpy.zeros((num_coefficients, num_points))
+        klpc_coefficients[0, :] = kl_dict['mean_vector']
+        for z_index in range(num_points):
+            for coef_index in range(num_coefficients):
+                for mode_index in range(num_modes):
+                    klpc_coefficients[coef_index, z_index] += (
+                        pc_coefficients[coef_index, mode_index]
+                        * numpy.sqrt(kl_dict['eigenvalues'][mode_index])
+                        * kl_dict['modes'][z_index, mode_index]
+                    )
+        surrogate_model = numpoly.ndpoly.from_attributes(
+            exponents=pc_exponents, coefficients=klpc_coefficients,
+        )
+        
+        if filename is not None:
+            with open(filename, 'wb') as surrogate_file:
+                LOGGER.info(f'saving surrogate model to "{filename}"')
+                surrogate_model.dump(surrogate_file)
+    else:
+        LOGGER.info(f'loading surrogate model from "{filename}"')
+        surrogate_model = chaospy.load(filename, allow_pickle=True)
+
+    return surrogate_model
+    
+
 def surrogate_from_samples(
     samples: xarray.DataArray,
     perturbations: xarray.DataArray,
