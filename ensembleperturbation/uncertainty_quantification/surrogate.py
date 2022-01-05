@@ -14,7 +14,9 @@ LOGGER = get_logger('surrogate')
 
 
 def surrogate_from_karhunen_loeve(
-    kl_dict: dict,
+    mean_vector: numpy.ndarray,
+    eigenvalues: numpy.ndarray,
+    modes: numpy.ndarray,
     kl_surrogate_model: numpoly.ndpoly,
     filename: PathLike = None,
 ) -> numpoly.ndpoly:
@@ -33,10 +35,11 @@ def surrogate_from_karhunen_loeve(
     if filename is not None and not isinstance(filename, Path):
         filename = Path(filename)
 
-    num_points = len(kl_dict['mean_vector'])
-    num_modes = len(kl_dict['eigenvalues'])
-    assert (
-        num_modes == len(kl_surrogate_model)
+    num_points = len(mean_vector)
+    num_modes = len(eigenvalues)
+
+    assert num_modes == len(
+        kl_surrogate_model
     ), 'number of kl_dict eigenvalues must be equal to the length of the kl_surrogate_model'
     
     if filename is None or not filename.exists():
@@ -45,14 +48,14 @@ def surrogate_from_karhunen_loeve(
         pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
         num_coefficients = pc_coefficients.shape[0]
         klpc_coefficients = numpy.zeros((num_coefficients, num_points))
-        klpc_coefficients[0, :] = kl_dict['mean_vector']
+        klpc_coefficients[0, :] = mean_vector
         for z_index in range(num_points):
             for coef_index in range(num_coefficients):
                 for mode_index in range(num_modes):
                     klpc_coefficients[coef_index, z_index] += (
                         pc_coefficients[coef_index, mode_index]
-                        * numpy.sqrt(kl_dict['eigenvalues'][mode_index])
-                        * kl_dict['modes'][z_index, mode_index]
+                        * numpy.sqrt(eigenvalues[mode_index])
+                        * modes[z_index, mode_index]
                     )
         surrogate_model = numpoly.ndpoly.from_attributes(
             exponents=pc_exponents, coefficients=klpc_coefficients,

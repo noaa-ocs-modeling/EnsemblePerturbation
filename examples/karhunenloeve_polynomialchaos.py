@@ -175,7 +175,7 @@ if __name__ == '__main__':
 
     neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
     LOGGER.info(f'found {neig} Karhunen-Loeve modes')
-    LOGGER.info(f'Karhunen-Loeve expansion: {kl_expansion}')
+    LOGGER.info(f'Karhunen-Loeve expansion: {list(kl_expansion)}')
     # plot prediction versus actual simulated
     kl_predicted = karhunen_loeve_prediction(
         kl_dict=kl_expansion,
@@ -197,11 +197,13 @@ if __name__ == '__main__':
 
     # convert the KL surrogate model to the overall surrogate at each node
     surrogate_model = surrogate_from_karhunen_loeve(
-        kl_dict=kl_expansion, 
+        mean_vector=kl_expansion['mean_vectory'],
+        eigenvalues=kl_expansion['eigenvalues'],
+        modes=kl_expansion['modes'],
         kl_surrogate_model=kl_surrogate_model,
         filename=surrogate_filename,
     )
-    
+
     if make_sensitivities_plot:
         sensitivities = sensitivities_from_surrogate(
             surrogate_model=surrogate_model,
