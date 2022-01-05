@@ -61,17 +61,21 @@ def surrogate_from_karhunen_loeve(
         # get the coefficients of the PC for each point in z (spatiotemporal dimension)
         pc_exponents = kl_surrogate_model.exponents
         pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
-        num_coefficients = pc_coefficients.shape[0]
-        klpc_coefficients = numpy.zeros((num_coefficients, num_points))
-        klpc_coefficients[0, :] = mean_vector
-        for z_index in range(num_points):
-            for coef_index in range(num_coefficients):
-                for mode_index in range(num_modes):
-                    klpc_coefficients[coef_index, z_index] += (
-                        pc_coefficients[coef_index, mode_index]
-                        * numpy.sqrt(eigenvalues[mode_index])
-                        * modes[z_index, mode_index]
+        klpc_coefficients = numpy.sum(
+            numpy.stack(
+                [
+                    numpy.dot(
+                        (pc_coefficients * numpy.sqrt(eigenvalues))[:, mode_index, None],
+                        modes[None, :, mode_index],
                     )
+                    for mode_index in range(num_modes)
+                ],
+                axis=0,
+            ),
+            axis=0,
+        )
+        klpc_coefficients[0, :] += mean_vector
+
         surrogate_model = numpoly.ndpoly.from_attributes(
             exponents=pc_exponents, coefficients=klpc_coefficients,
         )
