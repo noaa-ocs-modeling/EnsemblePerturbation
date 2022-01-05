@@ -21,15 +21,29 @@ def surrogate_from_karhunen_loeve(
     filename: PathLike = None,
 ) -> numpoly.ndpoly:
     """
-    Get the joint Karhunen-Loeve / Polynomial Chaos polynomial
-    from Eq (6) in Sargsyan, K. and Ricciuto D. (2021):
-    sum_{k=0}^{K} (kroneckerdelta_{k0}*mean(f(z)) +  
-                   sum_{j=0}^{L} [c_{jk}*\sqrt(ev_j)*ef_j(z)]) 
-    K -> num PC coefficients
-    L -> num KL modes
-    c -> PC coefficient 
-    ev -> eigenvalue
-    ef -> eigenfunction
+    build a polynomial from the given Karhunen-Loeve expansion (eigenvalues and modes) along with a mean vector along the node space
+
+    :param mean_vector: all points
+    :param eigenvalues: eigenvalues of each point to each mode
+    :param modes: modes of the Karhunen-Loeve expansion
+    :param kl_surrogate_model: ``ndpoly`` surrogate polynomial generated on training set
+    :param filename: file path to save surrogate as pickled ``ndpoly`` object
+
+    Get the joint Karhunen-Loeve / Polynomial Chaos polynomial from Eq (6) in Sargsyan, K. and Ricciuto D. (2021):
+
+    .. math::
+
+        \sum_{k=0}^{K} ( \delta_{k0} * \overline{f(z)} + \sum_{j=0}^{L} [ c_{jk} * \sqrt{ev_j} * ef_j(z) ] )
+
+    ``K`` -> num PC coefficients
+
+    ``L`` -> num KL modes
+
+    ``c`` -> PC coefficient
+
+    ``ev`` -> eigenvalue
+
+    ``ef`` -> eigenfunction
     """
 
     if filename is not None and not isinstance(filename, Path):
