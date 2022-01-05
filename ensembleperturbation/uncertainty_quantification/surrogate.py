@@ -23,13 +23,7 @@ def surrogate_from_karhunen_loeve(
     """
     build a polynomial from the given Karhunen-Loeve expansion (eigenvalues and modes) along with a mean vector along the node space
 
-    :param mean_vector: all points
-    :param eigenvalues: eigenvalues of each point to each mode
-    :param modes: modes of the Karhunen-Loeve expansion
-    :param kl_surrogate_model: ``ndpoly`` surrogate polynomial generated on training set
-    :param filename: file path to save surrogate as pickled ``ndpoly`` object
-
-    Get the joint Karhunen-Loeve / Polynomial Chaos polynomial from Eq (6) in Sargsyan, K. and Ricciuto D. (2021):
+    the joint Karhunen-Loeve / Polynomial Chaos polynomial is derived from Eq (6) in Sargsyan, K. and Ricciuto D. (2021):
 
     .. math::
 
@@ -44,6 +38,13 @@ def surrogate_from_karhunen_loeve(
     ``ev`` -> eigenvalue
 
     ``ef`` -> eigenfunction
+
+    :param mean_vector: all points
+    :param eigenvalues: eigenvalues of each point to each mode
+    :param modes: modes of the Karhunen-Loeve expansion
+    :param kl_surrogate_model: ``ndpoly`` surrogate polynomial generated on training set
+    :param filename: file path to save surrogate as pickled ``ndpoly`` object
+    :return: polynomial constructued from the above equation
     """
 
     if filename is not None and not isinstance(filename, Path):
