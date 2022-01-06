@@ -43,8 +43,8 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    use_depth = True   # for depths (must be >= 0)
-    #use_depth = False # for elevations
+    use_depth = True  # for depths (must be >= 0)
+    # use_depth = False # for elevations
 
     make_perturbations_plot = True
     make_klprediction_plot = True
@@ -158,8 +158,12 @@ if __name__ == '__main__':
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        training_set = subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
-        validation_set = subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
+        training_set = (
+            subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
+        )
+        validation_set = (
+            subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
+        )
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')

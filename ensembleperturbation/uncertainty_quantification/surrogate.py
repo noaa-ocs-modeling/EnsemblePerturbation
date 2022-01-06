@@ -307,7 +307,6 @@ def validations_from_surrogate(
         node_validation = node_validation.assign_coords(type=['training', 'validation'])
         node_validation = node_validation.to_dataset(name='results')
 
-
         if filename is not None:
             LOGGER.info(f'saving validation to "{filename}"')
             node_validation.to_netcdf(filename)
@@ -373,11 +372,14 @@ def percentiles_from_samples(
     enforce_positivity: bool = False,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
-    #surrogate_percentiles = chaospy.Perc(
+    # surrogate_percentiles = chaospy.Perc(
     #    poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
-    #)
+    # )
     surrogate_percentiles = compute_surrogate_percentiles(
-        poly=surrogate_model, q=percentiles, dist=distribution, enforce_positivity=enforce_positivity,
+        poly=surrogate_model,
+        q=percentiles,
+        dist=distribution,
+        enforce_positivity=enforce_positivity,
     )
 
     surrogate_percentiles = xarray.DataArray(
@@ -441,12 +443,11 @@ def percentiles_from_surrogate(
     return node_percentiles
 
 
-
 def compute_surrogate_percentiles(
-    poly: numpoly.ndpoly, 
-    q: List[float], 
-    dist: chaospy.Distribution, 
-    sample: int = 10000, 
+    poly: numpoly.ndpoly,
+    q: List[float],
+    dist: chaospy.Distribution,
+    sample: int = 10000,
     enforce_positivity: bool = False,
     **kws,
 ):
@@ -489,7 +490,7 @@ def compute_surrogate_percentiles(
     shape = poly.shape
     poly = poly.ravel()
 
-    q = numpy.asarray(q).ravel()/100.
+    q = numpy.asarray(q).ravel() / 100.0
     dim = len(dist)
 
     # Interior
@@ -497,7 +498,7 @@ def compute_surrogate_percentiles(
     poly1 = poly(*Z)
 
     # Min/max
-    ext = numpy.mgrid[(slice(0, 2, 1), )*dim].reshape(dim, 2**dim).T
+    ext = numpy.mgrid[(slice(0, 2, 1),) * dim].reshape(dim, 2 ** dim).T
     ext = numpy.where(ext, dist.lower, dist.upper).T
     poly2 = poly(*ext)
     poly2 = numpy.array([_ for _ in poly2.T if not numpy.any(numpy.isnan(_))]).T
@@ -505,12 +506,12 @@ def compute_surrogate_percentiles(
     # Finish
     if poly2.shape:
         poly1 = numpy.concatenate([poly1, poly2], -1)
-    if enforce_positivity: 
+    if enforce_positivity:
         negative = poly1 < 0
         poly1[negative] = 0
     samples = poly1.shape[-1]
     poly1.sort()
-    out = poly1.T[numpy.asarray(q*(samples-1), dtype=int)]
+    out = poly1.T[numpy.asarray(q * (samples - 1), dtype=int)]
     out = out.reshape(q.shape + shape)
 
     return out
