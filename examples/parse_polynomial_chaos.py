@@ -42,12 +42,16 @@ if __name__ == '__main__':
     storm_name = None
 
     input_directory = Path.cwd()
-    subset_filename = input_directory / 'subset.nc'
-    surrogate_filename = input_directory / 'surrogate.npy'
-    sensitivities_filename = input_directory / 'sensitivities.nc'
-    validation_filename = input_directory / 'validation.nc'
-    statistics_filename = input_directory / 'statistics.nc'
-    percentile_filename = input_directory / 'percentiles.nc'
+    output_directory = input_directory / 'outputs'
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True, exist_ok=True)
+
+    subset_filename = output_directory / 'subset.nc'
+    surrogate_filename = output_directory / 'surrogate.npy'
+    sensitivities_filename = output_directory / 'sensitivities.nc'
+    validation_filename = output_directory / 'validation.nc'
+    statistics_filename = output_directory / 'statistics.nc'
+    percentile_filename = output_directory / 'percentiles.nc'
 
     filenames = ['perturbations.nc', 'maxele.63.nc', 'fort.63.nc']
 
