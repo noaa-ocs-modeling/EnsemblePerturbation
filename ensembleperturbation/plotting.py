@@ -1242,3 +1242,60 @@ def plot_selected_validations(validation: xarray.Dataset, run_list: list, output
             figure.savefig(
                 output_directory / f'validation_{run}.png', dpi=200, bbox_inches='tight',
             )
+
+
+def plot_selected_percentiles(node_percentiles: xarray.Dataset, perc_list: list, output_directory: PathLike):
+    percentiles = node_percentiles.quantiles
+
+    sources = node_percentiles['source'].values
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
+    bounds = numpy.array([
+        node_percentiles['x'].min(), 
+        node_percentiles['y'].min(), 
+        node_percentiles['x'].max(),
+        node_percentiles['y'].max(),
+    ])
+    vmax = numpy.round_(percentiles.quantile(0.98), decimals=1)
+    for perc in perc_list:
+        figure = pyplot.figure()
+        figure.set_size_inches(10, 10 / 1.61803398875)
+        figure.suptitle(
+            f'comparison of percentiles: {perc}%'
+        )
+        for index, source in enumerate(sources):
+            map_axis = figure.add_subplot(2, len(sources), index+1)
+            map_axis.title.set_text(f'{source}')
+            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+            map_axis.set_xlim((bounds[0], bounds[2]))
+            map_axis.set_ylim((bounds[1], bounds[3]))
+
+            xlim = map_axis.get_xlim()
+            ylim = map_axis.get_ylim()
+
+            countries.plot(color='lightgrey', ax=map_axis)
+
+            im = plot_points(
+                points=numpy.vstack(
+                    (node_percentiles['x'], 
+                     node_percentiles['y'], 
+                     percentiles.sel(quantile=perc,source=source))
+                ).T,
+                axis=map_axis,
+                add_colorbar=False, 
+                vmax=vmax,
+                vmin=0.0,
+            )
+
+            map_axis.set_xlim(xlim)
+            map_axis.set_ylim(ylim)
+
+        cbar = figure.colorbar(im, shrink=0.95, extend='max') 
+
+        if output_directory is not None:
+            figure.savefig(
+                output_directory / f'percentiles_{perc}.png', dpi=200, bbox_inches='tight',
+            )

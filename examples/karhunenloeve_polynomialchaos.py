@@ -16,6 +16,7 @@ from ensembleperturbation.plotting import (
     plot_sensitivities,
     plot_validations,
     plot_selected_validations,
+    plot_selected_percentiles,
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
@@ -261,42 +262,10 @@ if __name__ == '__main__':
             filename=percentile_filename,
         )
 
-        plot_nodes_across_runs(
-            xarray.Dataset(
-                {
-                    str(float(percentile.values)): node_percentiles['quantiles'].sel(
-                        quantile=percentile
-                    )
-                    for percentile in node_percentiles['quantile']
-                },
-                coords=node_percentiles.coords,
-            ),
-            title=f'{len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
-            colors='90.0',
-            storm=storm,
-            output_filename=output_directory / 'percentiles.png' if save_plots else None,
-        )
-
-        plot_nodes_across_runs(
-            xarray.Dataset(
-                {
-                    str(float(percentile.values)): node_percentiles['differences'].sel(
-                        quantile=percentile
-                    )
-                    for percentile in node_percentiles['quantile']
-                },
-                coords={
-                    coord_name: coord
-                    for coord_name, coord in node_percentiles.coords.items()
-                    if coord_name != 'source'
-                },
-            ),
-            title=f'differences between {len(percentiles)} surrogate-predicted and modeled percentile(s) for {len(node_percentiles["node"])} node(s) across {len(training_set["run"])} run(s)',
-            colors='90.0',
-            storm=storm,
-            output_filename=output_directory / 'percentile_differences.png'
-            if save_plots
-            else None,
+        plot_selected_percentiles(
+            node_percentiles=node_percentiles,
+            perc_list=percentiles,
+            output_directory=output_directory if save_plots else None,
         )
 
     if show_plots:
