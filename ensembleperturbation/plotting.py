@@ -284,6 +284,7 @@ def plot_points(
     show: bool = False,
     save_filename: PathLike = None,
     title: str = None,
+    add_colorbar: bool = True,
     **kwargs,
 ):
     """
@@ -312,7 +313,7 @@ def plot_points(
 
     sc = axis.scatter(points[:, 0], points[:, 1], **kwargs)
 
-    if 'c' in kwargs:
+    if 'c' in kwargs and add_colorbar:
         pyplot.colorbar(sc)
 
     if title is not None:
@@ -326,7 +327,7 @@ def plot_points(
     else:
         pyplot.close()
 
-
+    return sc
 # def plot_geoarray(
 #     array: numpy.ndarray,
 #     transform: Affine = None,
@@ -901,6 +902,7 @@ def plot_comparison(
     title: str = None,
     output_filename: PathLike = None,
     reference_line: bool = True,
+    statistics_text_offset: int = 0,
     figure: Figure = None,
     axes: Dict[str, Dict[str, Axis]] = None,
     **kwargs,
@@ -941,11 +943,41 @@ def plot_comparison(
 
                 axis.set_xlim(xlim)
                 axis.set_ylim(ylim)
+            
+            if statistics_text_offset > 0:
+                ratio = statistics_text_offset*0.1
+                xlim = axis.get_xlim()
+                ylim = axis.get_ylim()
+                xpos = xlim[0]+ratio*(xlim[-1] - xlim[0])
+                ypos = ylim[0]+numpy.array([0.95,0.90,0.85,0.80])*(ylim[-1] - ylim[0])
+                rmse, corr, nmb, nme = get_validation_statistics(x,y,3) 
+                color = kwargs['c']
+                axis.text(xpos,ypos[0],'RMSE = ' + str(rmse) + ' m', color=color) 
+                axis.text(xpos,ypos[1],'CORR = ' + str(corr), color=color) 
+                axis.text(xpos,ypos[2],'NMB = ' + str(nmb), color=color) 
+                axis.text(xpos,ypos[3],'NME = ' + str(nme), color=color) 
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
     return axes
+                
+def get_validation_statistics(O,P,decimals):
+    # root-mean-square error
+    rmse = (((P-O)**2).mean())**0.5 
+    # correlation coefficient
+    MP = P.mean()
+    MO = O.mean()
+    PD2 = ((P-MP)**2).sum()    
+    OD2 = ((O-MO)**2).sum()   
+    PDOD = ((P-MP)*(O-MO)).sum()
+    corr = PDOD/(PD2*OD2)**0.5
+    # normalized mean bias
+    nmb = (P-O).sum()/O.sum()
+    # normalized mean error
+    nme = (abs(P-O)).sum()/O.sum()
+ 
+    return numpy.round(rmse.values, decimals), numpy.round(corr.values, decimals), numpy.round(nmb.values, decimals), numpy.round(nme.values, decimals)
 
 
 def plot_perturbations(
@@ -1137,6 +1169,7 @@ def plot_validations(validation: xarray.Dataset, output_filename: PathLike):
             result_validation,
             title=f'comparison of {len(sources)} sources along {len(result_validation["node"])} node(s)',
             reference_line=index == 0,
+            statistics_text_offset=2*(index+1),
             figure=figure,
             axes=axes,
             s=1,
@@ -1150,3 +1183,62 @@ def plot_validations(validation: xarray.Dataset, output_filename: PathLike):
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
+
+
+def plot_selected_validations(validation: xarray.Dataset, run_list: list, output_directory: PathLike):
+    validation = validation['results']
+
+    sources = validation['source'].values
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
+    bounds = numpy.array([
+        validation['x'].min(), 
+        validation['y'].min(), 
+        validation['x'].max(),
+        validation['y'].max(),
+    ])
+    vmax = numpy.round_(validation.quantile(0.98), decimals=1)
+    for run in run_list:
+        figure = pyplot.figure()
+        figure.set_size_inches(10, 10 / 1.61803398875)
+        figure.suptitle(
+            f'validation of surrogate model for run: {run}'
+        )
+
+        for index, source in enumerate(sources):
+            map_axis = figure.add_subplot(2, len(sources), index+1)
+            map_axis.title.set_text(f'{source}')
+            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+            map_axis.set_xlim((bounds[0], bounds[2]))
+            map_axis.set_ylim((bounds[1], bounds[3]))
+
+            xlim = map_axis.get_xlim()
+            ylim = map_axis.get_ylim()
+
+            countries.plot(color='lightgrey', ax=map_axis)
+
+            im = plot_points(
+                points=numpy.vstack(
+                    (validation['x'], 
+                     validation['y'], 
+                     validation.sel(type='validation',run=run,source=source))
+                ).T,
+                axis=map_axis,
+                add_colorbar=False, 
+                vmax=vmax,
+                vmin=0.0,
+            )
+
+            map_axis.set_xlim(xlim)
+            map_axis.set_ylim(ylim)
+
+        cbar = figure.colorbar(im, shrink=0.95, extend='max') 
+
+        if output_directory is not None:
+            figure.savefig(
+                output_directory / f'validation_{run}.png', dpi=200, bbox_inches='tight',
+            )

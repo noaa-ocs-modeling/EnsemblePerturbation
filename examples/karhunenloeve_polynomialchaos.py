@@ -15,6 +15,7 @@ from ensembleperturbation.plotting import (
     plot_perturbations,
     plot_sensitivities,
     plot_validations,
+    plot_selected_validations,
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
@@ -43,14 +44,13 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    use_depth = True  # for depths (must be >= 0)
-    # use_depth = False # for elevations
+    #use_depth = True   # for depths (must be >= 0)
+    use_depth = False # for elevations
 
     make_perturbations_plot = True
     make_klprediction_plot = True
     make_sensitivities_plot = True
     make_validation_plot = True
-    make_statistics_plot = False
     make_percentile_plot = True
 
     save_plots = True
@@ -59,7 +59,10 @@ if __name__ == '__main__':
     storm_name = None
 
     input_directory = Path.cwd()
-    output_directory = input_directory / 'outputs'
+    if use_depth:
+        output_directory = input_directory / 'outputs_depths'
+    else:
+        output_directory = input_directory / 'outputs_elevations'
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
@@ -158,12 +161,8 @@ if __name__ == '__main__':
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        training_set = (
-            subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
-        )
-        validation_set = (
-            subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
-        )
+        training_set = subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
+        validation_set = subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
@@ -244,21 +243,11 @@ if __name__ == '__main__':
             validation=node_validation,
             output_filename=output_directory / 'validation.png' if save_plots else None,
         )
-
-    if make_statistics_plot:
-        node_statistics = statistics_from_surrogate(
-            surrogate_model=surrogate_model,
-            distribution=distribution,
-            training_set=training_set,
-            filename=statistics_filename,
-        )
-
-        plot_nodes_across_runs(
-            node_statistics,
-            title=f'surrogate-predicted and modeled elevation(s) for {len(node_statistics["node"])} node(s) across {len(training_set["run"])} run(s)',
-            colors='mean',
-            storm=storm,
-            output_filename=output_directory / 'elevations.png' if save_plots else None,
+     
+        plot_selected_validations(
+            validation=node_validation,
+            run_list=node_validation['run'][numpy.arange(0,50,9)].values,
+            output_directory=output_directory if save_plots else None,
         )
 
     if make_percentile_plot:
