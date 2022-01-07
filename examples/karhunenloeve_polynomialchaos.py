@@ -256,7 +256,7 @@ if __name__ == '__main__':
         node_percentiles = percentiles_from_surrogate(
             surrogate_model=surrogate_model,
             distribution=distribution,
-            training_set=training_set,
+            training_set=validation_set,
             percentiles=percentiles,
             enforce_positivity=use_depth,
             filename=percentile_filename,
