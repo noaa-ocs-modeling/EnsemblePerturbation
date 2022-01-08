@@ -1299,3 +1299,43 @@ def plot_selected_percentiles(node_percentiles: xarray.Dataset, perc_list: list,
             figure.savefig(
                 output_directory / f'percentiles_{perc}.png', dpi=200, bbox_inches='tight',
             )
+        
+
+def plot_kl_surrogate_fit(kl_fit: xarray.Dataset, output_filename: PathLike, reference_line: bool = True, statistics_text: bool = True):
+    kl_fit = kl_fit['results']
+
+    figure = pyplot.figure()
+    figure.set_size_inches(11, 11 / 1.61803398875)
+    figure.suptitle(
+        f'comparison of surrogate for the KL samples'
+    )
+
+    alim = [kl_fit.min(), kl_fit.max()]
+    subplot_width = 3
+    subplot_height = numpy.ceil(len(kl_fit['node'])/subplot_width).astype(int)
+    for mode in range(len(kl_fit['node'])): 
+        axis = figure.add_subplot(subplot_height, subplot_width, mode+1)
+        qoi = kl_fit.sel(node=mode,source='model')
+        qoi_pc = kl_fit.sel(node=mode,source='surrogate')
+
+        axis.plot(qoi, qoi_pc, 'o', markersize=4)
+        
+        if reference_line:
+            axis.plot([alim[0], alim[-1]], [alim[0], alim[-1]], '--k', alpha=0.3)
+            
+        if statistics_text:
+            xpos = alim[0]+0.1*(alim[-1] - alim[0])
+            ypos = alim[0].values+numpy.array([0.95,0.85])*(alim[-1] - alim[0]).values
+            rmse, corr, nmb, nme = get_validation_statistics(qoi,qoi_pc,3) 
+            axis.text(xpos,ypos[0],'RMSE = ' + str(rmse)) 
+            axis.text(xpos,ypos[1],'CORR = ' + str(corr)) 
+        
+        axis.set_xlim(alim)
+        axis.set_ylim(alim)
+        if mode+1 > (subplot_height-1)*subplot_width:
+            axis.set_xlabel('actual') 
+        axis.set_ylabel('predicted')
+        axis.title.set_text(f'KL mode-{mode + 1}')
+
+    if output_filename is not None:
+        figure.savefig(output_filename, dpi=200, bbox_inches='tight')

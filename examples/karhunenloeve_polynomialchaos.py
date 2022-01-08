@@ -17,6 +17,7 @@ from ensembleperturbation.plotting import (
     plot_validations,
     plot_selected_validations,
     plot_selected_percentiles,
+    plot_kl_surrogate_fit,
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
@@ -50,6 +51,7 @@ if __name__ == '__main__':
 
     make_perturbations_plot = True
     make_klprediction_plot = True
+    make_klsurrogate_plot = True
     make_sensitivities_plot = True
     make_validation_plot = True
     make_percentile_plot = True
@@ -71,6 +73,7 @@ if __name__ == '__main__':
     kl_filename = output_directory / 'karhunen_loeve.pkl'
     kl_surrogate_filename = output_directory / 'kl_surrogate.npy'
     surrogate_filename = output_directory / 'surrogate.npy'
+    kl_validation_filename = output_directory / 'kl_surrogate_fit.nc'
     sensitivities_filename = output_directory / 'sensitivities.nc'
     validation_filename = output_directory / 'validation.nc'
     statistics_filename = output_directory / 'statistics.nc'
@@ -205,6 +208,20 @@ if __name__ == '__main__':
         use_quadrature=use_quadrature,
         polynomial_order=polynomial_order,
     )
+
+    # plot kl surrogate model versus training set
+    if make_klsurrogate_plot:
+        kl_fit = validations_from_surrogate(
+            surrogate_model=kl_surrogate_model,
+            training_set=kl_training_set,
+            training_perturbations=training_perturbations,
+            filename=kl_validation_filename,
+        )
+        
+        plot_kl_surrogate_fit(
+            kl_fit=kl_fit,
+            output_filename=output_directory / 'kl_surrogate_fit.png' if save_plots else None,
+        )
 
     # convert the KL surrogate model to the overall surrogate at each node
     surrogate_model = surrogate_from_karhunen_loeve(

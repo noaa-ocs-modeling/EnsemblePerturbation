@@ -255,8 +255,8 @@ def validations_from_surrogate(
     surrogate_model: numpoly.ndpoly,
     training_set: xarray.Dataset,
     training_perturbations: xarray.Dataset,
-    validation_set: xarray.Dataset,
-    validation_perturbations: xarray.Dataset,
+    validation_set: xarray.Dataset = None,
+    validation_perturbations: xarray.Dataset = None,
     enforce_positivity: bool = False,
     filename: PathLike = None,
 ) -> xarray.Dataset:
@@ -288,24 +288,27 @@ def validations_from_surrogate(
             dims=('source', 'run', 'node'),
             name='training',
         )
+    
+        if validation_set is None:
+            node_validation = training_results.to_dataset(name='results')
+        else: 
+            LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
+            node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
+            if enforce_positivity:
+                node_validation[node_validation < 0] = 0
+            node_validation = numpy.stack([validation_set, node_validation], axis=0)
+            node_validation = xarray.DataArray(
+                node_validation,
+                coords={'source': ['model', 'surrogate'], **validation_set.coords},
+                dims=('source', 'run', 'node'),
+                name='validation',
+            )
 
-        LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
-        node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
-        if enforce_positivity:
-            node_validation[node_validation < 0] = 0
-        node_validation = numpy.stack([validation_set, node_validation], axis=0)
-        node_validation = xarray.DataArray(
-            node_validation,
-            coords={'source': ['model', 'surrogate'], **validation_set.coords},
-            dims=('source', 'run', 'node'),
-            name='validation',
-        )
-
-        node_validation = xarray.combine_nested(
-            [training_results.drop('type'), node_validation.drop('type')], concat_dim='type'
-        )
-        node_validation = node_validation.assign_coords(type=['training', 'validation'])
-        node_validation = node_validation.to_dataset(name='results')
+            node_validation = xarray.combine_nested(
+                [training_results.drop('type'), node_validation.drop('type')], concat_dim='type'
+            )
+            node_validation = node_validation.assign_coords(type=['training', 'validation'])
+            node_validation = node_validation.to_dataset(name='results')
 
         if filename is not None:
             LOGGER.info(f'saving validation to "{filename}"')
