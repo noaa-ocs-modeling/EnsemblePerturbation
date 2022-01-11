@@ -1129,7 +1129,7 @@ class VortexPerturber:
         ]
 
         if weights is None:
-            weights = numpy.full((len(run_names),), fill_value=numpy.nan)
+            weights = numpy.full((len(run_names),), fill_value=1.0)
         weights = [xarray.DataArray(weights, coords={'run': run_names}, dims=('run',))]
 
         distribution = distribution_from_variables(variables)
@@ -1324,7 +1324,7 @@ class VortexPerturber:
             },
             copy=False,
         )
- 
+
         for variable in variables:
             if variable.name in perturbation:
                 alpha = perturbation[variable.name]
@@ -1371,7 +1371,7 @@ class VortexPerturber:
                         and variable.unit != variable.unit._REGISTRY.dimensionless
                     ):
                         perturbed_values *= variable.unit
-
+ 
                     # add the error to the variable with bounds to some physical constraints
                     dataframe = variable.perturb(
                         dataframe,
