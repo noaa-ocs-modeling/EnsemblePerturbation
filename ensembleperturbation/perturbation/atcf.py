@@ -1030,6 +1030,7 @@ class VortexPerturber:
         variables: List[VortexVariable],
         directory: PathLike = None,
         sample_from_distribution: bool = False,
+        sample_rule: str = 'random',
         quadrature: bool = False,
         weights: List[float] = None,
         overwrite: bool = False,
@@ -1041,6 +1042,8 @@ class VortexPerturber:
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
         :param sample_from_distribution: override given perturbations with random samples from the joint distribution
+        :param sample_rule: rule to use for the distribution sampling. Please choose from:
+               'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'
         :param quadrature: add perturbations along quadrature
         :param weights: weights to use with perturbations
         :param overwrite: overwrite existing files
@@ -1137,9 +1140,9 @@ class VortexPerturber:
         if sample_from_distribution:
             # overwrite given perturbations with random samples from joint distribution
             if len(variables) == 1:
-                random_sample = distribution.sample(num_perturbations).reshape(-1, 1)
+                random_sample = distribution.sample(num_perturbations,rule=sample_rule).reshape(-1, 1)
             else:
-                random_sample = distribution.sample(num_perturbations).T
+                random_sample = distribution.sample(num_perturbations,rule=sample_rule).T
             perturbations[0] = xarray.DataArray(
                 random_sample,
                 coords={'run': run_names, 'variable': variable_names},
