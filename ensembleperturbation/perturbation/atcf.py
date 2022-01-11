@@ -1237,7 +1237,7 @@ class VortexPerturber:
                     'variables': copy(variable_names),
                     'weight': float(perturbation['weights'].values),
                 }
-
+       
                 if parallel:
                     write_kwargs['dataframe'] = original_data_pickle_filename
 
@@ -1320,14 +1320,14 @@ class VortexPerturber:
             },
             copy=False,
         )
-
+ 
         for variable in variables:
             if variable.name in perturbation:
                 alpha = perturbation[variable.name]
             else:
                 alpha = 0
 
-            if alpha is None or alpha > 0:
+            if alpha is None or abs(alpha) > 1.e-4:
                 # Make the random pertubations based on the historical forecast errors
                 # Interpolate from the given VT to the storm_VT
 
@@ -1640,6 +1640,7 @@ def perturb_tracks(
     mode: Mode = None,
     record_type: str = None,
     overwrite: bool = False,
+    parallel: bool = True,
 ):
     """
     write a set of perturbed storm tracks
@@ -1656,6 +1657,7 @@ def perturb_tracks(
     :param mode: either `realtime` / `aid_public` or `historical` / `archive`
     :param record_type: record type (i.e. `BEST`, `OFCL`)
     :param overwrite: overwrite existing files
+    :param parallel: generate perturbations concurrently
     :return: mapping of track names to perturbation JSONs
     """
 
@@ -1697,6 +1699,7 @@ def perturb_tracks(
         sample_from_distribution=sample_from_distribution,
         quadrature=quadrature,
         overwrite=overwrite,
+        parallel=parallel,
     )
 
     perturbations = {
