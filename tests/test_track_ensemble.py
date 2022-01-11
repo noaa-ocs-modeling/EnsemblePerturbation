@@ -1,11 +1,14 @@
 import os
 
 from adcircpy.forcing.winds.best_track import FileDeck
+from modelforcings.vortex import VortexForcing
+import numpy
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
     MaximumSustainedWindSpeed,
+    perturb_tracks,
     RadiusOfMaximumWinds,
     VortexPerturber,
 )
@@ -75,6 +78,52 @@ def test_multivariate_besttrack_ensemble():
     )
 
     check_reference_directory(output_directory, reference_directory)
+
+
+def test_spatial_perturbations():
+    output_directory = DATA_DIRECTORY / 'output' / 'test_spatial_perturbations'
+
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True, exist_ok=True)
+
+    # list of spatial perturbations
+    variables = [CrossTrack, AlongTrack]
+
+    unchanged_perturbations = []
+    for variable in variables:
+        perturbations = perturb_tracks(
+            perturbations=4,
+            directory=output_directory,
+            storm='florence2018',
+            variables=[variable],
+            sample_from_distribution=True,
+            quadrature=False,
+            overwrite=True,
+        )
+
+        tracks = {
+            name: VortexForcing.from_fort22(
+                output_directory.parent / perturbation['besttrack']['fort22_filename']
+            )
+            for name, perturbation in perturbations.items()
+        }
+
+        original_track = tracks['original']
+        del tracks['original']
+
+        for run, track in tracks.items():
+            same = numpy.allclose(
+                track.data[['longitude', 'latitude']],
+                original_track.data[['longitude', 'latitude']],
+            )
+
+            if same:
+                unchanged_perturbations.append(variable.name)
+                break
+
+    assert (
+        len(unchanged_perturbations) == 0
+    ), f'failure in {unchanged_perturbations} track perturbation'
 
 
 def test_original_file():
