@@ -1640,6 +1640,7 @@ def perturb_tracks(
     storm: Union[str, PathLike] = None,
     variables: List[VortexPerturbedVariable] = None,
     sample_from_distribution: bool = False,
+    sample_rule: str = 'random',
     quadrature: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
@@ -1657,6 +1658,8 @@ def perturb_tracks(
     :param storm: ATCF storm ID, or file path to an existing `fort.22` / ATCF file, from which to perturb
     :param variables: vortex variables to perturb
     :param sample_from_distribution: override given perturbations with random samples from the joint distribution
+    :param sample_rule: rule to use for the distribution sampling. Please choose from:
+          'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'
     :param quadrature: add perturbations along quadrature
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
