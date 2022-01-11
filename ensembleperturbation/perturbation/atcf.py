@@ -1136,11 +1136,15 @@ class VortexPerturber:
 
         if sample_from_distribution:
             # overwrite given perturbations with random samples from joint distribution
+            if len(variables) == 1:
+                random_sample = distribution.sample(num_perturbations).reshape(-1,1)
+            else:
+                random_sample = distribution.sample(num_perturbations).T
             perturbations[0] = xarray.DataArray(
-                distribution.sample(num_perturbations),
+                random_sample,
                 coords={'run': run_names, 'variable': variable_names},
-                dims=('variable', 'run'),
-            ).T
+                dims=('run', 'variable'),
+            )
 
         if quadrature:
             quadrature_nodes, quadrature_weights = chaospy.generate_quadrature(
