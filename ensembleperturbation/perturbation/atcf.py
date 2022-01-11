@@ -759,7 +759,7 @@ class AlongTrack(VortexPerturbedVariable):
         :param inplace: modify dataframe in-place
         :return: updated ATCF dataframe with different longitude latitude locations based on interpolated errors along track
         """
-
+ 
         if not inplace:
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
@@ -802,7 +802,7 @@ class AlongTrack(VortexPerturbedVariable):
         after_diffs = numpy.repeat(
             [unique_times[-1] - unique_times[-2]], max_interpolated_points
         ) * numpy.arange(1, max_interpolated_points + 1)
-        hours = numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs))
+        hours = numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs)) * units.hour
 
         # loop over all coordinates
         new_coordinates = []
@@ -834,7 +834,7 @@ class AlongTrack(VortexPerturbedVariable):
             line_segment = LineString(projected_points)
 
             # interpolate a distance "along_error" along the line
-            projected_coordinate = line_segment.interpolate(abs(along_error.magnitude))
+            projected_coordinate = line_segment.interpolate(abs(along_error.to(units.meter).magnitude))
 
             # get back lat-lon
             new_coordinates.append(
