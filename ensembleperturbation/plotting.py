@@ -328,6 +328,8 @@ def plot_points(
         pyplot.close()
 
     return sc
+
+
 # def plot_geoarray(
 #     array: numpy.ndarray,
 #     transform: Affine = None,
@@ -943,41 +945,47 @@ def plot_comparison(
 
                 axis.set_xlim(xlim)
                 axis.set_ylim(ylim)
-            
+
             if statistics_text_offset > 0:
-                ratio = statistics_text_offset*0.1
+                ratio = statistics_text_offset * 0.1
                 xlim = axis.get_xlim()
                 ylim = axis.get_ylim()
-                xpos = xlim[0]+ratio*(xlim[-1] - xlim[0])
-                ypos = ylim[0]+numpy.array([0.95,0.90,0.85,0.80])*(ylim[-1] - ylim[0])
-                rmse, corr, nmb, nme = get_validation_statistics(x,y,3) 
+                xpos = xlim[0] + ratio * (xlim[-1] - xlim[0])
+                ypos = ylim[0] + numpy.array([0.95, 0.90, 0.85, 0.80]) * (ylim[-1] - ylim[0])
+                rmse, corr, nmb, nme = get_validation_statistics(x, y, 3)
                 color = kwargs['c']
-                axis.text(xpos,ypos[0],'RMSE = ' + str(rmse) + ' m', color=color) 
-                axis.text(xpos,ypos[1],'CORR = ' + str(corr), color=color) 
-                axis.text(xpos,ypos[2],'NMB = ' + str(nmb), color=color) 
-                axis.text(xpos,ypos[3],'NME = ' + str(nme), color=color) 
+                axis.text(xpos, ypos[0], 'RMSE = ' + str(rmse) + ' m', color=color)
+                axis.text(xpos, ypos[1], 'CORR = ' + str(corr), color=color)
+                axis.text(xpos, ypos[2], 'NMB = ' + str(nmb), color=color)
+                axis.text(xpos, ypos[3], 'NME = ' + str(nme), color=color)
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
     return axes
-                
-def get_validation_statistics(O,P,decimals):
+
+
+def get_validation_statistics(O, P, decimals):
     # root-mean-square error
-    rmse = (((P-O)**2).mean())**0.5 
+    rmse = (((P - O) ** 2).mean()) ** 0.5
     # correlation coefficient
     MP = P.mean()
     MO = O.mean()
-    PD2 = ((P-MP)**2).sum()    
-    OD2 = ((O-MO)**2).sum()   
-    PDOD = ((P-MP)*(O-MO)).sum()
-    corr = PDOD/(PD2*OD2)**0.5
+    PD2 = ((P - MP) ** 2).sum()
+    OD2 = ((O - MO) ** 2).sum()
+    PDOD = ((P - MP) * (O - MO)).sum()
+    corr = PDOD / (PD2 * OD2) ** 0.5
     # normalized mean bias
-    nmb = (P-O).sum()/O.sum()
+    nmb = (P - O).sum() / O.sum()
     # normalized mean error
-    nme = (abs(P-O)).sum()/O.sum()
- 
-    return numpy.round(rmse.values, decimals), numpy.round(corr.values, decimals), numpy.round(nmb.values, decimals), numpy.round(nme.values, decimals)
+    nme = (abs(P - O)).sum() / O.sum()
+
+    return (
+        numpy.round(rmse.values, decimals),
+        numpy.round(corr.values, decimals),
+        numpy.round(nmb.values, decimals),
+        numpy.round(nme.values, decimals),
+    )
 
 
 def plot_perturbations(
@@ -1169,7 +1177,7 @@ def plot_validations(validation: xarray.Dataset, output_filename: PathLike):
             result_validation,
             title=f'comparison of {len(sources)} sources along {len(result_validation["node"])} node(s)',
             reference_line=index == 0,
-            statistics_text_offset=2*(index+1),
+            statistics_text_offset=2 * (index + 1),
             figure=figure,
             axes=axes,
             s=1,
@@ -1185,8 +1193,9 @@ def plot_validations(validation: xarray.Dataset, output_filename: PathLike):
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
 
-
-def plot_selected_validations(validation: xarray.Dataset, run_list: list, output_directory: PathLike):
+def plot_selected_validations(
+    validation: xarray.Dataset, run_list: list, output_directory: PathLike
+):
     validation = validation['results']
 
     sources = validation['source'].values
@@ -1194,22 +1203,22 @@ def plot_selected_validations(validation: xarray.Dataset, run_list: list, output
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
-    bounds = numpy.array([
-        validation['x'].min(), 
-        validation['y'].min(), 
-        validation['x'].max(),
-        validation['y'].max(),
-    ])
+    bounds = numpy.array(
+        [
+            validation['x'].min(),
+            validation['y'].min(),
+            validation['x'].max(),
+            validation['y'].max(),
+        ]
+    )
     vmax = numpy.round_(validation.quantile(0.98), decimals=1)
     for run in run_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
-        figure.suptitle(
-            f'validation of surrogate model for run: {run}'
-        )
+        figure.suptitle(f'validation of surrogate model for run: {run}')
 
         for index, source in enumerate(sources):
-            map_axis = figure.add_subplot(2, len(sources), index+1)
+            map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
             countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
 
@@ -1223,12 +1232,14 @@ def plot_selected_validations(validation: xarray.Dataset, run_list: list, output
 
             im = plot_points(
                 points=numpy.vstack(
-                    (validation['x'], 
-                     validation['y'], 
-                     validation.sel(type='validation',run=run,source=source))
+                    (
+                        validation['x'],
+                        validation['y'],
+                        validation.sel(type='validation', run=run, source=source),
+                    )
                 ).T,
                 axis=map_axis,
-                add_colorbar=False, 
+                add_colorbar=False,
                 vmax=vmax,
                 vmin=0.0,
             )
@@ -1236,7 +1247,7 @@ def plot_selected_validations(validation: xarray.Dataset, run_list: list, output
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
 
-        cbar = figure.colorbar(im, shrink=0.95, extend='max') 
+        cbar = figure.colorbar(im, shrink=0.95, extend='max')
 
         if output_directory is not None:
             figure.savefig(
@@ -1244,7 +1255,9 @@ def plot_selected_validations(validation: xarray.Dataset, run_list: list, output
             )
 
 
-def plot_selected_percentiles(node_percentiles: xarray.Dataset, perc_list: list, output_directory: PathLike):
+def plot_selected_percentiles(
+    node_percentiles: xarray.Dataset, perc_list: list, output_directory: PathLike
+):
     percentiles = node_percentiles.quantiles
 
     sources = node_percentiles['source'].values
@@ -1252,21 +1265,21 @@ def plot_selected_percentiles(node_percentiles: xarray.Dataset, perc_list: list,
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
-    bounds = numpy.array([
-        node_percentiles['x'].min(), 
-        node_percentiles['y'].min(), 
-        node_percentiles['x'].max(),
-        node_percentiles['y'].max(),
-    ])
+    bounds = numpy.array(
+        [
+            node_percentiles['x'].min(),
+            node_percentiles['y'].min(),
+            node_percentiles['x'].max(),
+            node_percentiles['y'].max(),
+        ]
+    )
     vmax = numpy.round_(percentiles.quantile(0.98), decimals=1)
     for perc in perc_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
-        figure.suptitle(
-            f'comparison of percentiles: {perc}%'
-        )
+        figure.suptitle(f'comparison of percentiles: {perc}%')
         for index, source in enumerate(sources):
-            map_axis = figure.add_subplot(2, len(sources), index+1)
+            map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
             countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
 
@@ -1280,12 +1293,14 @@ def plot_selected_percentiles(node_percentiles: xarray.Dataset, perc_list: list,
 
             im = plot_points(
                 points=numpy.vstack(
-                    (node_percentiles['x'], 
-                     node_percentiles['y'], 
-                     percentiles.sel(quantile=perc,source=source))
+                    (
+                        node_percentiles['x'],
+                        node_percentiles['y'],
+                        percentiles.sel(quantile=perc, source=source),
+                    )
                 ).T,
                 axis=map_axis,
-                add_colorbar=False, 
+                add_colorbar=False,
                 vmax=vmax,
                 vmin=0.0,
             )
@@ -1293,47 +1308,50 @@ def plot_selected_percentiles(node_percentiles: xarray.Dataset, perc_list: list,
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
 
-        cbar = figure.colorbar(im, shrink=0.95, extend='max') 
+        cbar = figure.colorbar(im, shrink=0.95, extend='max')
 
         if output_directory is not None:
             figure.savefig(
                 output_directory / f'percentiles_{perc}.png', dpi=200, bbox_inches='tight',
             )
-        
 
-def plot_kl_surrogate_fit(kl_fit: xarray.Dataset, output_filename: PathLike, reference_line: bool = True, statistics_text: bool = True):
+
+def plot_kl_surrogate_fit(
+    kl_fit: xarray.Dataset,
+    output_filename: PathLike,
+    reference_line: bool = True,
+    statistics_text: bool = True,
+):
     kl_fit = kl_fit['results']
 
     figure = pyplot.figure()
     figure.set_size_inches(11, 11 / 1.61803398875)
-    figure.suptitle(
-        f'comparison of surrogate for the KL samples'
-    )
+    figure.suptitle(f'comparison of surrogate for the KL samples')
 
     alim = [kl_fit.min(), kl_fit.max()]
     subplot_width = 3
-    subplot_height = numpy.ceil(len(kl_fit['node'])/subplot_width).astype(int)
-    for mode in range(len(kl_fit['node'])): 
-        axis = figure.add_subplot(subplot_height, subplot_width, mode+1)
-        qoi = kl_fit.sel(node=mode,source='model')
-        qoi_pc = kl_fit.sel(node=mode,source='surrogate')
+    subplot_height = numpy.ceil(len(kl_fit['node']) / subplot_width).astype(int)
+    for mode in range(len(kl_fit['node'])):
+        axis = figure.add_subplot(subplot_height, subplot_width, mode + 1)
+        qoi = kl_fit.sel(node=mode, source='model')
+        qoi_pc = kl_fit.sel(node=mode, source='surrogate')
 
         axis.plot(qoi, qoi_pc, 'o', markersize=4)
-        
+
         if reference_line:
             axis.plot([alim[0], alim[-1]], [alim[0], alim[-1]], '--k', alpha=0.3)
-            
+
         if statistics_text:
-            xpos = alim[0]+0.1*(alim[-1] - alim[0])
-            ypos = alim[0].values+numpy.array([0.95,0.85])*(alim[-1] - alim[0]).values
-            rmse, corr, nmb, nme = get_validation_statistics(qoi,qoi_pc,3) 
-            axis.text(xpos,ypos[0],'RMSE = ' + str(rmse)) 
-            axis.text(xpos,ypos[1],'CORR = ' + str(corr)) 
-        
+            xpos = alim[0] + 0.1 * (alim[-1] - alim[0])
+            ypos = alim[0].values + numpy.array([0.95, 0.85]) * (alim[-1] - alim[0]).values
+            rmse, corr, nmb, nme = get_validation_statistics(qoi, qoi_pc, 3)
+            axis.text(xpos, ypos[0], 'RMSE = ' + str(rmse))
+            axis.text(xpos, ypos[1], 'CORR = ' + str(corr))
+
         axis.set_xlim(alim)
         axis.set_ylim(alim)
-        if mode+1 > (subplot_height-1)*subplot_width:
-            axis.set_xlabel('actual') 
+        if mode + 1 > (subplot_height - 1) * subplot_width:
+            axis.set_xlabel('actual')
         axis.set_ylabel('predicted')
         axis.title.set_text(f'KL mode-{mode + 1}')
 

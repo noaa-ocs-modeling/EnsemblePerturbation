@@ -11,13 +11,12 @@ import xarray
 from ensembleperturbation.parsing.adcirc import FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting import (
-    plot_nodes_across_runs,
+    plot_kl_surrogate_fit,
     plot_perturbations,
+    plot_selected_percentiles,
+    plot_selected_validations,
     plot_sensitivities,
     plot_validations,
-    plot_selected_validations,
-    plot_selected_percentiles,
-    plot_kl_surrogate_fit,
 )
 from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion import (
     karhunen_loeve_expansion,
@@ -26,7 +25,6 @@ from ensembleperturbation.uncertainty_quantification.karhunen_loeve_expansion im
 from ensembleperturbation.uncertainty_quantification.surrogate import (
     percentiles_from_surrogate,
     sensitivities_from_surrogate,
-    statistics_from_surrogate,
     surrogate_from_karhunen_loeve,
     surrogate_from_training_set,
     validations_from_surrogate,
@@ -46,8 +44,8 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    #use_depth = True   # for depths (must be >= 0)
-    use_depth = False # for elevations
+    # use_depth = True   # for depths (must be >= 0)
+    use_depth = False  # for elevations
 
     make_perturbations_plot = True
     make_klprediction_plot = True
@@ -165,8 +163,12 @@ if __name__ == '__main__':
         storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        training_set = subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
-        validation_set = subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
+        training_set = (
+            subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
+        )
+        validation_set = (
+            subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
+        )
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
@@ -217,7 +219,7 @@ if __name__ == '__main__':
             training_perturbations=training_perturbations,
             filename=kl_validation_filename,
         )
-        
+
         plot_kl_surrogate_fit(
             kl_fit=kl_fit,
             output_filename=output_directory / 'kl_surrogate_fit.png' if save_plots else None,
@@ -261,10 +263,10 @@ if __name__ == '__main__':
             validation=node_validation,
             output_filename=output_directory / 'validation.png' if save_plots else None,
         )
-     
+
         plot_selected_validations(
             validation=node_validation,
-            run_list=node_validation['run'][numpy.arange(0,50,9)].values,
+            run_list=node_validation['run'][numpy.arange(0, 50, 9)].values,
             output_directory=output_directory if save_plots else None,
         )
 

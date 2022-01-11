@@ -288,11 +288,13 @@ def validations_from_surrogate(
             dims=('source', 'run', 'node'),
             name='training',
         )
-    
+
         if validation_set is None:
             node_validation = training_results.to_dataset(name='results')
-        else: 
-            LOGGER.info(f'running surrogate model on {validation_set.shape} validation samples')
+        else:
+            LOGGER.info(
+                f'running surrogate model on {validation_set.shape} validation samples'
+            )
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
             if enforce_positivity:
                 node_validation[node_validation < 0] = 0
@@ -305,7 +307,8 @@ def validations_from_surrogate(
             )
 
             node_validation = xarray.combine_nested(
-                [training_results.drop('type'), node_validation.drop('type')], concat_dim='type'
+                [training_results.drop('type'), node_validation.drop('type')],
+                concat_dim='type',
             )
             node_validation = node_validation.assign_coords(type=['training', 'validation'])
             node_validation = node_validation.to_dataset(name='results')

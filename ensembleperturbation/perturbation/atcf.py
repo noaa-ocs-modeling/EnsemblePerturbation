@@ -1137,7 +1137,7 @@ class VortexPerturber:
         if sample_from_distribution:
             # overwrite given perturbations with random samples from joint distribution
             if len(variables) == 1:
-                random_sample = distribution.sample(num_perturbations).reshape(-1,1)
+                random_sample = distribution.sample(num_perturbations).reshape(-1, 1)
             else:
                 random_sample = distribution.sample(num_perturbations).T
             perturbations[0] = xarray.DataArray(
@@ -1241,7 +1241,7 @@ class VortexPerturber:
                     'variables': copy(variable_names),
                     'weight': float(perturbation['weights'].values),
                 }
-       
+
                 if parallel:
                     write_kwargs['dataframe'] = original_data_pickle_filename
 
@@ -1331,7 +1331,7 @@ class VortexPerturber:
             else:
                 alpha = 0
 
-            if alpha is None or abs(alpha) > 1.e-4:
+            if alpha is None or abs(alpha) > 1.0e-4:
                 # Make the random pertubations based on the historical forecast errors
                 # Interpolate from the given VT to the storm_VT
 
@@ -1371,7 +1371,7 @@ class VortexPerturber:
                         and variable.unit != variable.unit._REGISTRY.dimensionless
                     ):
                         perturbed_values *= variable.unit
- 
+
                     # add the error to the variable with bounds to some physical constraints
                     dataframe = variable.perturb(
                         dataframe,
