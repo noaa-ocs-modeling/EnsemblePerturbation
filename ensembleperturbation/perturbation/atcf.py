@@ -33,7 +33,7 @@ import typepigeon
 import xarray
 from xarray import Dataset
 
-from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
+from ensembleperturbation.utilities import ProcessPoolExecutorStackTraced, get_logger, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -252,9 +252,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         all_values = variable_values - values
         vortex_dataframe[self.name] = [
-            min(self.upper_bound, max(value, self.lower_bound)).magnitude
-            for value in all_values
-        ] * self.unit
+                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
+                                          for value in all_values
+                                      ] * self.unit
 
         return vortex_dataframe
 
@@ -1048,7 +1048,7 @@ class VortexPerturber:
         :param directory: directory to which to write
         :param sample_from_distribution: override given perturbations with random samples from the joint distribution
         :param sample_rule: rule to use for the distribution sampling. Please choose from:
-               'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'
+               ``random`` [default], ``sobol``, ``halton``, ``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
         :param quadrature: add perturbations along quadrature
         :param weights: weights to use with perturbations
         :param overwrite: overwrite existing files
@@ -1666,7 +1666,7 @@ def perturb_tracks(
     :param variables: vortex variables to perturb
     :param sample_from_distribution: override given perturbations with random samples from the joint distribution
     :param sample_rule: rule to use for the distribution sampling. Please choose from:
-          'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'
+           ``random`` [default], ``sobol``, ``halton``,``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
     :param quadrature: add perturbations along quadrature
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
