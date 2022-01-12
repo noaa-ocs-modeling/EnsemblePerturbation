@@ -12,11 +12,17 @@ from ensembleperturbation.perturbation.atcf import perturb_tracks
 def main():
     arguments = parse_initialize_adcirc_arguments(
         extra_arguments={
-            'perturbations': int,
-            'variables': [str],
-            'sample': bool,
-            'sample_rule': str,
-            'quadrature': bool,
+            'perturbations': (int, 'number of perturbations to create'),
+            'variables': ([str], 'vortex variables to perturb'),
+            'sample': (
+                bool,
+                'override given perturbations with random samples from the joint distribution',
+            ),
+            'sample_rule': (
+                str,
+                "rule to use for the distribution sampling. Please choose from: 'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'",
+            ),
+            'quadrature': (bool, 'add additional perturbations along the quadrature'),
         }
     )
 
