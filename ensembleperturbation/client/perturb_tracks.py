@@ -15,6 +15,7 @@ def main():
             'perturbations': int,
             'variables': [str],
             'sample': bool,
+            'sample_rule': str,
             'quadrature': bool,
         }
     )
@@ -62,6 +63,7 @@ def main():
         storm=storm_id,
         variables=arguments['variables'],
         sample_from_distribution=arguments['sample'],
+        sample_rule=arguments['sample_rule'],
         quadrature=arguments['quadrature'],
         start_date=arguments['modeled_start_time'],
         end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
