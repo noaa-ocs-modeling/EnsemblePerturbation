@@ -5,7 +5,7 @@ from typing import List
 import chaospy
 import numpoly
 import numpy
-from sklearn.linear_model import OrthogonalMatchingPursuit
+from sklearn.linear_model import OrthogonalMatchingPursuit, BayesianRidge, LinearRegression
 import xarray
 
 from ensembleperturbation.utilities import get_logger
@@ -95,6 +95,7 @@ def surrogate_from_samples(
     samples: xarray.DataArray,
     perturbations: xarray.DataArray,
     polynomials: numpoly.ndpoly,
+    norms: numpy.ndarray = None,
     quadrature: bool = False,
     quadrature_weights: xarray.DataArray = None,
 ) -> numpoly.ndpoly:
@@ -111,6 +112,7 @@ def surrogate_from_samples(
                 nodes=perturbations.T,
                 weights=quadrature_weights,
                 solves=samples,
+                norms=norms,
             )
         except AssertionError:
             if (
@@ -128,10 +130,21 @@ def surrogate_from_samples(
             f'fitting polynomial surrogate to {samples.shape} samples using regression'
         )
         try:
-            model = OrthogonalMatchingPursuit(n_nonzero_coefs=3, fit_intercept=False)
-            surrogate_model = chaospy.fit_regression(
-                polynomials=polynomials, abscissas=perturbations.T, evals=samples, model=model,
-            )
+            ## Using sklearn tools...
+            #model = LinearRegression(fit_intercept=False)
+            #model = OrthogonalMatchingPursuit(fit_intercept=False)
+            model = BayesianRidge(fit_intercept=False) #(same method as UQTk)
+            poly_list = [None] * samples.shape[1]
+            for mode in range(samples.shape[1]):
+                poly_list[mode] = chaospy.fit_regression(
+                    polynomials=polynomials,
+                    abscissas=perturbations.T,
+                    evals=samples[:,mode],
+                    model=model,
+                )
+            surrogate_model = numpoly.polynomial(poly_list)
+            ## Or just call this for default regression
+            #surrogate_model = chaospy.fit_regression(polynomials=polynomials,abscissas=perturbations.T,evals=samples)
         except AssertionError:
             if perturbations.T.shape[-1] != len(samples):
                 raise AssertionError(f'{perturbations.T.shape[-1]} != {len(samples)}')
@@ -166,20 +179,21 @@ def surrogate_from_training_set(
 
     if filename is None or not filename.exists():
         # expand polynomials with polynomial chaos
-        polynomial_expansion = chaospy.generate_expansion(
-            order=polynomial_order, dist=distribution, rule='three_terms_recurrence',
+        polynomial_expansion, norms = chaospy.generate_expansion(
+            order=polynomial_order, dist=distribution, rule='three_terms_recurrence',retall=True,
         )
 
-        if not use_quadrature:
-            training_shape = training_set.shape
-            training_set = training_set.sel(node=~training_set.isnull().any('run'))
-            if training_set.shape != training_shape:
-                LOGGER.info(f'dropped `NaN`s to {training_set.shape}')
+        #if not use_quadrature:
+        #    training_shape = training_set.shape
+        #    training_set = training_set.sel(node=~training_set.isnull().any('run'))
+        #    if training_set.shape != training_shape:
+        #        LOGGER.info(f'dropped `NaN`s to {training_set.shape}')
 
         surrogate_model = surrogate_from_samples(
             samples=training_set,
             perturbations=training_perturbations['perturbations'],
             polynomials=polynomial_expansion,
+            norms=norms,
             quadrature=use_quadrature,
             quadrature_weights=training_perturbations['weights'] if use_quadrature else None,
         )
