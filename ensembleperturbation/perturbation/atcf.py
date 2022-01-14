@@ -278,6 +278,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         else:
             storm_classification = '>95kt'  # strong
 
+        LOGGER.debug(f'storm classification: {storm_classification}')
         return self.historical_forecast_errors[storm_classification]
 
 
@@ -329,7 +330,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
     ``radius_of_maximum_winds`` (``Rmax``)
-    It is perturbed along a random distribution between the 15th and 85th percentile CDFs of historical forecast errors.
+    It is perturbed along a uniform distribution on [-1,1] between the 15th and 85th percentile CDFs of NHC historical forecast errors.
     """
 
     name = 'radius_of_maximum_winds'
@@ -342,7 +343,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<15sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -13.82,
                             -19.67,
@@ -353,7 +354,18 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -46.80,
                             -52.68,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0,
+                            -2.72,
+                            -6.74,
+                            -9.59,
+                            -12.12,
+                            -15.64,
+                            -19.16,
+                            -18.60,
+                            -24.07,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             1.27,
                             0.22,
@@ -370,7 +382,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 ),
                 '15-25sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -10.47,
                             -14.54,
@@ -381,7 +393,10 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -24.24,
                             -28.30,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0, -1.07, -2.48, -4.25, -4.33, -3.55, -2.77, -6.02, -4.44,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             4.17,
                             6.70,
@@ -398,7 +413,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 ),
                 '25-35sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -8.57,
                             -13.41,
@@ -409,7 +424,10 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -7.41,
                             -7.40,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0, 0.39, 1.66, 2.49, 4.42, 5.20, 5.98, 5.98, 6.96,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             8.21,
                             10.62,
@@ -426,7 +444,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 ),
                 '35-45sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -10.66,
                             -7.64,
@@ -437,7 +455,10 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             3.65,
                             2.59,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0, 3.22, 7.32, 12.67, 14.14, 13.72, 13.31, 14.60, 14.01,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             14.77,
                             17.85,
@@ -454,7 +475,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 ),
                 '>45sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -15.36,
                             -10.37,
@@ -465,7 +486,10 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             6.66,
                             7.19,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0, 8.11, 15.19, 17.21, 24.25, 25.63, 27.00, 20.56, 20.51,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             21.43,
                             29.96,
@@ -495,7 +519,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
         initial_radius = data_frame[self.name].iloc[0]
 
         if not isinstance(initial_radius, Quantity):
-            initial_radius *= units.us_statute_mile
+            initial_radius *= units.nautical_mile
 
         if initial_radius < 15 * units.us_statute_mile:
             storm_classification = '<15sm'  # very small
@@ -508,6 +532,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
         else:
             storm_classification = '>45sm'  # very large
 
+        LOGGER.debug(f'storm classification: {storm_classification}')
         return self.historical_forecast_errors[storm_classification]
 
 
@@ -1150,6 +1175,7 @@ class VortexPerturber:
                 ).reshape(-1, 1)
             else:
                 random_sample = distribution.sample(num_perturbations, rule=sample_rule).T
+
             perturbations[0] = xarray.DataArray(
                 random_sample,
                 coords={'run': run_names, 'variable': variable_names},
@@ -1341,7 +1367,7 @@ class VortexPerturber:
             else:
                 alpha = 0
 
-            if alpha is None or abs(alpha) > 1.0e-4:
+            if alpha is None or abs(alpha) > 1.0e-3:
                 # Make the random pertubations based on the historical forecast errors
                 # Interpolate from the given VT to the storm_VT
 
@@ -1365,7 +1391,7 @@ class VortexPerturber:
                     },
                     index=validation_hours,
                 )
-
+ 
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:
@@ -1395,16 +1421,23 @@ class VortexPerturber:
                         perturbation[variable.name] = alpha
 
                     LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
-                    perturbed_values = numpy.mean(
-                        numpy.stack(
-                            (
-                                validation_time_errors.iloc[:, 0] * (1 - alpha),
-                                validation_time_errors.iloc[:, 1] * (1 + alpha),
-                            ),
-                            axis=1,
-                        ),
-                        axis=1,
+                    # extrapolate to 0th/100th percentile...
+                    min_validation_time_errors = (
+                        1.3 * validation_time_errors.loc[:, '15th percentile error'] - 
+                        0.3 * validation_time_errors.loc[:, '50th percentile error']  
+                    ) 
+                    max_validation_time_errors = (
+                        1.3 * validation_time_errors.loc[:, '85th percentile error'] - 
+                        0.3 * validation_time_errors.loc[:, '50th percentile error'] 
                     )
+                    ## if just choose 15th/85th percentile...
+                    #min_validation_time_errors = validation_time_errors.loc[:, '15th percentile error']
+                    #max_validation_time_errors = validation_time_errors.loc[:, '85th percentile error']
+                    perturbed_values = 0.5*(
+                        min_validation_time_errors * (1 - alpha) + 
+                        max_validation_time_errors * (1 + alpha)
+                    )
+                    perturbed_values = perturbed_values.iloc[:,0].values
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbed_values *= variable.unit
 
