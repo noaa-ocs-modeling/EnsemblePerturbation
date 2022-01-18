@@ -1,4 +1,5 @@
 from os import PathLike
+from typing import Dict
 
 import numpy
 import pandas
