@@ -5,7 +5,7 @@ from typing import List
 import chaospy
 import numpoly
 import numpy
-from sklearn.linear_model import OrthogonalMatchingPursuit, BayesianRidge, LinearRegression
+from sklearn.linear_model import BayesianRidge, LinearRegression, OrthogonalMatchingPursuit
 import xarray
 
 from ensembleperturbation.utilities import get_logger
@@ -131,20 +131,20 @@ def surrogate_from_samples(
         )
         try:
             ## Using sklearn tools...
-            #model = LinearRegression(fit_intercept=False)
-            #model = OrthogonalMatchingPursuit(fit_intercept=False)
-            model = BayesianRidge(fit_intercept=False) #(same method as UQTk)
+            # model = LinearRegression(fit_intercept=False)
+            # model = OrthogonalMatchingPursuit(fit_intercept=False)
+            model = BayesianRidge(fit_intercept=False)  # (same method as UQTk)
             poly_list = [None] * samples.shape[1]
             for mode in range(samples.shape[1]):
                 poly_list[mode] = chaospy.fit_regression(
                     polynomials=polynomials,
                     abscissas=perturbations.T,
-                    evals=samples[:,mode],
+                    evals=samples[:, mode],
                     model=model,
                 )
             surrogate_model = numpoly.polynomial(poly_list)
             ## Or just call this for default regression
-            #surrogate_model = chaospy.fit_regression(polynomials=polynomials,abscissas=perturbations.T,evals=samples)
+            # surrogate_model = chaospy.fit_regression(polynomials=polynomials,abscissas=perturbations.T,evals=samples)
         except AssertionError:
             if perturbations.T.shape[-1] != len(samples):
                 raise AssertionError(f'{perturbations.T.shape[-1]} != {len(samples)}')
@@ -180,10 +180,13 @@ def surrogate_from_training_set(
     if filename is None or not filename.exists():
         # expand polynomials with polynomial chaos
         polynomial_expansion, norms = chaospy.generate_expansion(
-            order=polynomial_order, dist=distribution, rule='three_terms_recurrence',retall=True,
+            order=polynomial_order,
+            dist=distribution,
+            rule='three_terms_recurrence',
+            retall=True,
         )
 
-        #if not use_quadrature:
+        # if not use_quadrature:
         #    training_shape = training_set.shape
         #    training_set = training_set.sel(node=~training_set.isnull().any('run'))
         #    if training_set.shape != training_shape:

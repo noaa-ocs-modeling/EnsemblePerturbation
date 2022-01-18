@@ -1,8 +1,8 @@
 import os
 
-from adcircpy.forcing.winds.best_track import FileDeck
-from modelforcings.vortex import VortexForcing
 import numpy
+from stormevents import VortexTrack
+from stormevents.nhc.atcf import ATCF_FileDeck
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -23,7 +23,7 @@ def test_monovariate_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', end_date=None, file_deck=FileDeck.b,
+        storm='al062018', start_date='20180911', end_date=None, file_deck=ATCF_FileDeck.b,
     )
 
     for filename in output_directory.iterdir():
@@ -52,7 +52,7 @@ def test_multivariate_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', end_date=None, file_deck=FileDeck.b,
+        storm='al062018', start_date='20180911', end_date=None, file_deck=ATCF_FileDeck.b,
     )
 
     # list of variables to perturb
@@ -102,7 +102,7 @@ def test_spatial_perturbations():
         )
 
         tracks = {
-            name: VortexForcing.from_fort22(
+            name: VortexTrack.from_fort22(
                 output_directory.parent / perturbation['besttrack']['fort22_filename']
             )
             for name, perturbation in perturbations.items()
@@ -135,7 +135,7 @@ def test_original_file():
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    original_data = open(reference_directory / 'original.22').read()
+    original_track = VortexTrack.from_fort22(run_1_directory / 'original.22')
 
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
@@ -146,22 +146,22 @@ def test_original_file():
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
 
-    assert open(run_1_directory / 'original.22').read() == original_data
+    assert VortexTrack.from_fort22(run_1_directory / 'original.22') == original_track
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
 
-    assert open(run_1_directory / 'original.22').read() == original_data
+    assert VortexTrack.from_fort22(run_1_directory / 'original.22') == original_track
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory
     )
 
-    assert open(run_2_directory / 'original.22').read() == original_data
+    assert VortexTrack.from_fort22(run_2_directory / 'original.22') == original_track
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory
     )
 
-    assert open(run_2_directory / 'original.22').read() == original_data
+    assert VortexTrack.from_fort22(run_2_directory / 'original.22') == original_track

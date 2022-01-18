@@ -35,6 +35,7 @@ DEPENDENCIES = {
     'requests': [],
     'shapely': [],
     'scikit-learn': [],
+    'stormevents': [],
 }
 
 

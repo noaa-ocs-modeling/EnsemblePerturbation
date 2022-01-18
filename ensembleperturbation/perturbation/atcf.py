@@ -14,7 +14,6 @@ from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
 import warnings
 
-from adcircpy.forcing.winds.best_track import FileDeck, Mode, VortexForcing
 import chaospy
 from chaospy import Distribution
 from dateutil.parser import parse as parse_date
@@ -29,11 +28,13 @@ from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
+from stormevents.nhc import VortexTrack
+from stormevents.nhc.atcf import ATCF_FileDeck, ATCF_Mode
 import typepigeon
 import xarray
 from xarray import Dataset
 
-from ensembleperturbation.utilities import ProcessPoolExecutorStackTraced, get_logger, units
+from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -252,9 +253,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         all_values = variable_values - values
         vortex_dataframe[self.name] = [
-                                          min(self.upper_bound, max(value, self.lower_bound)).magnitude
-                                          for value in all_values
-                                      ] * self.unit
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            for value in all_values
+        ] * self.unit
 
         return vortex_dataframe
 
@@ -394,7 +395,15 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -28.30,
                         ],
                         '50th percentile error': [
-                            0.0, -1.07, -2.48, -4.25, -4.33, -3.55, -2.77, -6.02, -4.44,
+                            0.0,
+                            -1.07,
+                            -2.48,
+                            -4.25,
+                            -4.33,
+                            -3.55,
+                            -2.77,
+                            -6.02,
+                            -4.44,
                         ],
                         '85th percentile error': [
                             0.0,
@@ -425,7 +434,15 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -7.40,
                         ],
                         '50th percentile error': [
-                            0.0, 0.39, 1.66, 2.49, 4.42, 5.20, 5.98, 5.98, 6.96,
+                            0.0,
+                            0.39,
+                            1.66,
+                            2.49,
+                            4.42,
+                            5.20,
+                            5.98,
+                            5.98,
+                            6.96,
                         ],
                         '85th percentile error': [
                             0.0,
@@ -456,7 +473,15 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             2.59,
                         ],
                         '50th percentile error': [
-                            0.0, 3.22, 7.32, 12.67, 14.14, 13.72, 13.31, 14.60, 14.01,
+                            0.0,
+                            3.22,
+                            7.32,
+                            12.67,
+                            14.14,
+                            13.72,
+                            13.31,
+                            14.60,
+                            14.01,
                         ],
                         '85th percentile error': [
                             0.0,
@@ -487,7 +512,15 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             7.19,
                         ],
                         '50th percentile error': [
-                            0.0, 8.11, 15.19, 17.21, 24.25, 25.63, 27.00, 20.56, 20.51,
+                            0.0,
+                            8.11,
+                            15.19,
+                            17.21,
+                            24.25,
+                            25.63,
+                            27.00,
+                            20.56,
+                            20.51,
                         ],
                         '85th percentile error': [
                             0.0,
@@ -927,8 +960,8 @@ class VortexPerturber:
         storm: str,
         start_date: datetime = None,
         end_date: datetime = None,
-        file_deck: FileDeck = None,
-        mode: Mode = None,
+        file_deck: ATCF_FileDeck = None,
+        mode: ATCF_Mode = None,
         record_type: str = None,
     ):
         """
@@ -986,27 +1019,27 @@ class VortexPerturber:
         self.__end_date = end_date
 
     @property
-    def file_deck(self) -> FileDeck:
+    def file_deck(self) -> ATCF_FileDeck:
         return self.__file_deck
 
     @file_deck.setter
-    def file_deck(self, file_deck: FileDeck):
+    def file_deck(self, file_deck: ATCF_FileDeck):
         if file_deck is not None and not isinstance(file_deck, datetime):
-            file_deck = typepigeon.convert_value(file_deck, FileDeck)
+            file_deck = typepigeon.convert_value(file_deck, ATCF_FileDeck)
         self.__file_deck = file_deck
 
     @property
-    def mode(self) -> Mode:
+    def mode(self) -> ATCF_Mode:
         return self.__mode
 
     @mode.setter
-    def mode(self, mode: Mode):
+    def mode(self, mode: ATCF_Mode):
         if mode is not None and not isinstance(mode, datetime):
-            mode = typepigeon.convert_value(mode, Mode)
+            mode = typepigeon.convert_value(mode, ATCF_Mode)
         self.__mode = mode
 
     @property
-    def forcing(self) -> VortexForcing:
+    def forcing(self) -> VortexTrack:
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
@@ -1034,19 +1067,19 @@ class VortexPerturber:
         if not is_equal:
             if self.__filename is not None:
                 if '.22' in self.__filename.suffix:
-                    self.__forcing = VortexForcing.from_fort22(
+                    self.__forcing = VortexTrack.from_fort22(
                         self.__filename,
                         start_date=configuration['start_date'],
                         end_date=configuration['end_date'],
                     )
                 else:
-                    self.__forcing = VortexForcing.from_atcf_file(
+                    self.__forcing = VortexTrack.from_atcf_file(
                         self.__filename,
                         start_date=configuration['start_date'],
                         end_date=configuration['end_date'],
                     )
             else:
-                self.__forcing = VortexForcing(**configuration)
+                self.__forcing = VortexTrack(**configuration)
             self.__previous_configuration = configuration
 
         if self.__forcing.storm_id is not None:
@@ -1391,7 +1424,7 @@ class VortexPerturber:
                     },
                     index=validation_hours,
                 )
- 
+
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
                     if alpha is None:
@@ -1423,21 +1456,21 @@ class VortexPerturber:
                     LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
                     # extrapolate to 0th/100th percentile...
                     min_validation_time_errors = (
-                        1.3 * validation_time_errors.loc[:, '15th percentile error'] - 
-                        0.3 * validation_time_errors.loc[:, '50th percentile error']  
-                    ) 
+                        1.3 * validation_time_errors.loc[:, '15th percentile error']
+                        - 0.3 * validation_time_errors.loc[:, '50th percentile error']
+                    )
                     max_validation_time_errors = (
-                        1.3 * validation_time_errors.loc[:, '85th percentile error'] - 
-                        0.3 * validation_time_errors.loc[:, '50th percentile error'] 
+                        1.3 * validation_time_errors.loc[:, '85th percentile error']
+                        - 0.3 * validation_time_errors.loc[:, '50th percentile error']
                     )
                     ## if just choose 15th/85th percentile...
-                    #min_validation_time_errors = validation_time_errors.loc[:, '15th percentile error']
-                    #max_validation_time_errors = validation_time_errors.loc[:, '85th percentile error']
-                    perturbed_values = 0.5*(
-                        min_validation_time_errors * (1 - alpha) + 
-                        max_validation_time_errors * (1 + alpha)
+                    # min_validation_time_errors = validation_time_errors.loc[:, '15th percentile error']
+                    # max_validation_time_errors = validation_time_errors.loc[:, '85th percentile error']
+                    perturbed_values = 0.5 * (
+                        min_validation_time_errors * (1 - alpha)
+                        + max_validation_time_errors * (1 + alpha)
                     )
-                    perturbed_values = perturbed_values.iloc[:,0].values
+                    perturbed_values = perturbed_values.iloc[:, 0].values
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbed_values *= variable.unit
 
@@ -1463,7 +1496,7 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        VortexForcing(storm=dataframe).write(filename, overwrite=True)
+        VortexTrack(storm=dataframe).write(filename, overwrite=True)
 
         if weight is not None:
             perturbation['weight'] = weight
@@ -1513,11 +1546,11 @@ class VortexPerturber:
             filename = Path(filename)
 
         if filename.suffix == '.22':
-            vortex = VortexForcing.from_fort22(
+            vortex = VortexTrack.from_fort22(
                 filename, start_date=start_date, end_date=end_date
             )
         else:
-            vortex = VortexForcing.from_atcf_file(
+            vortex = VortexTrack.from_atcf_file(
                 filename, start_date=start_date, end_date=end_date
             )
 
@@ -1684,8 +1717,8 @@ def perturb_tracks(
     quadrature: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
-    file_deck: FileDeck = None,
-    mode: Mode = None,
+    file_deck: ATCF_FileDeck = None,
+    mode: ATCF_Mode = None,
     record_type: str = None,
     overwrite: bool = False,
     parallel: bool = True,

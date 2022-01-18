@@ -63,7 +63,7 @@ autodoc_default_options = {
     'private-members': True,
     'show-inheritance': True,
     'member-order': 'bysource',
-    'exclude-members': '__weakref__'
+    'exclude-members': '__weakref__',
 }
 autosummary_generate = True  # Make _autosummary files and include them
 napoleon_numpy_docstring = False  # Force consistency, leave only Google
