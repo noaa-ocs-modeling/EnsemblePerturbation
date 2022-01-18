@@ -1,4 +1,3 @@
-from importlib import metadata as importlib_metadata
 import os
 from os import PathLike
 from pathlib import Path
@@ -9,19 +8,19 @@ import xarray
 
 DATA_DIRECTORY = Path(__file__).parent / 'data'
 
+try:
+    from importlib import metadata as importlib_metadata
+except ImportError:  # for Python<3.8
+    import importlib_metadata
 
-def package_is_installed(name: str, version: str = None) -> bool:
+
+def installed_packages() -> List[str]:
     installed_distributions = importlib_metadata.distributions()
-    for distribution in installed_distributions:
-        installed_name = distribution.metadata['Name']
-        installed_version = distribution.version
-        if installed_name is not None and installed_name.lower() == name.lower():
-            if version is None or (
-                installed_version is not None and version.lower() == installed_version.lower()
-            ):
-                return True
-    else:
-        return False
+    return [
+        distribution.metadata['Name'].lower()
+        for distribution in installed_distributions
+        if distribution.metadata['Name'] is not None
+    ]
 
 
 def check_reference_directory(
@@ -45,7 +44,7 @@ def check_reference_directory(
             test_filename = test_directory / reference_filename.name
 
             if reference_filename.suffix in ['.h5', '.nc']:
-                if package_is_installed('xarray'):
+                if 'xarray' in installed_packages():
                     try:
                         reference_dataset = xarray.open_dataset(reference_filename)
                         test_dataset = xarray.open_dataset(test_filename)
