@@ -1,11 +1,21 @@
 from collections.abc import Mapping
-from importlib import metadata as importlib_metadata
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
 from typing import Dict, List
+
+try:
+    from importlib import metadata as importlib_metadata
+except ImportError:  # for Python<3.8
+    subprocess.run(
+        f'{sys.executable} -m pip install importlib_metadata',
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    import importlib_metadata
 
 from setuptools import config, find_packages, setup
 
