@@ -31,13 +31,9 @@ jobs:
         run: |
           sudo apt install -y libproj-dev proj-data proj-bin
           sudo apt install -y libgeos-dev
-      - name: Run `setup.py`
-        run: |
-          pip install pint
-          python setup.py install
       - name: Install dependencies
         run: |
-          pip install -e .[testing,development]
+          pip install -e ".[testing,development]"
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
