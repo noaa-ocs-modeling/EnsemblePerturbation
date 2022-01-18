@@ -1,7 +1,9 @@
+from concurrent.futures import ProcessPoolExecutor
 import logging
 from os import PathLike
 from pathlib import Path
 import sys
+import traceback
 
 import numpy
 import pint
@@ -33,6 +35,17 @@ def get_logger(
     console_level: int = None,
     log_format: str = None,
 ) -> logging.Logger:
+    """
+    instantiate logger instance
+
+    :param name: name of logger
+    :param log_filename: path to log file
+    :param file_level: minimum log level to write to log file
+    :param console_level: minimum log level to print to console
+    :param log_format: logger message format
+    :return: instance of a Logger object
+    """
+
     if file_level is None:
         file_level = logging.DEBUG
     if console_level is None:
@@ -43,31 +56,33 @@ def get_logger(
     if logger.level == logging.NOTSET and len(logger.handlers) == 0:
         # check if logger has a parent
         if '.' in name:
+            if isinstance(logger.parent, logging.RootLogger):
+                for existing_console_handler in [
+                    handler
+                    for handler in logger.parent.handlers
+                    if not isinstance(handler, logging.FileHandler)
+                ]:
+                    logger.parent.removeHandler(existing_console_handler)
             logger.parent = get_logger(name.rsplit('.', 1)[0])
         else:
             # otherwise create a new split-console logger
-            logger.setLevel(logging.DEBUG)
             if console_level != logging.NOTSET:
-                if console_level <= logging.INFO:
+                for existing_console_handler in [
+                    handler
+                    for handler in logger.handlers
+                    if not isinstance(handler, logging.FileHandler)
+                ]:
+                    logger.removeHandler(existing_console_handler)
 
-                    class LoggingOutputFilter(logging.Filter):
-                        def filter(self, rec):
-                            return rec.levelno in (logging.DEBUG, logging.INFO)
-
-                    console_output = logging.StreamHandler(sys.stdout)
-                    console_output.setLevel(console_level)
-                    console_output.addFilter(LoggingOutputFilter())
-                    logger.addHandler(console_output)
-
-                console_errors = logging.StreamHandler(sys.stderr)
-                console_errors.setLevel(max((console_level, logging.WARNING)))
-                logger.addHandler(console_errors)
+                console_output = logging.StreamHandler(sys.stdout)
+                console_output.setLevel(console_level)
+                logger.addHandler(console_output)
 
     if log_filename is not None:
         file_handler = logging.FileHandler(log_filename)
         file_handler.setLevel(file_level)
         for existing_file_handler in [
-            handler for handler in logger.handlers if type(handler) is logging.FileHandler
+            handler for handler in logger.handlers if isinstance(handler, logging.FileHandler)
         ]:
             logger.removeHandler(existing_file_handler)
         logger.addHandler(file_handler)
@@ -95,3 +110,39 @@ def ellipsoidal_distance(
     ellipsoid = crs_a.datum.to_json_dict()['ellipsoid']
     geodetic = Geod(a=ellipsoid['semi_major_axis'], rf=ellipsoid['inverse_flattening'])
     return geodetic.line_length(points[:, 0], points[:, 1])
+
+
+class ProcessPoolExecutorStackTraced(ProcessPoolExecutor):
+    def submit(self, fn, *args, **kwargs):
+        """Submits the wrapped function instead of `fn`"""
+
+        return super(ProcessPoolExecutorStackTraced, self).submit(
+            self._function_wrapper, fn, *args, **kwargs,
+        )
+
+    @staticmethod
+    def _function_wrapper(fn, *args, **kwargs):
+        """
+        Wraps `fn` in order to preserve the traceback of any kind of raised exception
+        """
+
+        try:
+            return fn(*args, **kwargs)
+        except Exception:
+            # Creates an exception of the same type with the traceback as message
+            raise sys.exc_info()[0](traceback.format_exc())
+
+
+def encode_categorical_values(values: list, unique_values: list = None) -> list:
+    if unique_values is None:
+        unique_values = numpy.unique(values)
+
+    if not isinstance(values, numpy.ndarray) or len(values.shape) == 1:
+        return numpy.concatenate(
+            [numpy.where(unique_values == value) for value in values]
+        ).squeeze()
+    else:
+        rows = []
+        for row in values:
+            rows.append(encode_categorical_values(row, unique_values=unique_values))
+        return numpy.stack(rows, axis=0)

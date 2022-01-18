@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from coupledmodeldriver.client.initialize_adcirc import (
@@ -12,7 +11,19 @@ from ensembleperturbation.perturbation.atcf import perturb_tracks
 
 def main():
     arguments = parse_initialize_adcirc_arguments(
-        extra_arguments={'perturbations': int, 'variables': [str]}
+        extra_arguments={
+            'perturbations': (int, 'number of perturbations to create'),
+            'variables': ([str], 'vortex variables to perturb'),
+            'sample': (
+                bool,
+                'override given perturbations with random samples from the joint distribution',
+            ),
+            'sample_rule': (
+                str,
+                "rule to use for the distribution sampling. Please choose from: 'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'",
+            ),
+            'quadrature': (bool, 'add additional perturbations along the quadrature'),
+        }
     )
 
     if arguments['perturbations'] is None:
@@ -29,7 +40,7 @@ def main():
     track_directory = arguments['output_directory'] / 'track_files'
     if not track_directory.exists():
         track_directory.mkdir(parents=True, exist_ok=True)
-    original_track_filename = track_directory / 'fort.22'
+    original_track_filename = track_directory / 'original.22'
 
     if original_track_filename.exists():
         storm_id = original_track_filename
@@ -57,6 +68,9 @@ def main():
         directory=Path(arguments['output_directory']) / 'track_files',
         storm=storm_id,
         variables=arguments['variables'],
+        sample_from_distribution=arguments['sample'],
+        sample_rule=arguments['sample_rule'],
+        quadrature=arguments['quadrature'],
         start_date=arguments['modeled_start_time'],
         end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
         overwrite=arguments['overwrite'],

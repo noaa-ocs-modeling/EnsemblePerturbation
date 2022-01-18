@@ -1,5 +1,6 @@
 from os import PathLike
 from pathlib import Path
+from typing import Dict
 
 import fiona
 from pyproj import CRS

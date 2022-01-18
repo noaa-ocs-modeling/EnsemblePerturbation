@@ -1,6 +1,5 @@
 from abc import ABC
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
 from copy import copy
 from datetime import datetime, timedelta
 from enum import Enum
@@ -11,32 +10,47 @@ import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, uniform
+from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
+import warnings
 
-from adcircpy.forcing.winds.best_track import FileDeck, Mode, VortexForcing
+import chaospy
+from chaospy import Distribution
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
+import pandas
 from pandas import DataFrame
+from pandas.core.common import SettingWithCopyWarning
 import pint
-from pint import Quantity
-from pint_pandas import PintType
+from pint import Quantity, UnitStrippedWarning
+from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
-from typepigeon import convert_value
+from stormevents.nhc import VortexTrack
+from stormevents.nhc.atcf import ATCF_FileDeck, ATCF_Mode
+import typepigeon
+import xarray
+from xarray import Dataset
 
-from ensembleperturbation.utilities import get_logger, units
+from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
 LOGGER = get_logger('perturbation.atcf')
+
+warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+warnings.simplefilter(action='ignore', category=RuntimeWarning)
+warnings.simplefilter(action='ignore', category=UnitStrippedWarning)
 
 AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
 E1 = exp(1.0)  # e
 
 # Index of absolute errors (forecast times [hrs)]
-ERROR_INDICES_NO_60H = [0, 12, 24, 36, 48, 72, 96, 120]  # no 60-hr data
-ERROR_INDICES_60H = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+HISTORICAL_ERROR_HOURS_NO_60H = (
+    HISTORICAL_ERROR_HOURS[:5] + HISTORICAL_ERROR_HOURS[6:]
+)  # no 60-hr data
 
 
 class PerturbationType(Enum):
@@ -69,16 +83,18 @@ class VortexVariable(ABC):
         self.__unit = unit
 
     @property
-    def default(self) -> pint.Quantity:
+    def default(self) -> Quantity:
         if self.__default is not None and self.__default.units != self.unit:
             self.__default.ito(self.unit)
         return self.__default
 
     @default.setter
     def default(self, default: float):
-        if isinstance(default, pint.Quantity):
+        if isinstance(default, Quantity):
             if default.units != self.unit:
                 default = default.to(self.unit)
+        elif isinstance(default, tuple):
+            units.Quantity.from_tuple(default)
         elif default is not None:
             default *= self.unit
         self.__default = default
@@ -122,31 +138,35 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         self.historical_forecast_errors = historical_forecast_errors
 
     @property
-    def lower_bound(self) -> pint.Quantity:
+    def lower_bound(self) -> Quantity:
         if self.__lower_bound.units != self.unit:
             self.__lower_bound.ito(self.unit)
         return self.__lower_bound
 
     @lower_bound.setter
     def lower_bound(self, lower_bound: float):
-        if isinstance(lower_bound, pint.Quantity):
+        if isinstance(lower_bound, Quantity):
             if lower_bound.units != self.unit:
                 lower_bound = lower_bound.to(self.unit)
+        elif isinstance(lower_bound, tuple):
+            units.Quantity.from_tuple(lower_bound)
         elif lower_bound is not None:
             lower_bound *= self.unit
         self.__lower_bound = lower_bound
 
     @property
-    def upper_bound(self) -> pint.Quantity:
+    def upper_bound(self) -> Quantity:
         if self.__upper_bound.units != self.unit:
             self.__upper_bound.ito(self.unit)
         return self.__upper_bound
 
     @upper_bound.setter
     def upper_bound(self, upper_bound: float):
-        if isinstance(upper_bound, pint.Quantity):
+        if isinstance(upper_bound, Quantity):
             if upper_bound.units != self.unit:
                 upper_bound = upper_bound.to(self.unit)
+        elif isinstance(upper_bound, tuple):
+            units.Quantity.from_tuple(upper_bound)
         elif upper_bound is not None:
             upper_bound *= self.unit
         self.__upper_bound = upper_bound
@@ -185,6 +205,19 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                     dataframe[column].astype(pint_type, copy=False)
         self.__historical_forecast_errors = historical_forecast_errors
 
+    def chaospy_distribution(self) -> chaospy.Distribution:
+        # TODO see if we need to transform these distributions into unit space
+        # TODO figure out how to account for piecewise uncertainty
+
+        if self.perturbation_type == PerturbationType.GAUSSIAN:
+            distribution = chaospy.Normal(mu=0, sigma=1)
+        elif self.perturbation_type == PerturbationType.UNIFORM:
+            distribution = chaospy.Uniform(lower=-1, upper=1)
+        else:
+            raise ValueError(f'perturbation type {self.perturbation_type} not recognized')
+
+        return distribution
+
     def perturb(
         self,
         vortex_dataframe: DataFrame,
@@ -206,7 +239,19 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
-        all_values = vortex_dataframe[self.name].values - values
+        variable_values = vortex_dataframe[self.name].values
+        if (
+            not isinstance(variable_values, PintArray)
+            or variable_values.units == variable_values.units._REGISTRY.dimensionless
+        ):
+            variable_values *= self.unit
+        if (
+            not isinstance(values, Quantity)
+            or values.units == values.units._REGISTRY.dimensionless
+        ):
+            values *= self.unit
+
+        all_values = variable_values - values
         vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             for value in all_values
@@ -214,23 +259,39 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         return vortex_dataframe
 
+    def storm_errors(self, data_frame: DataFrame) -> DataFrame:
+        """
+        Historical forecast errors of the given storm, based on initial intensity.
 
-class VortexGaussianPerturbedVariable(VortexPerturbedVariable):
-    perturbation_type = PerturbationType.GAUSSIAN
+        :param data_frame: storm data frame
+        :return: errors based on intensity classification
+        """
+
+        intial_intensity = data_frame[MaximumSustainedWindSpeed.name].iloc[0]
+
+        if not isinstance(intial_intensity, Quantity):
+            intial_intensity *= units.knot
+
+        if intial_intensity < 50 * units.knot:
+            storm_classification = '<50kt'  # weak
+        elif intial_intensity <= 95 * units.knot:
+            storm_classification = '50-95kt'  # medium
+        else:
+            storm_classification = '>95kt'  # strong
+
+        LOGGER.debug(f'storm classification: {storm_classification}')
+        return self.historical_forecast_errors[storm_classification]
 
 
-class VortexUniformPerturbedVariable(VortexPerturbedVariable):
-    perturbation_type = PerturbationType.UNIFORM
-
-
-class MaximumSustainedWindSpeed(VortexGaussianPerturbedVariable):
+class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     """
     ``max_sustained_wind_speed`` (``Vmax``) represents the maximum wind speed sustained by the storm.
-    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors.
     ``central_pressure`` (``pc``) is then changed proportionally based on the Holland B parameter.
     """
 
     name = 'max_sustained_wind_speed'
+    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
@@ -241,11 +302,11 @@ class MaximumSustainedWindSpeed(VortexGaussianPerturbedVariable):
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {'mean error [kt]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -260,20 +321,21 @@ class MaximumSustainedWindSpeed(VortexGaussianPerturbedVariable):
                             13.55,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.knot,
         )
 
 
-class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
+class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
     ``radius_of_maximum_winds`` (``Rmax``)
-    It is perturbed along a random distribution between the 15th and 85th percentile CDFs of historical forecast errors.
+    It is perturbed along a uniform distribution on [-1,1] between the 15th and 85th percentile CDFs of NHC historical forecast errors.
     """
 
     name = 'radius_of_maximum_winds'
+    perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
         super().__init__(
@@ -282,7 +344,7 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
             historical_forecast_errors={
                 '<15sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -13.82,
                             -19.67,
@@ -293,7 +355,18 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                             -46.80,
                             -52.68,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0,
+                            -2.72,
+                            -6.74,
+                            -9.59,
+                            -12.12,
+                            -15.64,
+                            -19.16,
+                            -18.60,
+                            -24.07,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             1.27,
                             0.22,
@@ -306,11 +379,11 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '15-25sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -10.47,
                             -14.54,
@@ -321,7 +394,18 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                             -24.24,
                             -28.30,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0,
+                            -1.07,
+                            -2.48,
+                            -4.25,
+                            -4.33,
+                            -3.55,
+                            -2.77,
+                            -6.02,
+                            -4.44,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             4.17,
                             6.70,
@@ -334,11 +418,11 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '25-35sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -8.57,
                             -13.41,
@@ -349,7 +433,18 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                             -7.41,
                             -7.40,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0,
+                            0.39,
+                            1.66,
+                            2.49,
+                            4.42,
+                            5.20,
+                            5.98,
+                            5.98,
+                            6.96,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             8.21,
                             10.62,
@@ -362,11 +457,11 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '35-45sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -10.66,
                             -7.64,
@@ -377,7 +472,18 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                             3.65,
                             2.59,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0,
+                            3.22,
+                            7.32,
+                            12.67,
+                            14.14,
+                            13.72,
+                            13.31,
+                            14.60,
+                            14.01,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             14.77,
                             17.85,
@@ -390,11 +496,11 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
                 '>45sm': DataFrame(
                     {
-                        'minimum error [sm]': [
+                        '15th percentile error': [
                             0.0,
                             -15.36,
                             -10.37,
@@ -405,7 +511,18 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                             6.66,
                             7.19,
                         ],
-                        'maximum error [sm]': [
+                        '50th percentile error': [
+                            0.0,
+                            8.11,
+                            15.19,
+                            17.21,
+                            24.25,
+                            25.63,
+                            27.00,
+                            20.56,
+                            20.51,
+                        ],
+                        '85th percentile error': [
                             0.0,
                             21.43,
                             29.96,
@@ -418,20 +535,48 @@ class RadiusOfMaximumWinds(VortexUniformPerturbedVariable):
                         ],
                     },
                     dtype=PintType(units.us_statute_mile),
-                    index=ERROR_INDICES_60H,
+                    index=HISTORICAL_ERROR_HOURS,
                 ),
             },
             unit=units.nautical_mile,
         )
 
+    def storm_errors(self, data_frame: DataFrame) -> DataFrame:
+        """
+        Historical forecast errors of the given storm, based on initial size.
 
-class CrossTrack(VortexGaussianPerturbedVariable):
+        :param data_frame: storm data frame
+        :return: errors based on size classification
+        """
+
+        initial_radius = data_frame[self.name].iloc[0]
+
+        if not isinstance(initial_radius, Quantity):
+            initial_radius *= units.nautical_mile
+
+        if initial_radius < 15 * units.us_statute_mile:
+            storm_classification = '<15sm'  # very small
+        elif initial_radius < 25 * units.us_statute_mile:
+            storm_classification = '15-25sm'  # small
+        elif initial_radius < 35 * units.us_statute_mile:
+            storm_classification = '25-35sm'  # medium
+        elif initial_radius <= 45 * units.us_statute_mile:
+            storm_classification = '35-45sm'  # large
+        else:
+            storm_classification = '>45sm'  # very large
+
+        LOGGER.debug(f'storm classification: {storm_classification}')
+        return self.historical_forecast_errors[storm_classification]
+
+
+class CrossTrack(VortexPerturbedVariable):
     """
     ``cross_track``  represents a perpendicular offset of the tropical cyclone center track, accomplished by moving each forecast time left or right perpedicular to the track line.
-    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors.
     """
 
     name = 'cross_track'
+    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 8: Adjusted cross-track errors [nm] for 2015-2019
@@ -453,7 +598,7 @@ class CrossTrack(VortexGaussianPerturbedVariable):
                             119.67,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {
@@ -468,7 +613,7 @@ class CrossTrack(VortexGaussianPerturbedVariable):
                             103.45,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -483,7 +628,7 @@ class CrossTrack(VortexGaussianPerturbedVariable):
                             79.98,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -528,7 +673,7 @@ class CrossTrack(VortexGaussianPerturbedVariable):
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
             # get the current cross_track_error
-            cross_track_error = values[current_index].to(units.meter)
+            cross_track_error = values[current_index]
 
             # get the location of the original reference coordinate
             current_point = (
@@ -573,6 +718,9 @@ class CrossTrack(VortexGaussianPerturbedVariable):
             normal_offset = numpy.mean([previous_offset, next_offset])
             alpha = abs(cross_track_error) / numpy.sqrt(numpy.sum(normal_offset ** 2))
 
+            if numpy.isinf(alpha):
+                alpha = 0
+
             # compute the next point and retrieve back the lat-lon geographic coordinate
             new_point = current_point - alpha * normal_offset
             new_coordinates.append(
@@ -588,13 +736,14 @@ class CrossTrack(VortexGaussianPerturbedVariable):
         return vortex_dataframe
 
 
-class AlongTrack(VortexGaussianPerturbedVariable):
+class AlongTrack(VortexPerturbedVariable):
     """
     ``along_track`` represents a parallel offset of the tropical cyclone center track, accomplished by moving each forecast time forward or backward along the track line.
-    It is perturbed along a random gaussian distribution (0-1), scaled to the mean of absolute historical errors.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors.
     """
 
     name = 'along_track'
+    perturbation_type = PerturbationType.GAUSSIAN
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 7: Adjusted along-track errors [nm] for 2015-2019
@@ -616,7 +765,7 @@ class AlongTrack(VortexGaussianPerturbedVariable):
                             125.01,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {
@@ -631,7 +780,7 @@ class AlongTrack(VortexGaussianPerturbedVariable):
                             108.07,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
                     {
@@ -646,7 +795,7 @@ class AlongTrack(VortexGaussianPerturbedVariable):
                             83.55,
                         ]
                     },
-                    index=ERROR_INDICES_NO_60H,
+                    index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
             unit=units.nautical_mile,
@@ -711,7 +860,10 @@ class AlongTrack(VortexGaussianPerturbedVariable):
         after_diffs = numpy.repeat(
             [unique_times[-1] - unique_times[-2]], max_interpolated_points
         ) * numpy.arange(1, max_interpolated_points + 1)
-        hours = numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs))
+        hours = (
+            numpy.concatenate((hours[0] - previous_diffs, hours, hours[-1] + after_diffs))
+            * units.hour
+        )
 
         # loop over all coordinates
         new_coordinates = []
@@ -721,7 +873,7 @@ class AlongTrack(VortexGaussianPerturbedVariable):
             utm_crs = utm_crs_from_longitude(coordinates[index][0])
             transformer = Transformer.from_crs(wgs84, utm_crs)
 
-            along_error = -1.0 * values[index - max_interpolated_points].to(units.meter)
+            along_error = -1.0 * values[index - max_interpolated_points]
             along_sign = int(sign(along_error))
 
             projected_points = []
@@ -743,7 +895,9 @@ class AlongTrack(VortexGaussianPerturbedVariable):
             line_segment = LineString(projected_points)
 
             # interpolate a distance "along_error" along the line
-            projected_coordinate = line_segment.interpolate(abs(along_error.magnitude))
+            projected_coordinate = line_segment.interpolate(
+                abs(along_error.to(units.meter).magnitude)
+            )
 
             # get back lat-lon
             new_coordinates.append(
@@ -760,18 +914,57 @@ class AlongTrack(VortexGaussianPerturbedVariable):
 
 
 class VortexPerturber:
+    """
+    ``VortexPerturber`` takes an ATCF track from an input storm and perturbs it based on several variables (of the class ``VortexPerturbedVariable``)
+
+    .. code-block:: python
+
+        # retrieve initial storm track for Florence 2018 (defaults to archival best track)
+        perturber = VortexPerturber(storm='florence2018')
+
+        # write 3 tracks perturbed using specified perturbation values (perturbations are of sigma values (``0`` - ``1`` for uniform or ``-1`` - ``1`` for gaussian) that are then scaled to historical errors per-variable
+        perturber.write(
+            perturbations=[
+                -1.0,
+                {
+                    MaximumSustainedWindSpeed: -0.25,
+                    CrossTrack: 0.25,
+                    'along_track': 0.75,
+                    'radius_of_maximum_winds': -1,
+                },
+                0.75,
+            ],
+            variables=[MaximumSustainedWindSpeed, RadiusOfMaximumWinds, CrossTrack, AlongTrack],
+            directory='./3_tracks_perturbed_specifically',
+        )
+
+        # write 5 randomly-perturbed tracks, drawing randomly from the distribution of each variable except for ``CrossTrack``
+        perturber.write(
+            perturbations=5,
+            variables=[MaximumSustainedWindSpeed, RadiusOfMaximumWinds, AlongTrack],
+            directory='./5_tracks_perturbed_randomly_except_crosstrack',
+        )
+
+        # write tracks perturbed along the quadrature (`4^n` where `n` is the number of variables)
+        perturber.write(
+            perturbations=None,
+            quadrature=True,
+            variables=[MaximumSustainedWindSpeed, RadiusOfMaximumWinds, CrossTrack, AlongTrack],
+            directory='./256_tracks_perturbed_along_quadrature',
+        )
+
+    """
+
     def __init__(
         self,
         storm: str,
         start_date: datetime = None,
         end_date: datetime = None,
-        file_deck: FileDeck = None,
-        mode: Mode = None,
+        file_deck: ATCF_FileDeck = None,
+        mode: ATCF_Mode = None,
         record_type: str = None,
     ):
         """
-        build storm perturber
-
         :param storm: NHC storm code, for instance `al062018`
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
@@ -794,6 +987,8 @@ class VortexPerturber:
         self.file_deck = file_deck
         self.mode = mode
         self.record_type = record_type
+
+        self.__filename = None
 
     @property
     def storm(self) -> str:
@@ -824,27 +1019,27 @@ class VortexPerturber:
         self.__end_date = end_date
 
     @property
-    def file_deck(self) -> FileDeck:
+    def file_deck(self) -> ATCF_FileDeck:
         return self.__file_deck
 
     @file_deck.setter
-    def file_deck(self, file_deck: FileDeck):
+    def file_deck(self, file_deck: ATCF_FileDeck):
         if file_deck is not None and not isinstance(file_deck, datetime):
-            file_deck = convert_value(file_deck, FileDeck)
+            file_deck = typepigeon.convert_value(file_deck, ATCF_FileDeck)
         self.__file_deck = file_deck
 
     @property
-    def mode(self) -> Mode:
+    def mode(self) -> ATCF_Mode:
         return self.__mode
 
     @mode.setter
-    def mode(self, mode: Mode):
+    def mode(self, mode: ATCF_Mode):
         if mode is not None and not isinstance(mode, datetime):
-            mode = convert_value(mode, Mode)
+            mode = typepigeon.convert_value(mode, ATCF_Mode)
         self.__mode = mode
 
     @property
-    def forcing(self) -> VortexForcing:
+    def forcing(self) -> VortexTrack:
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
@@ -870,7 +1065,21 @@ class VortexPerturber:
                 is_equal = True
 
         if not is_equal:
-            self.__forcing = VortexForcing(**configuration)
+            if self.__filename is not None:
+                if '.22' in self.__filename.suffix:
+                    self.__forcing = VortexTrack.from_fort22(
+                        self.__filename,
+                        start_date=configuration['start_date'],
+                        end_date=configuration['end_date'],
+                    )
+                else:
+                    self.__forcing = VortexTrack.from_atcf_file(
+                        self.__filename,
+                        start_date=configuration['start_date'],
+                        end_date=configuration['end_date'],
+                    )
+            else:
+                self.__forcing = VortexTrack(**configuration)
             self.__previous_configuration = configuration
 
         if self.__forcing.storm_id is not None:
@@ -880,23 +1089,31 @@ class VortexPerturber:
 
     def write(
         self,
-        perturbations: Union[int, List[float], List[Dict[str, float]]],
+        perturbations: Union[int, List[float], List[Dict[str, float]], None],
         variables: List[VortexVariable],
         directory: PathLike = None,
+        sample_from_distribution: bool = False,
+        sample_rule: str = 'random',
+        quadrature: bool = False,
+        weights: List[float] = None,
         overwrite: bool = False,
-        continue_numbering: bool = True,
+        continue_numbering: bool = False,
+        parallel: bool = True,
     ) -> List[Path]:
         """
         :param perturbations: either the number of perturbations to create, or a list of floats meant to represent points on either the standard Gaussian distribution or a bounded uniform distribution
         :param variables: list of variable names, any combination of `["max_sustained_wind_speed", "radius_of_maximum_winds", "along_track", "cross_track"]`
         :param directory: directory to which to write
+        :param sample_from_distribution: override given perturbations with random samples from the joint distribution
+        :param sample_rule: rule to use for the distribution sampling. Please choose from:
+               ``random`` [default], ``sobol``, ``halton``, ``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
+        :param quadrature: add perturbations along quadrature
+        :param weights: weights to use with perturbations
         :param overwrite: overwrite existing files
         :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
+        :param parallel: generate perturbations concurrently
         :returns: written filenames
         """
-
-        if isinstance(perturbations, int):
-            perturbations = [None] * perturbations
 
         for index, variable in enumerate(variables):
             if isinstance(variable, type):
@@ -914,26 +1131,48 @@ class VortexPerturber:
         if not directory.exists():
             directory.mkdir(parents=True, exist_ok=True)
 
-        # write out original fort.22
-        self.forcing.write(directory / 'original.22', overwrite=True)
+        variable_names = [variable.name for variable in variables]
 
-        # Get the initial intensity and size
-        storm_strength = storm_intensity_class(
-            self.compute_initial(MaximumSustainedWindSpeed.name),
-        )
-        storm_size = storm_size_class(self.compute_initial(RadiusOfMaximumWinds.name))
-
-        print(f'Initial storm strength: {storm_strength}')
-        print(f'Initial storm size: {storm_size}')
-
-        # extracting original dataframe
-        original_data = self.forcing.data
-
-        LOGGER.info(f'writing {len(perturbations)} perturbations')
+        if isinstance(perturbations, int):
+            num_perturbations = perturbations
+            perturbations = numpy.full(
+                (num_perturbations, len(variables)), fill_value=numpy.nan
+            )
+        elif perturbations is None:
+            if not quadrature:
+                raise ValueError('cannot infer number of perturbations from given information')
+            num_perturbations = None
+        else:
+            if sample_from_distribution:
+                LOGGER.warning(
+                    'overwriting given perturbations with random samples from joint distribution'
+                )
+            num_perturbations = len(perturbations)
+            perturbations_array = []
+            for perturbation in perturbations:
+                if isinstance(perturbation, float):
+                    perturbation = numpy.full((len(variables),), fill_value=perturbation)
+                elif isinstance(perturbation, Mapping):
+                    perturbation_array = []
+                    for variable in variables:
+                        if variable in perturbation:
+                            variable_perturbation = perturbation[variable]
+                        elif variable.__class__ in perturbation:
+                            variable_perturbation = perturbation[variable.__class__]
+                        elif variable.name in perturbation:
+                            variable_perturbation = perturbation[variable.name]
+                        else:
+                            variable_perturbation = numpy.nan
+                        perturbation_array.append(variable_perturbation)
+                    perturbation = perturbation_array
+                else:
+                    perturbation = numpy.full((len(variables),), fill_value=numpy.nan)
+                perturbations_array.append(perturbation)
+            perturbations = numpy.array(perturbations_array)
 
         if continue_numbering:
             # TODO: figure out how to continue perturbations by-variable (i.e. keep track of multiple series with different variables but the same total number of variables)
-            existing_filenames = glob(str(directory / f'vortex_*_variable_perturbation_*.22'))
+            existing_filenames = glob(str(directory / f'vortex_*_variable_{sample_rule}_*.22'))
             if len(existing_filenames) > 0:
                 existing_filenames = sorted(existing_filenames)
                 last_index = int(existing_filenames[-1][-4])
@@ -942,52 +1181,159 @@ class VortexPerturber:
         else:
             last_index = 0
 
-        # for each variable, perturb the values and write each to a new `fort.22`
-        output_filenames = [
-            directory
-            / f'vortex_{len(variables)}_variable_perturbation_{perturbation_number}.22'
-            for perturbation_number in range(
-                last_index + 1, len(perturbations) + last_index + 1
+        run_names = [
+            f'vortex_{len(variables)}_variable_{sample_rule}_{index + 1}'
+            for index in range(last_index, last_index + num_perturbations)
+        ]
+
+        perturbations = [
+            xarray.DataArray(
+                perturbations,
+                coords={'run': run_names, 'variable': variable_names},
+                dims=('run', 'variable'),
             )
         ]
 
-        process_pool = ProcessPoolExecutor()
-        futures = []
+        if weights is None:
+            weights = numpy.full((len(run_names),), fill_value=1.0)
+        weights = [xarray.DataArray(weights, coords={'run': run_names}, dims=('run',))]
 
-        variables = [variable.name for variable in variables]
-        for perturbation_index, output_filename in enumerate(output_filenames):
+        distribution = distribution_from_variables(variables)
+
+        if sample_from_distribution:
+            # overwrite given perturbations with random samples from joint distribution
+            if len(variables) == 1:
+                random_sample = distribution.sample(
+                    num_perturbations, rule=sample_rule
+                ).reshape(-1, 1)
+            else:
+                random_sample = distribution.sample(num_perturbations, rule=sample_rule).T
+
+            perturbations[0] = xarray.DataArray(
+                random_sample,
+                coords={'run': run_names, 'variable': variable_names},
+                dims=('run', 'variable'),
+            )
+
+        if quadrature:
+            quadrature_nodes, quadrature_weights = chaospy.generate_quadrature(
+                order=3, dist=distribution, rule='Gaussian',
+            )
+
+            quadrature_run_names = [
+                f'vortex_{quadrature_nodes.shape[0]}_variable_quadrature_{index + 1}'
+                for index in range(quadrature_nodes.shape[1])
+            ]
+
+            quadrature_nodes = xarray.DataArray(
+                quadrature_nodes,
+                coords={'run': quadrature_run_names, 'variable': variable_names},
+                dims=('variable', 'run'),
+            )
+            perturbations.append(quadrature_nodes.T)
+
+            weights.append(
+                xarray.DataArray(
+                    quadrature_weights, coords={'run': quadrature_run_names}, dims=('run',)
+                )
+            )
+
+        perturbations.append(
+            xarray.DataArray(
+                numpy.full((1, len(variables)), fill_value=0),
+                coords={'run': ['original'], 'variable': variable_names},
+                dims=('run', 'variable'),
+            )
+        )
+        weights.append(xarray.DataArray([1.0], coords={'run': ['original']}, dims=('run',)))
+
+        perturbations = xarray.merge(
+            [
+                xarray.combine_nested(perturbations, concat_dim='run').to_dataset(
+                    name='perturbations'
+                ),
+                xarray.combine_nested(weights, concat_dim='run').to_dataset(name='weights'),
+            ]
+        )
+
+        # extract original dataframe
+        original_data = self.forcing.data
+        if self.__filename is None:
+            self.__filename = directory / 'original.22'
+
+        LOGGER.info(f'writing {len(perturbations["run"])} perturbations')
+
+        if parallel:
+            process_pool = ProcessPoolExecutorStackTraced()
+            temporary_directory = TemporaryDirectory()
+            original_data_pickle_filename = Path(temporary_directory.name) / 'original_data.df'
+            original_data.to_pickle(original_data_pickle_filename)
+        else:
+            process_pool = None
+            temporary_directory = None
+            original_data_pickle_filename = None
+
+        # for each variable, perturb the values and write each to a new `fort.22`
+        futures = []
+        for run_name in perturbations['run'].values:
+            output_filename = directory / (run_name + '.22')
             if not output_filename.exists() or overwrite:
                 # setting the alpha to the value from the input list
-                perturbation = perturbations[perturbation_index]
+                perturbation = perturbations.sel(run=run_name)
 
-                if perturbation is None:
-                    perturbation = {variable: None for variable in variables}
-                elif not isinstance(perturbation, Mapping):
-                    perturbation = {variable: perturbation for variable in variables}
+                perturbation_values = perturbation['perturbations']
+                if isinstance(perturbation_values, xarray.DataArray):
+                    perturbation_values = {
+                        variable: float(perturbation_values.sel(variable=variable).values)
+                        for variable in variable_names
+                    }
+                elif not isinstance(perturbation_values, Mapping):
+                    perturbation_values = {
+                        variable: perturbation_values for variable in variable_names
+                    }
 
-                perturbation = {
+                perturbation_values = {
                     variable.name
-                    if isinstance(variable, type) and issubclass(variable, VortexVariable)
+                    if (
+                        issubclass(variable, VortexVariable)
+                        if isinstance(variable, type)
+                        else isinstance(variable, VortexVariable)
+                    )
                     else variable: alpha
-                    for variable, alpha in perturbation.items()
+                    for variable, alpha in perturbation_values.items()
                 }
 
-                futures.append(
-                    process_pool.submit(
-                        self.write_perturbed_track,
-                        filename=output_filename,
-                        dataframe=original_data,
-                        perturbation=perturbation,
-                        variables=variables,
-                        storm_size=storm_size,
-                        storm_strength=storm_strength,
-                    )
-                )
+                write_kwargs = {
+                    'filename': output_filename,
+                    'dataframe': original_data,
+                    'perturbation': perturbation_values,
+                    'variables': copy(variable_names),
+                    'weight': float(perturbation['weights'].values),
+                }
 
-        return [
-            completed_future.result()
-            for completed_future in concurrent.futures.as_completed(futures)
-        ]
+                if parallel:
+                    write_kwargs['dataframe'] = original_data_pickle_filename
+
+                    futures.append(
+                        process_pool.submit(self.write_perturbed_track, **write_kwargs)
+                    )
+                else:
+                    self.write_perturbed_track(**write_kwargs)
+
+        if len(futures) > 0:
+            output_filenames = [
+                completed_future.result()
+                for completed_future in concurrent.futures.as_completed(futures)
+            ]
+        else:
+            output_filenames = [
+                directory / (run_name + '.22') for run_name in perturbations['run'].values
+            ]
+
+        if temporary_directory is not None:
+            temporary_directory.cleanup()
+
+        return output_filenames
 
     def write_perturbed_track(
         self,
@@ -995,13 +1341,39 @@ class VortexPerturber:
         dataframe: DataFrame,
         perturbation: Dict[str, float],
         variables: List[VortexPerturbedVariable],
-        storm_size: str,
-        storm_strength: str,
+        weight: float = None,
     ) -> Path:
         if not isinstance(filename, Path):
             filename = Path(filename)
 
-        dataframe = dataframe.copy(deep=True)
+        if isinstance(dataframe, DataFrame):
+            dataframe = dataframe.copy(deep=True)
+        else:
+            dataframe = pandas.read_pickle(dataframe)
+
+        variable_names = {
+            **{
+                subclass.__name__: subclass
+                for subclass in VortexPerturbedVariable.__subclasses__()
+            },
+            **{
+                subclass.name: subclass
+                for subclass in VortexPerturbedVariable.__subclasses__()
+            },
+        }
+        for variable_index, variable in enumerate(variables):
+            if isinstance(variable, str):
+                variables[variable_index] = variable_names[variable]()
+
+        # add units to data frame
+        dataframe = dataframe.astype(
+            {
+                variable.name: PintType(variable.unit)
+                for variable in variables
+                if variable.name in dataframe
+            },
+            copy=False,
+        )
 
         for index, variable in enumerate(variables):
             if isinstance(variable, str):
@@ -1023,76 +1395,100 @@ class VortexPerturber:
         )
 
         for variable in variables:
-            alpha = perturbation[variable.name]
-
-            # Make the random pertubations based on the historical forecast errors
-            # Interpolate from the given VT to the storm_VT
-            if isinstance(variable, RadiusOfMaximumWinds):
-                storm_classification = storm_size
+            if variable.name in perturbation:
+                alpha = perturbation[variable.name]
             else:
-                storm_classification = storm_strength
+                alpha = 0
 
-            historical_forecast_errors = variable.historical_forecast_errors[
-                storm_classification
-            ]
-            for column in historical_forecast_errors:
-                if isinstance(historical_forecast_errors[column].dtype, PintType):
-                    historical_forecast_errors[column] = historical_forecast_errors[
-                        column
-                    ].pint.magnitude
+            if alpha is None or abs(alpha) > 1.0e-3:
+                # Make the random pertubations based on the historical forecast errors
+                # Interpolate from the given VT to the storm_VT
 
-            xp = historical_forecast_errors.index
-            fp = historical_forecast_errors.values
-            base_errors = [
-                interp(self.validation_times / timedelta(hours=1), xp, fp[:, ncol])
-                for ncol in range(len(fp[0]))
-            ]
+                # Get the historical forecasting errors from initial storm state (intensity or size)
+                historical_forecast_errors = variable.storm_errors(self.forcing.data)
+                try:
+                    # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
+                    historical_forecast_errors = historical_forecast_errors.pint.dequantify()
+                except:
+                    pass
 
-            # get the random perturbation sample
-            if variable.perturbation_type == PerturbationType.GAUSSIAN:
-                if alpha is None:
-                    alpha = gauss(0, 1)
-                    perturbation[variable.name] = alpha
-
-                LOGGER.debug(f'gaussian alpha = {alpha}')
-                perturbed_values = base_errors[0] * alpha / 0.7979
-                if variable.unit is not None and variable.unit != units.dimensionless:
-                    perturbed_values *= variable.unit
-
-                # add the error to the variable with bounds to some physical constraints
-                dataframe = variable.perturb(
-                    dataframe,
-                    values=perturbed_values,
-                    times=self.validation_times,
-                    inplace=True,
-                )
-            elif variable.perturbation_type == PerturbationType.UNIFORM:
-                if alpha is None:
-                    alpha = uniform(-1, 1)
-                    perturbation[variable.name] = alpha
-
-                LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
-                perturbed_values = 0.5 * (
-                    base_errors[0] * (1 - alpha) + base_errors[1] * (1 + alpha)
-                )
-                if variable.unit is not None and variable.unit != units.dimensionless:
-                    perturbed_values *= variable.unit
-
-                # subtract the error from the variable with physical constraint bounds
-                dataframe = variable.perturb(
-                    dataframe,
-                    values=perturbed_values,
-                    times=self.validation_times,
-                    inplace=True,
-                )
-            else:
-                raise NotImplementedError(
-                    f'perturbation type "{variable.perturbation_type}" is not recognized'
+                validation_hours = self.validation_times / timedelta(hours=1)
+                validation_time_errors = DataFrame(
+                    data={
+                        column: interp(
+                            x=validation_hours,
+                            xp=historical_forecast_errors.index,
+                            fp=historical_forecast_errors.loc[:, column],
+                        )
+                        for column in historical_forecast_errors.columns
+                    },
+                    index=validation_hours,
                 )
 
-            if isinstance(variable, MaximumSustainedWindSpeed):
-                # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
-                dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
+                # get the random perturbation sample
+                if variable.perturbation_type == PerturbationType.GAUSSIAN:
+                    if alpha is None:
+                        alpha = gauss(0, 1)
+                        perturbation[variable.name] = alpha
+
+                    LOGGER.debug(f'gaussian alpha = {alpha}')
+                    perturbed_values = (
+                        validation_time_errors.iloc[:, 0] * alpha / 0.7979
+                    ).values
+                    if (
+                        variable.unit is not None
+                        and variable.unit != variable.unit._REGISTRY.dimensionless
+                    ):
+                        perturbed_values *= variable.unit
+
+                    # add the error to the variable with bounds to some physical constraints
+                    dataframe = variable.perturb(
+                        dataframe,
+                        values=perturbed_values,
+                        times=self.validation_times,
+                        inplace=True,
+                    )
+                elif variable.perturbation_type == PerturbationType.UNIFORM:
+                    if alpha is None:
+                        alpha = uniform(-1, 1)
+                        perturbation[variable.name] = alpha
+
+                    LOGGER.debug(f'uniform alpha in [-1,1] = {alpha}')
+                    # extrapolate to 0th/100th percentile...
+                    min_validation_time_errors = (
+                        1.3 * validation_time_errors.loc[:, '15th percentile error']
+                        - 0.3 * validation_time_errors.loc[:, '50th percentile error']
+                    )
+                    max_validation_time_errors = (
+                        1.3 * validation_time_errors.loc[:, '85th percentile error']
+                        - 0.3 * validation_time_errors.loc[:, '50th percentile error']
+                    )
+                    ## if just choose 15th/85th percentile...
+                    # min_validation_time_errors = validation_time_errors.loc[:, '15th percentile error']
+                    # max_validation_time_errors = validation_time_errors.loc[:, '85th percentile error']
+                    perturbed_values = 0.5 * (
+                        min_validation_time_errors * (1 - alpha)
+                        + max_validation_time_errors * (1 + alpha)
+                    )
+                    perturbed_values = perturbed_values.iloc[:, 0].values
+                    if variable.unit is not None and variable.unit != units.dimensionless:
+                        perturbed_values *= variable.unit
+
+                    # subtract the error from the variable with physical constraint bounds
+                    dataframe = variable.perturb(
+                        dataframe,
+                        values=perturbed_values,
+                        times=self.validation_times,
+                        inplace=True,
+                    )
+                else:
+                    raise NotImplementedError(
+                        f'perturbation type "{variable.perturbation_type}" is not recognized'
+                    )
+
+                if isinstance(variable, MaximumSustainedWindSpeed):
+                    # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
+                    dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
         # remove units from data frame
         for column in dataframe:
@@ -1100,9 +1496,10 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        perturbed_forcing = copy(self.forcing)
-        perturbed_forcing.dataframe.loc[dataframe.index] = dataframe
-        perturbed_forcing.write(filename, overwrite=True)
+        VortexTrack(storm=dataframe).write(filename, overwrite=True)
+
+        if weight is not None:
+            perturbation['weight'] = weight
         with open(filename.parent / f'{filename.stem}.json', 'w') as output_json:
             json.dump(perturbation, output_json, indent=2)
 
@@ -1116,10 +1513,6 @@ class VortexPerturber:
     def validation_times(self) -> List[timedelta]:
         """ get the validation time of storm """
         return self.forcing.datetime - self.forcing.start_date
-
-    def compute_initial(self, var: str) -> float:
-        """ the initial value of the input variable var (Vmax or Rmax) """
-        return self.forcing.data[var].iloc[0]
 
     @property
     def holland_B(self) -> float:
@@ -1153,63 +1546,35 @@ class VortexPerturber:
             filename = Path(filename)
 
         if filename.suffix == '.22':
-            vortex = VortexForcing.from_fort22(
+            vortex = VortexTrack.from_fort22(
                 filename, start_date=start_date, end_date=end_date
             )
         else:
-            vortex = VortexForcing.from_atcf_file(
+            vortex = VortexTrack.from_atcf_file(
                 filename, start_date=start_date, end_date=end_date
             )
 
-        return cls(vortex.dataframe, start_date=start_date, end_date=end_date)
+        instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
+        instance.__filename = filename
+        return instance
 
 
-def storm_intensity_class(max_sustained_wind_speed: float) -> str:
+def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Distribution:
     """
-    category for Vmax based intensity
-
-    :param max_sustained_wind_speed: maximum sustained wind speed, in knots
-    :return: intensity classification
-    """
-
-    if not isinstance(max_sustained_wind_speed, pint.Quantity):
-        max_sustained_wind_speed *= units.knot
-
-    if max_sustained_wind_speed < 50 * units.knot:
-        return '<50kt'  # weak
-    elif max_sustained_wind_speed <= 95 * units.knot:
-        return '50-95kt'  # medium
-    else:
-        return '>95kt'  # strong
-
-
-def storm_size_class(radius_of_maximum_winds: float) -> str:
-    """
-    category for Rmax based size
-
-    :param radius_of_maximum_winds: radius of maximum winds, in nautical miles
-    :return: size classification
+    :param variables: names of perturbed variables
+    :return: chaospy joint distribution encompassing variables
     """
 
-    if not isinstance(radius_of_maximum_winds, pint.Quantity):
-        radius_of_maximum_winds *= units.nautical_mile
+    if variables is None or len(variables) == 0:
+        variables = [variable() for variable in VortexPerturbedVariable.__subclasses__()]
 
-    if radius_of_maximum_winds < 15 * units.us_statute_mile:
-        return '<15sm'  # very small
-    elif radius_of_maximum_winds < 25 * units.us_statute_mile:
-        return '15-25sm'  # small
-    elif radius_of_maximum_winds < 35 * units.us_statute_mile:
-        return '25-35sm'  # medium
-    elif radius_of_maximum_winds <= 45 * units.us_statute_mile:
-        return '35-45sm'  # large
-    else:
-        return '>45sm'  # very large
+    return chaospy.J(*(variable.chaospy_distribution() for variable in variables))
 
 
 def utm_crs_from_longitude(longitude: float) -> CRS:
     """
     utm_from_lon - UTM zone for a longitude
-    Not right for some polar regions (Norway, Svalbard, Antartica)
+    Not right for some polar regions (Norway, Svalbard, Antarctica)
 
     :param longitude: longitude
     :return: coordinate reference system
@@ -1286,14 +1651,12 @@ def get_offset(
     return offset
 
 
-def parse_vortex_perturbations(
-    directory: PathLike = None, output_filename: PathLike = None
-) -> DataFrame:
+def parse_vortex_perturbations(directory: PathLike = None) -> Dataset:
     """
-    parse `fort.22` and JSON files into a dataframe
+    parse `fort.22` and JSON files into a xarray dataset
 
     :param directory: directory containing `fort.22` and JSON files of tracks
-    :returns: dataframe of the variables perturbed with each track
+    :returns: array of variables perturbed with each track
     """
 
     if directory is None:
@@ -1312,26 +1675,36 @@ def parse_vortex_perturbations(
             f'could not find any perturbation JSON file(s) in "{directory}"'
         )
 
-    # convert dictionary to dataframe with:
-    # rows -> name of perturbation
-    # columns -> name of each variable that is perturbed
-    # values -> the perturbation parameter for each variable
-    perturbations = {
-        vortex: perturbations[vortex]
-        for vortex, number in sorted(
-            {
-                vortex: int(vortex.split('_')[-1])
-                for vortex, pertubations in perturbations.items()
-            }.items(),
-            key=lambda item: item[1],
+    run_names = sorted(perturbations, key=lambda run_name: int(run_name.split('_')[-1]))
+    variable_names = [
+        variable_name
+        for variable_name in perturbations[run_names[0]]
+        if variable_name != 'weight'
+    ]
+
+    perturbation_values = []
+    weights = []
+    for run_name in run_names:
+        run_perturbations = perturbations[run_name]
+        perturbation_values.append(
+            [
+                run_perturbations[variable_name]
+                if variable_name in run_perturbations
+                else numpy.nan
+                for variable_name in variable_names
+            ]
         )
-    }
+        weights.append(
+            run_perturbations['weight'] if 'weight' in run_perturbations else numpy.nan
+        )
 
-    perturbations = DataFrame.from_records(
-        list(perturbations.values()), index=list(perturbations)
+    return Dataset(
+        {
+            'perturbations': (('run', 'variable'), perturbation_values),
+            'weights': (('run',), weights),
+        },
+        coords={'run': run_names, 'variable': variable_names},
     )
-
-    return perturbations
 
 
 def perturb_tracks(
@@ -1339,12 +1712,16 @@ def perturb_tracks(
     directory: PathLike = None,
     storm: Union[str, PathLike] = None,
     variables: List[VortexPerturbedVariable] = None,
+    sample_from_distribution: bool = False,
+    sample_rule: str = 'random',
+    quadrature: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
-    file_deck: FileDeck = None,
-    mode: Mode = None,
+    file_deck: ATCF_FileDeck = None,
+    mode: ATCF_Mode = None,
     record_type: str = None,
     overwrite: bool = False,
+    parallel: bool = True,
 ):
     """
     write a set of perturbed storm tracks
@@ -1353,12 +1730,17 @@ def perturb_tracks(
     :param directory: directory to which to write
     :param storm: ATCF storm ID, or file path to an existing `fort.22` / ATCF file, from which to perturb
     :param variables: vortex variables to perturb
+    :param sample_from_distribution: override given perturbations with random samples from the joint distribution
+    :param sample_rule: rule to use for the distribution sampling. Please choose from:
+           ``random`` [default], ``sobol``, ``halton``,``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
+    :param quadrature: add perturbations along quadrature
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
     :param file_deck: letter of file deck, one of `a`, `b`
     :param mode: either `realtime` / `aid_public` or `historical` / `archive`
     :param record_type: record type (i.e. `BEST`, `OFCL`)
     :param overwrite: overwrite existing files
+    :param parallel: generate perturbations concurrently
     :return: mapping of track names to perturbation JSONs
     """
 
@@ -1371,13 +1753,6 @@ def perturb_tracks(
 
     if storm is None:
         storm = directory / 'original.22'
-
-    if file_deck is None:
-        file_deck = FileDeck.b
-    if mode is None:
-        mode = Mode.realtime
-    if record_type is None:
-        record_type = 'BEST'
 
     try:
         if Path(storm).exists():
@@ -1404,12 +1779,18 @@ def perturb_tracks(
         perturbations=perturbations,
         variables=variables,
         directory=directory,
+        sample_from_distribution=sample_from_distribution,
+        sample_rule=sample_rule,
+        quadrature=quadrature,
         overwrite=overwrite,
+        parallel=parallel,
     )
 
     perturbations = {
         track_filename.stem: {
-            'besttrack': {'fort22_filename': Path(os.path.relpath(track_filename, directory))}
+            'besttrack': {
+                'fort22_filename': Path(os.path.relpath(track_filename, directory.parent))
+            }
         }
         for index, track_filename in enumerate(filenames)
     }

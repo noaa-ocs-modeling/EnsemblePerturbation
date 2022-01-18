@@ -14,9 +14,9 @@ from pyproj import CRS, Geod
 import shapely
 
 from ensembleperturbation.parsing.adcirc import (
-    fort61_stations_zeta,
-    fort62_stations_uv,
+    ElevationStationOutput,
     parse_adcirc_outputs,
+    VelocityStationOutput,
 )
 from ensembleperturbation.utilities import get_logger
 
@@ -40,7 +40,45 @@ ADCIRC_VARIABLES = DataFrame(
 )
 
 
-class ReferenceComparison(ABC):
+class ModelReferenceComparison(ABC):
+    """
+    abstraction of a comparison between reference data and modeled data
+    """
+
+    def __init__(
+        self, input_directory: str, output_directory: str, variables: List[str],
+    ):
+        """
+        :param input_directory: directory containing model inputs
+        :param output_directory: directory containing model outputs
+        :param variables: model variables to compare
+        """
+
+        if not isinstance(input_directory, Path):
+            input_directory = Path(input_directory)
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
+        self.input_directory = input_directory
+        self.output_directory = output_directory
+        self.variables = variables
+
+    @property
+    @abstractmethod
+    def values(self) -> GeoDataFrame:
+        raise NotImplementedError
+
+    @abstractmethod
+    def plot_errors(self, show: bool = False):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def rmses(self) -> dict:
+        raise NotImplementedError
+
+
+class ADCIRCReferenceComparison(ModelReferenceComparison):
     def __init__(
         self,
         input_directory: str,
@@ -48,21 +86,25 @@ class ReferenceComparison(ABC):
         variables: List[str],
         stages: List[str] = None,
     ):
-        if not isinstance(input_directory, Path):
-            input_directory = Path(input_directory)
-        if not isinstance(output_directory, Path):
-            output_directory = Path(output_directory)
+        """
+        :param input_directory: directory containing model inputs
+        :param output_directory: directory containing model outputs
+        :param variables: model variables to compare
+        :param stages: ADCIRC run stage (``coldstart``, ``hotstart``)
+        """
 
-        self.inout_directory = input_directory
-        self.output_directory = output_directory
-        self.variables = variables
+        super(ADCIRCReferenceComparison, self).__init__(
+            input_directory=input_directory,
+            output_directory=output_directory,
+            variables=variables,
+        )
+
+        self.stages = stages if stages is not None else ['coldstart', 'hotstart']
 
         self.fort14_filename = input_directory / 'fort.14'
         self.fort15_filename = input_directory / 'fort.15'
 
         self.runs = parse_adcirc_outputs(output_directory)
-
-        self.stages = stages if stages is not None else ['coldstart', 'hotstart']
 
         self.crs = CRS.from_epsg(4326)
         ellipsoid = self.crs.datum.to_json_dict()['ellipsoid']
@@ -558,24 +600,42 @@ class ReferenceComparison(ABC):
             pyplot.show()
 
 
-class ZetaComparison(ReferenceComparison):
+class ZetaComparison(ADCIRCReferenceComparison):
+    """
+    comparison between reference and ADCIRC-modeled sea-surface elevation
+    """
+
     def __init__(self, input_directory: str, output_directory: str):
+        """
+        :param input_directory: directory containing model inputs
+        :param output_directory: directory containing model outputs
+        """
+
         super().__init__(
             input_directory, output_directory, ['zeta'], ['coldstart', 'hotstart']
         )
 
     def parse_stations(self, filename: PathLike, station_names: List[str]) -> GeoDataFrame:
-        return fort61_stations_zeta(filename, station_names)
+        return ElevationStationOutput.read(filename, station_names)
 
 
-class VelocityComparison(ReferenceComparison):
+class VelocityComparison(ADCIRCReferenceComparison):
+    """
+    comparison between reference and ADCIRC-modeled sea-surface horizontal velocity
+    """
+
     def __init__(self, input_directory: str, output_directory: str):
+        """
+        :param input_directory: directory containing model inputs
+        :param output_directory: directory containing model outputs
+        """
+
         super().__init__(
             input_directory, output_directory, ['u', 'v'], ['coldstart', 'hotstart']
         )
 
     def parse_stations(self, filename: PathLike, station_names: List[str]) -> GeoDataFrame:
-        return fort62_stations_uv(filename, station_names)
+        return VelocityStationOutput.read(filename, station_names)
 
 
 class NoDataError(Exception):

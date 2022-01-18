@@ -9,7 +9,7 @@
    :hidden:
 
    client
-   parsing
    perturbation
+   parsing
+   comparison
    acknowledgements
-   references

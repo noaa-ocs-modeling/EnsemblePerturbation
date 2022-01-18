@@ -6,17 +6,30 @@ import subprocess
 import sys
 from typing import Dict, List
 
+try:
+    from importlib import metadata as importlib_metadata
+except ImportError:  # for Python<3.8
+    subprocess.run(
+        f'{sys.executable} -m pip install importlib_metadata',
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    import importlib_metadata
+
 from setuptools import config, find_packages, setup
 
 DEPENDENCIES = {
-    'adcircpy>=1.0.42': ['gdal', 'fiona'],
+    'adcircpy==1.0.42': ['gdal', 'fiona'],
     'appdirs': [],
     'cython': [],
     'cartopy': ['cython', 'numpy', 'proj'],
+    'chaospy': [],
     'cmocean': [],
     'bs4': [],
     'click': [],
     'coupledmodeldriver>=1.4.11': [],
+    'dask': [],
     'fiona': ['gdal'],
     'geopandas': [],
     'matplotlib': [],
@@ -27,18 +40,21 @@ DEPENDENCIES = {
     'pint-pandas': ['pint'],
     'pyproj>=2.6': [],
     'tables': [],
+    'typepigeon': [],
     'python-dateutil': [],
     'requests': [],
     'shapely': [],
+    'scikit-learn': [],
+    'stormevents': [],
 }
 
 
 def installed_packages() -> List[str]:
+    installed_distributions = importlib_metadata.distributions()
     return [
-        re.split('#egg=', re.split('==| @ ', package.decode())[0])[-1].lower()
-        for package in subprocess.run(
-            f'{sys.executable} -m pip freeze', shell=True, capture_output=True,
-        ).stdout.splitlines()
+        distribution.metadata['Name'].lower()
+        for distribution in installed_distributions
+        if distribution.metadata['Name'] is not None
     ]
 
 
@@ -228,6 +244,7 @@ setup(
             'sphinx',
             'sphinx-rtd-theme',
             'sphinxcontrib-programoutput',
+            'sphinxcontrib-bibtex',
         ],
     },
     entry_points={

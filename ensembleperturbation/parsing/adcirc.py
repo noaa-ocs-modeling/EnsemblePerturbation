@@ -1,215 +1,535 @@
-import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
-import os
+from abc import ABC, abstractmethod
+from enum import Enum
 from os import PathLike
 from pathlib import Path
 import pickle
-from tempfile import TemporaryDirectory
-from typing import Any, Collection, Dict, List, Mapping, Union
+from typing import Any, Collection, Dict, List, Mapping, Tuple, Union
 
+import dask
 import geopandas
 from geopandas import GeoDataFrame
-from netCDF4 import Dataset
 import numpy
 import pandas
-from pandas import DataFrame, Series
+from pandas import DataFrame
 from shapely.geometry import Point
+from typepigeon import convert_value
+import xarray
+from xarray import DataArray, Dataset
 
-from ensembleperturbation.parsing.utilities import decode_time
 from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.adcirc')
 
-ADCIRC_OUTPUT_DATA_VARIABLES = {
-    # Elevation Time Series at Specified Elevation Recording Stations (fort.61)
-    'fort.61.nc': ['station_name', 'zeta'],
-    # Depth-averaged Velocity Time Series at Specified Velocity Recording
-    # Stations (fort.62)
-    'fort.62.nc': ['station_name', 'u-vel', 'v-vel'],
-    # Elevation Time Series at All Nodes in the Model Grid (fort.63)
-    'fort.63.nc': ['zeta'],
-    # Depth-averaged Velocity Time Series at All Nodes in the Model Grid (
-    # fort.64)
-    'fort.64.nc': ['u-vel', 'v-vel'],
-    # Hot Start Output (fort.67, fort.68)
-    'fort.67.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
-    'fort.68.nc': ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel'],
-    # Sea-level Pressure Time Series at All Nodes in the Model Grid (fort.73)
-    'fort.73.nc': ['pressure'],
-    # Surface Wind Velocity Time Series at All Nodes in the Model Grid (
-    # fort.74)
-    'fort.74.nc': ['windx', 'windy'],
-    # Maximum Elevation at All Nodes in the Model Grid (maxele.63)
-    'maxele.63.nc': ['zeta_max', 'time_of_zeta_max'],
-    # Maximum Speed at All Nodes in the Model Grid (maxvel.63)
-    'maxvel.63.nc': ['vel_max', 'time_of_vel_max'],
-    # Minimum Sea-level Pressure at All Nodes in the Model Grid (minpr.63)
-    'minpr.63.nc': ['pressure_min', 'time_of_pressure_min'],
-    # Maximum Surface Wind Speed at All Nodes in the Model Grid (maxwvel.63)
-    'maxwvel.63.nc': ['wind_max', 'time_of_wind_max'],
-    # Maximum Radiation Surface Stress at All Nodes in the Model Grid (maxrs.63)
-    'maxrs.63.nc': ['radstress_max', 'time_of_radstress_max'],
-}
 
-NODATA = -99999.0
+class ElevationSelection(Enum):
+    wet = 'inundated'
+    inundated = 'inundated'
+    dry = 'inundated'
 
 
-def fort61_stations_zeta(filename: PathLike, station_names: List[str] = None) -> GeoDataFrame:
-    dataset = Dataset(filename)
+class AdcircOutput(ABC):
+    filename: PathLike
+    variables: List[str]
+    drop_variables: List[str] = ['neta', 'nvel', 'max_nvdll', 'max_nvell']
+    nodata: float = -99999.0
 
-    coordinate_variables = ['x', 'y']
-    coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
-    times = decode_time(dataset['time'])
+    @classmethod
+    @abstractmethod
+    def read(cls, filename: PathLike, names: List[str] = None) -> Union[DataFrame, DataArray]:
+        raise NotImplementedError
 
-    all_station_names = [
-        station_name.tobytes().decode().strip().strip("'")
-        for station_name in dataset['station_name']
-    ]
+    @classmethod
+    def async_read(
+        cls, filename: PathLike, pickle_filename: PathLike, variables: List[str] = None
+    ) -> (Path, Path):
+        if not isinstance(filename, Path):
+            filename = Path(filename)
+        if not isinstance(pickle_filename, Path):
+            pickle_filename = Path(pickle_filename)
 
-    stations = []
-    for station_name in station_names:
-        station_index = all_station_names.index(station_name)
-        station_coordinates = coordinates[station_index]
-        station_point = Point(station_coordinates[0], station_coordinates[1])
+        data = cls.read(filename=filename, names=variables)
+        pickle_filename = pickle_data(data, pickle_filename)
 
-        stations.append(
-            GeoDataFrame(
-                {
-                    'time': times,
-                    'zeta': dataset['zeta'][:, station_index],
-                    'station': station_name,
-                },
-                geometry=[station_point for _ in times],
+        return filename, pickle_filename
+
+    @classmethod
+    def read_directory(
+        cls, directory: PathLike, variables: List[str] = None, parallel: bool = False
+    ) -> Dataset:
+        """
+        Compile a dataset from output files in the given directory.
+
+        :param directory: directory containing output files
+        :param variables: variables to return
+        :param parallel: load data concurrently with Dask
+        :return: dataset of output data
+        """
+
+        if not isinstance(directory, Path):
+            directory = Path(directory)
+
+        if variables is None:
+            variables = cls.variables
+
+        filename_pattern = f'*/{cls.filename}'
+        filenames = list(directory.glob(filename_pattern))
+        if len(filenames) > 0:
+            LOGGER.info(
+                f'found {len(filenames)} files matching "{directory / filename_pattern}"'
             )
-        )
-
-    return pandas.concat(stations)
-
-
-def fort62_stations_uv(filename: PathLike, station_names: List[str] = None) -> GeoDataFrame:
-    dataset = Dataset(filename)
-
-    coordinate_variables = ['x', 'y']
-    coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
-    times = decode_time(dataset['time'])
-
-    all_station_names = [
-        station_name.tobytes().decode().strip().strip("'")
-        for station_name in dataset['station_name']
-    ]
-
-    stations = []
-    for station_name in station_names:
-        station_index = all_station_names.index(station_name)
-        station_coordinates = coordinates[station_index]
-        station_point = Point(station_coordinates[0], station_coordinates[1])
-
-        stations.append(
-            GeoDataFrame(
-                {
-                    'time': times,
-                    'u': dataset['u-vel'][:, station_index],
-                    'v': dataset['v-vel'][:, station_index],
-                    'station': station_name,
-                },
-                geometry=[station_point for _ in times],
-            )
-        )
-
-    return pandas.concat(stations)
-
-
-def parse_adcirc_netcdf(
-    filename: PathLike, variables: List[str] = None
-) -> Union[dict, DataFrame]:
-    """
-    Parse ADCIRC output files
-
-    :param filename: file path to ADCIRC NetCDF output
-    :param variables: list of data variables to extract
-    :return: parsed data
-    """
-
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-    basename = filename.parts[-1]
-
-    LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
-
-    if variables is None:
-        if basename in ADCIRC_OUTPUT_DATA_VARIABLES:
-            variables = ADCIRC_OUTPUT_DATA_VARIABLES[basename]
         else:
-            raise NotImplementedError(f'ADCIRC output file "{basename}" not implemented')
+            raise FileNotFoundError(
+                f'could not find any files matching "{directory / filename_pattern}"'
+            )
 
-    dataset = Dataset(filename)
+        drop_variables = cls.drop_variables
 
-    data = {name: dataset[name] for name in variables}
+        with xarray.open_dataset(
+            filenames[0], drop_variables=drop_variables
+        ) as sample_dataset:
+            drop_variables.extend(
+                variable_name
+                for variable_name in sample_dataset.variables
+                if variable_name not in variables
+                and variable_name not in ['node', 'time', 'x', 'y', 'depth']
+            )
 
-    coordinate_variables = ['x', 'y']
-    if 'depth' in dataset.variables:
-        coordinate_variables += ['depth']
-    coordinates = numpy.stack([dataset[variable] for variable in coordinate_variables], axis=1)
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            dataset = xarray.open_mfdataset(
+                filenames,
+                drop_variables=drop_variables,
+                combine='nested',
+                concat_dim=xarray.DataArray(
+                    [filename.parent.name for filename in filenames], dims=['run'], name='run',
+                ),
+                parallel=parallel,
+                lock=False,
+            )
 
-    times = decode_time(dataset['time'])
+        if 'depth' in dataset:
+            dataset = dataset.assign_coords(
+                {'depth': dataset['depth'].isel(run=0).drop_vars('run')}
+            )
 
-    if basename in ['fort.63.nc', 'fort.64.nc']:
-        data = {'coordinates': coordinates, 'time': times, 'data': data}
-    elif basename in ['fort.61.nc', 'fort.62.nc']:
-        data = GeoDataFrame(
-            {
-                'name': [
-                    station_name.tobytes().decode().strip().strip("'")
-                    for station_name in dataset['station_name']
-                ],
-                'x': coordinates[:, 0],
-                'y': coordinates[:, 1],
-            },
-            geometry=geopandas.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
+        if 'node' not in dataset:
+            dataset = dataset.assign_coords({'node': dataset['node']})
+
+        return dataset[variables]
+
+    @classmethod
+    @abstractmethod
+    def subset(
+        cls,
+        dataset: Union[Dataset, DataArray],
+        bounds: (float, float, float, float) = None,
+        **kwargs,
+    ) -> Union[Dataset, DataArray]:
+        raise NotImplementedError
+
+
+class TimeSeriesOutput(ABC):
+    pass
+
+
+class StationTimeSeriesOutput(AdcircOutput, TimeSeriesOutput, ABC):
+    @classmethod
+    @abstractmethod
+    def read(cls, filename: PathLike, names: List[str] = None) -> GeoDataFrame:
+        raise NotImplementedError
+
+    @classmethod
+    def subset(
+        cls,
+        dataset: Union[Dataset, DataArray],
+        bounds: (float, float, float, float) = None,
+        **kwargs,
+    ) -> Union[Dataset, DataArray]:
+        subset = ~dataset['station'].isnull()
+
+        if bounds is not None:
+            LOGGER.debug(f'filtering within bounds {bounds}')
+            if bounds[0] is not None:
+                subset = numpy.logical_and(subset, dataset['x'] > bounds[0])
+            if bounds[2] is not None:
+                subset = numpy.logical_and(subset, dataset['x'] < bounds[2])
+            if bounds[1] is not None:
+                subset = numpy.logical_and(subset, dataset['y'] > bounds[1])
+            if bounds[3] is not None:
+                subset = numpy.logical_and(subset, dataset['y'] < bounds[3])
+
+        return subset
+
+
+class ElevationStationOutput(StationTimeSeriesOutput):
+    """
+    ``fort.61`` - Elevation Time Series at Specified Elevation Recording Stations
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/elevation-time-series-specified-elevation-recording-stations-fort-61
+    """
+
+    filename = 'fort.61.nc'
+    variables = ['station_name', 'zeta']
+
+    @classmethod
+    def read(cls, filename: PathLike, names: List[str] = None) -> GeoDataFrame:
+        dataset = xarray.open_dataset(filename, drop_variables=cls.drop_variables)
+
+        coordinate_variables = ['x', 'y']
+        coordinates = numpy.stack(
+            [dataset[variable] for variable in coordinate_variables], axis=1
         )
-    else:
-        variables = {}
-        for name, variable in data.items():
-            if 'time_of' in name:
-                variable = decode_time(variable, unit=dataset['time'].units)
-            if variable.size > 0:
-                variables[name] = numpy.squeeze(variable)
+        times = dataset['time']
+
+        all_station_names = [
+            station_name.tobytes().decode().strip().strip("'")
+            for station_name in dataset['station_name']
+        ]
+
+        stations = []
+        for station_name in names:
+            station_index = all_station_names.index(station_name)
+            station_coordinates = coordinates[station_index]
+            station_point = Point(station_coordinates[0], station_coordinates[1])
+
+            stations.append(
+                GeoDataFrame(
+                    {
+                        'time': times,
+                        'zeta': dataset['zeta'][:, station_index],
+                        'station': station_name,
+                    },
+                    geometry=[station_point for _ in times],
+                )
+            )
+
+        return pandas.concat(stations)
+
+
+class VelocityStationOutput(StationTimeSeriesOutput):
+    """
+    ``fort.62`` - Depth-averaged Velocity Time Series at Specified Velocity Recording Stations
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/depth-averaged-velocity-time-series-specified-velocity-recording-stations-fort-62
+    """
+
+    filename = 'fort.62.nc'
+    variables = ['station_name', 'u-vel', 'v-vel']
+
+    @classmethod
+    def read(cls, filename: PathLike, names: List[str] = None) -> GeoDataFrame:
+        dataset = xarray.open_dataset(filename, drop_variables=cls.drop_variables)
+
+        coordinate_variables = ['x', 'y']
+        coordinates = numpy.stack(
+            [dataset[variable] for variable in coordinate_variables], axis=1
+        )
+        times = dataset['time']
+
+        all_station_names = [
+            station_name.tobytes().decode().strip().strip("'")
+            for station_name in dataset['station_name']
+        ]
+
+        stations = []
+        for station_name in names:
+            station_index = all_station_names.index(station_name)
+            station_coordinates = coordinates[station_index]
+            station_point = Point(station_coordinates[0], station_coordinates[1])
+
+            stations.append(
+                GeoDataFrame(
+                    {
+                        'time': times,
+                        'u': dataset['u-vel'][:, station_index],
+                        'v': dataset['v-vel'][:, station_index],
+                        'station': station_name,
+                    },
+                    geometry=[station_point for _ in times],
+                )
+            )
+
+        return pandas.concat(stations)
+
+
+class FieldOutput(AdcircOutput, ABC):
+    @classmethod
+    def read(cls, filename: PathLike, names: List[str] = None) -> Union[DataFrame, DataArray]:
+        """
+        Parse ADCIRC output files
+
+        :param filename: file path to ADCIRC NetCDF output
+        :param names: list of data variables to extract
+        :return: parsed data
+        """
+
+        if not isinstance(filename, Path):
+            filename = Path(filename)
+
+        LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
+
+        if names is None:
+            for subclass in FieldOutput.__subclasses__():
+                if filename.name == subclass.filename:
+                    names = subclass.variables
+                    break
             else:
-                LOGGER.debug(
-                    f'array "{variable.name}" has invalid data shape "{variable.shape}"'
+                raise NotImplementedError(
+                    f'ADCIRC output file "{filename.name}" not implemented'
                 )
-                variables[name] = numpy.squeeze(
-                    numpy.full(
-                        [dimension if dimension > 0 else 1 for dimension in variable.shape],
-                        fill_value=NODATA,
-                    )
-                )
-        columns = dict(zip(coordinate_variables, coordinates.T))
-        columns.update(variables)
-        data = GeoDataFrame(
-            columns, geometry=geopandas.points_from_xy(columns['x'], columns['y'])
+
+        dataset = xarray.open_dataset(filename, drop_variables=cls.drop_variables)
+
+        coordinate_variables = ['x', 'y']
+        if 'depth' in dataset.variables:
+            coordinate_variables += ['depth']
+        coordinates = numpy.stack(
+            [dataset[variable] for variable in coordinate_variables], axis=1
         )
-        data[data == NODATA] = numpy.nan
 
-    LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
+        if filename.name in ['fort.63.nc', 'fort.64.nc']:
+            data = dataset[names]
+        elif filename.name in ['fort.61.nc', 'fort.62.nc']:
+            data = GeoDataFrame(
+                {
+                    'name': [
+                        station_name.tobytes().decode().strip().strip("'")
+                        for station_name in dataset['station_name']
+                    ],
+                    'x': coordinates[:, 0],
+                    'y': coordinates[:, 1],
+                },
+                geometry=geopandas.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
+            )
+        else:
+            variables_data = {}
+            for variable_name in names:
+                data_array = dataset[variable_name]
+                if 'time_of' in variable_name:
+                    pass
+                if data_array.size > 0:
+                    variables_data[variable_name] = numpy.squeeze(data_array)
+                else:
+                    LOGGER.debug(
+                        f'array "{data_array.name}" has invalid data shape "{data_array.shape}"'
+                    )
+                    variables_data[variable_name] = numpy.squeeze(
+                        numpy.full(
+                            [
+                                dimension if dimension > 0 else 1
+                                for dimension in data_array.shape
+                            ],
+                            fill_value=cls.nodata,
+                        )
+                    )
+            columns = dict(zip(coordinate_variables, coordinates.T))
+            columns.update(variables_data)
+            data = GeoDataFrame(
+                columns, geometry=geopandas.points_from_xy(columns['x'], columns['y'])
+            )
+            data[data == cls.nodata] = numpy.nan
 
-    return data
+        LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
+
+        return data
+
+    @classmethod
+    def subset(
+        cls,
+        dataset: Union[Dataset, DataArray],
+        bounds: (float, float, float, float) = None,
+        maximum_depth: float = None,
+        **kwargs,
+    ) -> Union[Dataset, DataArray]:
+        subset = ~dataset['node'].isnull()
+
+        if bounds is not None:
+            LOGGER.debug(f'filtering within bounds {bounds}')
+            if bounds[0] is not None:
+                subset = numpy.logical_and(subset, dataset['x'] > bounds[0])
+            if bounds[2] is not None:
+                subset = numpy.logical_and(subset, dataset['x'] < bounds[2])
+            if bounds[1] is not None:
+                subset = numpy.logical_and(subset, dataset['y'] > bounds[1])
+            if bounds[3] is not None:
+                subset = numpy.logical_and(subset, dataset['y'] < bounds[3])
+
+        if maximum_depth is not None:
+            LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
+            subset = numpy.logical_and(subset, dataset['depth'] < maximum_depth)
+
+        return subset
 
 
-def async_parse_adcirc_netcdf(
-    filename: PathLike, pickle_filename: PathLike, variables: List[str] = None
-) -> (Path, Path):
-    if not isinstance(filename, Path):
-        filename = Path(filename)
-    if not isinstance(pickle_filename, Path):
-        pickle_filename = Path(pickle_filename)
+class MaximumElevationOutput(FieldOutput):
+    """
+    ``maxele.63`` - Maximum Elevation at All Nodes in the Model Grid
 
-    data = parse_adcirc_netcdf(filename=filename, variables=variables)
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
 
-    pickle_filename = pickle_data(data, pickle_filename)
+    filename = 'maxele.63.nc'
+    variables = ['zeta_max', 'time_of_zeta_max']
 
-    return filename, pickle_filename
+
+class MaximumVelocityOutput(FieldOutput):
+    """
+    ``maxvel.63`` - Maximum Speed at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
+
+    filename = 'maxvel.63.nc'
+    variables = ['vel_max', 'time_of_vel_max']
+
+
+class MinimumSurfacePressureOutput(FieldOutput):
+    """
+    ``minpr.63`` - Minimum Sea-level Pressure at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
+
+    filename = 'minpr.63.nc'
+    variables = ['pressure_min', 'time_of_pressure_min']
+
+
+class MaximumSurfaceWindOutput(FieldOutput):
+    """
+    ``maxwvel.63`` - Maximum Surface Wind Speed at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
+
+    filename = 'maxwvel.63.nc'
+    variables = ['wind_max', 'time_of_wind_max']
+
+
+class MaximumSurfaceRadiationStressOutput(FieldOutput):
+    """
+    ``maxrs.63`` - Maximum Radiation Surface Stress at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/global-maximum-minimum-files-model-run-maxele-63-maxvel-63-maxwvel-63-maxrs-63-minpr-63/
+    """
+
+    filename = 'maxrs.63.nc'
+    variables = ['radstress_max', 'time_of_radstress_max']
+
+
+class HotStartOutput(FieldOutput):
+    """
+    ``fort.67`` - Hot Start Output
+
+    https://adcirc.org/home/documentation/users-manual-v52/input-file-descriptions/hot-start-files-fort-67-fort-68/
+    """
+
+    filename = 'fort.67.nc'
+    variables = ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel']
+
+
+class HotStartOutput2(HotStartOutput):
+    """
+    ``fort.68`` - Hot Start Output
+
+    https://adcirc.org/home/documentation/users-manual-v52/input-file-descriptions/hot-start-files-fort-67-fort-68/
+    """
+
+    filename = 'fort.68.nc'
+
+
+class FieldTimeSeriesOutput(FieldOutput, TimeSeriesOutput, ABC):
+    pass
+
+
+class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
+    """
+    ``fort.63`` - Elevation Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/elevation-time-series-nodes-model-grid-fort-63
+    """
+
+    filename = 'fort.63.nc'
+    variables = ['zeta']
+
+    @classmethod
+    def subset(
+        cls,
+        dataset: Union[Dataset, DataArray],
+        bounds: (float, float, float, float) = None,
+        maximum_depth: float = None,
+        elevation_selection: ElevationSelection = None,
+        **kwargs,
+    ) -> Union[Dataset, DataArray]:
+        subset = super().subset(dataset, bounds=bounds, maximum_depth=maximum_depth)
+
+        if elevation_selection is not None:
+            if not isinstance(elevation_selection, ElevationSelection):
+                elevation_selection = convert_value(elevation_selection, ElevationSelection)
+
+            dry_subset = dataset['zeta'].isnull()
+
+            if elevation_selection == ElevationSelection.wet:
+                elevation_subset = ~dry_subset.any('time')
+            elif elevation_selection == ElevationSelection.inundated:
+                # get all nodes that experienced inundation (were both wet and dry at any time)
+                elevation_subset = dry_subset.any('time') & ~dry_subset.all('time')
+            else:
+                elevation_subset = dry_subset.all('time')
+
+            if 'run' in dataset:
+                elevation_subset = elevation_subset.any('run')
+
+            subset = numpy.logical_and(subset, elevation_subset)
+
+        return subset
+
+
+class VelocityTimeSeriesOutput(FieldTimeSeriesOutput):
+    """
+    ``fort.64`` - Depth-averaged Velocity Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/depth-averaged-velocity-time-series-nodes-model-grid-fort-64
+    """
+
+    filename = 'fort.64.nc'
+    variables = ['u-vel', 'v-vel']
+
+
+class SurfacePressureTimeSeriesOutput(FieldTimeSeriesOutput):
+    """
+    ``fort.73`` - Sea-level Pressure Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/output-file-descriptions/atmospheric-pressure-time-series-nodes-model-grid-fort-73
+    """
+
+    filename = 'fort.73.nc'
+    variables = ['pressure']
+
+
+class SurfaceWindTimeSeriesOutput(FieldTimeSeriesOutput):
+    """
+    ``fort.74`` - Surface Wind Velocity Time Series at All Nodes in the Model Grid
+
+    https://adcirc.org/home/documentation/users-manual-v52/output-file-descriptions/wind-stress-velocity-time-series-nodes-model-grid-fort-74
+    """
+
+    filename = 'fort.74.nc'
+    variables = ['windx', 'windy']
+
+
+def adcirc_file_data_variables(cls: type = None) -> Dict[str, List[str]]:
+    file_data_variables = {}
+    if cls is None:
+        cls = AdcircOutput
+    for subclass in cls.__subclasses__():
+        try:
+            file_data_variables[subclass.filename] = subclass
+        except AttributeError:
+            file_data_variables.update(adcirc_file_data_variables(subclass))
+    return file_data_variables
+
+
+ADCIRC_FILE_OUTPUTS = adcirc_file_data_variables()
 
 
 def pickle_data(data: Any, filename: PathLike) -> Path:
@@ -239,14 +559,15 @@ def pickle_data(data: Any, filename: PathLike) -> Path:
 
 
 def parse_adcirc_outputs(
-    directory: PathLike = None, file_data_variables: List[str] = None
+    directory: PathLike = None, file_outputs: List[str] = None, parallel: bool = False,
 ) -> Dict[str, dict]:
     """
     Parse output from multiple ADCIRC runs.
 
     :param directory: directory containing run output directories
-    :param file_data_variables: output files to parse
-    :return: dictionary of file tree containing parsed data
+    :param file_outputs: output files to parse
+    :param parallel: load data concurrently with Dask
+    :return: variables to parsed data
     """
 
     if directory is None:
@@ -254,95 +575,54 @@ def parse_adcirc_outputs(
     elif not isinstance(directory, Path):
         directory = Path(directory)
 
-    if file_data_variables is None:
-        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
-    elif isinstance(file_data_variables, Collection):
-        file_data_variables = {
-            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
-            for filename in file_data_variables
-        }
-    elif isinstance(file_data_variables, Mapping):
-        file_data_variables = {
-            filename: variables
-            if variables is not None
-            else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
-            for filename, variables in file_data_variables.items()
+    if file_outputs is None:
+        file_outputs = ADCIRC_FILE_OUTPUTS
+    elif isinstance(file_outputs, Collection):
+        file_outputs = {filename: ADCIRC_FILE_OUTPUTS[filename] for filename in file_outputs}
+    elif isinstance(file_outputs, Mapping):
+        file_outputs = {
+            filename: subclass if subclass is not None else ADCIRC_FILE_OUTPUTS[filename]
+            for filename, subclass in file_outputs.items()
         }
 
-    dataframes = {}
-    with TemporaryDirectory() as temporary_directory:
-        temporary_directory = Path(temporary_directory)
-        process_pool = ProcessPoolExecutor()
-        futures = []
-
-        for filename in directory.glob('**/*.nc'):
-            if filename.name in file_data_variables:
-                if filename.name in ['fort.63.nc', 'fort.64.nc']:
-                    dataframes[filename] = parse_adcirc_netcdf(filename)
-                else:
-                    futures.append(
-                        process_pool.submit(
-                            async_parse_adcirc_netcdf,
-                            filename=filename,
-                            pickle_filename=temporary_directory / filename.name,
-                        ),
-                    )
-
-        if len(futures) > 0:
-            for completed_future in concurrent.futures.as_completed(futures):
-                input_filename, pickle_filename = completed_future.result()
-
-                if pickle_filename.is_dir():
-                    dataframes[input_filename] = {}
-                    for variable_pickle_filename in pickle_filename.iterdir():
-                        with open(variable_pickle_filename) as pickle_file:
-                            dataframes[input_filename][
-                                variable_pickle_filename.stem
-                            ] = pickle.load(pickle_file)
-                else:
-                    if pickle_filename.suffix == '.npy':
-                        dataframes[input_filename] = numpy.load(pickle_filename)
-                    elif pickle_filename.suffix == '.df':
-                        dataframes[input_filename] = pandas.read_pickle(pickle_filename)
-                    else:
-                        with open(pickle_filename) as pickle_file:
-                            dataframes[input_filename] = pickle.load(pickle_file)
+    for basename, output_class in file_outputs.items():
+        if issubclass(output_class, AdcircOutput):
+            file_outputs[basename] = output_class
 
     output_tree = {}
-    for filename, dataframe in dataframes.items():
-        parts = Path(str(filename).split(str(directory))[-1]).parts[1:]
-        if parts[-1] not in file_data_variables:
-            continue
-        tree = output_tree
-        for part_index in range(len(parts)):
-            part = parts[part_index]
-            if part_index < len(parts) - 1:
-                if part not in tree:
-                    tree[part] = {}
-                tree = tree[part]
-            else:
-                tree[part] = dataframe
+    for basename, output_class in file_outputs.items():
+        try:
+            output_tree[basename] = output_class.read_directory(
+                directory, variables=output_class.variables, parallel=parallel,
+            )
+        except (ValueError, FileNotFoundError) as error:
+            LOGGER.warning(error)
 
     return output_tree
 
 
 def combine_outputs(
     directory: PathLike = None,
-    bounds: (float, float, float, float) = None,
-    maximum_depth: float = None,
     file_data_variables: Dict[str, List[str]] = None,
-    output_filename: PathLike = None,
+    bounds: Tuple[float, float, float, float] = None,
+    maximum_depth: float = None,
+    elevation_selection: ElevationSelection = None,
+    output_directory: PathLike = None,
+    parallel: bool = False,
 ) -> Dict[str, DataFrame]:
     if directory is None:
         directory = Path.cwd()
     elif not isinstance(directory, Path):
         directory = Path(directory)
 
-    if output_filename is not None:
-        if not isinstance(output_filename, Path):
-            output_filename = Path(output_filename)
-        if output_filename.exists():
-            os.remove(output_filename)
+    if maximum_depth is not None and not isinstance(maximum_depth, float):
+        maximum_depth = float(maximum_depth)
+
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+        if not output_directory.exists():
+            output_directory.mkdir(parents=True, exist_ok=True)
 
     runs_directory = directory / 'runs'
     if not runs_directory.exists():
@@ -353,134 +633,91 @@ def combine_outputs(
         raise FileNotFoundError(f'track directory does not exist at "{track_directory}"')
 
     if file_data_variables is None:
-        file_data_variables = ADCIRC_OUTPUT_DATA_VARIABLES
+        file_data_variables = ADCIRC_FILE_OUTPUTS
     elif isinstance(file_data_variables, Collection):
         file_data_variables = {
-            filename: ADCIRC_OUTPUT_DATA_VARIABLES[filename]
-            for filename in file_data_variables
+            filename: ADCIRC_FILE_OUTPUTS[filename] for filename in file_data_variables
         }
     elif isinstance(file_data_variables, Mapping):
         file_data_variables = {
-            filename: variables
-            if variables is not None
-            else ADCIRC_OUTPUT_DATA_VARIABLES[filename]
+            filename: variables if variables is not None else ADCIRC_FILE_OUTPUTS[filename]
             for filename, variables in file_data_variables.items()
         }
 
     # parse all the inputs using built-in parser
-    vortex_perturbations = parse_vortex_perturbations(
-        track_directory, output_filename=output_filename,
-    )
-
-    if output_filename is not None:
-        key = 'vortex_perturbation_parameters'
-        LOGGER.info(f'writing vortex perturbations to "{output_filename}/{key}"')
-        vortex_perturbations.to_hdf(
-            output_filename, key=key, mode='a', format='table', data_columns=True,
-        )
+    output_data = {'perturbations.nc': parse_vortex_perturbations(track_directory)}
 
     # parse all the outputs using built-in parser
     LOGGER.info(f'parsing from "{directory}"')
-    output_data = parse_adcirc_outputs(
-        directory=runs_directory, file_data_variables=file_data_variables,
+    parsed_files = parse_adcirc_outputs(
+        directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
     )
 
-    if len(output_data) > 0:
-        LOGGER.info(f'parsing results from {len(output_data)} runs')
-    else:
-        raise FileNotFoundError(f'could not find any output files in "{directory}"')
-
-    # now assemble results into a single dataframe with:
-    # rows -> index of a vertex in the mesh subset
-    # columns -> name of perturbation, ( + x, y (lon, lat) and depth info)
-    # values -> maximum elevation values ( + location and depths)
-    subset = None
-    variable_dataframes = {}
-    for run_name, run_data in output_data.items():
-        LOGGER.info(
-            f'reading {len(run_data)} files from "{directory / run_name}": {list(run_data)}'
-        )
-
-        for result_filename, result_data in run_data.items():
-            variables = file_data_variables[result_filename]
-
-            if isinstance(result_data, DataFrame):
-                num_records = len(result_data)
-
-                coordinate_variables = ['x', 'y']
-                if 'depth' in result_data:
-                    coordinate_variables.append('depth')
-
-                if subset is None:
-                    subset = Series(True, index=result_data.index)
-                    if 'depth' in result_data:
-                        if maximum_depth is not None:
-                            subset &= result_data['depth'] < maximum_depth
-                    if bounds is not None:
-                        subset &= (result_data['x'] > bounds[0]) & (
-                            result_data['x'] < bounds[2]
-                        )
-                        subset &= (result_data['y'] > bounds[1]) & (
-                            result_data['y'] < bounds[3]
-                        )
-                    result_data = result_data.loc[subset]
-                    LOGGER.debug(
-                        f'subsetting: {num_records} nodes -> {len(result_data)} nodes'
-                    )
-
-                LOGGER.debug(
-                    f'found {len(variables)} variables over {len(result_data)} nodes in "{run_name}/{result_filename}"'
-                )
-
-                for variable in variables:
-                    variable_dataframe = result_data[coordinate_variables + [variable]].copy()
-                    variable_dataframe.rename(columns={variable: run_name}, inplace=True)
-
-                    hdf5_variable = variable.replace('-', '_')
-                    if hdf5_variable in variable_dataframes:
-                        variable_dataframes[hdf5_variable] = variable_dataframes[
-                            hdf5_variable
-                        ].merge(
-                            variable_dataframe,
-                            on=coordinate_variables,
-                            how='outer',
-                            copy=False,
-                        )
-                    else:
-                        variable_dataframes[hdf5_variable] = variable_dataframe
-            else:
-                result_data = {key: type(value) for key, value in result_data.items()}
-                LOGGER.warning(
-                    f'"{result_filename}" outputs not yet implemented: {result_data}'
-                )
-
-    if output_filename is not None and len(variable_dataframes) > 0:
-        LOGGER.info(
-            f'parsed {len(variable_dataframes)} variables: {list(variable_dataframes)}'
-        )
-
-        for variable, variable_dataframe in variable_dataframes.items():
-            duplicate_indices = variable_dataframe.index[variable_dataframe.index.duplicated()]
-            if len(duplicate_indices) > 0:
-                LOGGER.warning(
-                    f'{len(duplicate_indices)} duplicate indices found: {duplicate_indices}'
-                )
-                variable_dataframe.drop(duplicate_indices, axis=0, inplace=True)
-
-            duplicate_columns = variable_dataframe.columns[
-                variable_dataframe.columns.duplicated()
+    elevation_time_series_filename = 'fort.63.nc'
+    if elevation_selection is not None:
+        if elevation_time_series_filename in parsed_files:
+            output_data[elevation_time_series_filename] = parsed_files[
+                elevation_time_series_filename
             ]
-            if len(duplicate_columns) > 0:
-                LOGGER.warning(
-                    f'{len(duplicate_columns)} duplicate columns found: {duplicate_columns}'
-                )
-                variable_dataframe.drop(duplicate_columns, axis=1, inplace=True)
+            del parsed_files[elevation_time_series_filename]
+        else:
+            raise ValueError(
+                f'elevation time series "{elevation_time_series_filename}" not found'
+            )
 
+    output_data.update(parsed_files)
+
+    # generate subset
+    elevation_subset = None
+    for basename, file_data in output_data.items():
+        if 'node' in file_data:
+            num_nodes = len(file_data['node'])
+
+            variable_shape_string = ', '.join(
+                f'"{name}" {variable.shape}' for name, variable in file_data.items()
+            )
             LOGGER.info(
-                f'writing {variable} over {len(variable_dataframe)} nodes to "{output_filename}/{variable}"'
-            )
-            variable_dataframe.to_hdf(
-                output_filename, key=variable, mode='a', format='table', data_columns=True,
+                f'found {len(file_data)} variable(s) in "{basename}": {variable_shape_string}'
             )
 
-    return variable_dataframes
+            file_data_variable = file_data_variables[basename]
+
+            subset = ~file_data['node'].isnull()
+
+            if elevation_subset is not None:
+                subset = numpy.logical_and(subset, elevation_subset)
+
+            subset = numpy.logical_and(
+                subset,
+                file_data_variable.subset(
+                    file_data,
+                    bounds=bounds,
+                    maximum_depth=maximum_depth,
+                    elevation_selection=elevation_selection,
+                ),
+            )
+
+            if subset is not None:
+                file_data = file_data.sel(node=subset)
+
+                LOGGER.info(
+                    f'subsetted {len(file_data["node"])} out of {num_nodes} total nodes ({len(file_data["node"]) / num_nodes:3.2%})'
+                )
+
+                if elevation_selection is not None:
+                    elevation_subset = subset
+
+            output_data[basename] = file_data
+
+    for basename, file_data in output_data.items():
+        if output_directory is not None:
+            output_filename = output_directory / basename
+            LOGGER.info(f'writing to "{output_filename}"')
+            file_data.to_netcdf(
+                output_filename,
+                # encoding={
+                #     variable_name: {'zlib': True} for variable_name in file_data.variables
+                # },
+            )
+
+    return output_data
