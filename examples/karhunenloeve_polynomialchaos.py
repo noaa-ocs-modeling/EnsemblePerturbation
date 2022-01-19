@@ -1,7 +1,6 @@
 from pathlib import Path
 import pickle
 
-from adcircpy.forcing import BestTrackForcing
 import chaospy
 import dask
 from matplotlib import pyplot
@@ -34,9 +33,6 @@ from ensembleperturbation.utilities import get_logger
 LOGGER = get_logger('parse_karhunen_loeve')
 
 if __name__ == '__main__':
-    # PC parameters
-    use_quadrature = True
-    polynomial_order = 3
     # KL parameters
     variance_explained = 0.99
     # subsetting parameters
@@ -44,8 +40,17 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    # use_depth = True   # for depths (must be >= 0)
-    use_depth = False  # for elevations
+    #use_depth = True   # for depths (must be >= 0)
+    use_depth = False # for elevations
+    training_runs = 'sobol'
+    validation_runs = 'latin_hypercube'
+    # PC parameters
+    polynomial_order = 3
+    if training_runs == 'quadrature':
+        use_quadrature = True
+    else:
+        use_quadrature = False
+    print(f'use_quad: {use_quadrature}')
 
     make_perturbations_plot = True
     make_klprediction_plot = True
@@ -74,10 +79,11 @@ if __name__ == '__main__':
     kl_validation_filename = output_directory / 'kl_surrogate_fit.nc'
     sensitivities_filename = output_directory / 'sensitivities.nc'
     validation_filename = output_directory / 'validation.nc'
-    statistics_filename = output_directory / 'statistics.nc'
     percentile_filename = output_directory / 'percentiles.nc'
 
     filenames = ['perturbations.nc', 'maxele.63.nc']
+    if storm_name is None:
+        storm_name = input_directory / 'track_files' / 'original.22'
 
     datasets = {}
     existing_filenames = []
@@ -96,7 +102,10 @@ if __name__ == '__main__':
             'run',
             (
                 numpy.where(
-                    perturbations['run'].str.contains('quadrature'), 'training', 'validation'
+                    perturbations['run'].str.contains(training_runs), 'training',
+                    numpy.where(
+                        perturbations['run'].str.contains(validation_runs), 'validation', 'none'
+                    ),
                 )
             ),
         )
@@ -143,24 +152,21 @@ if __name__ == '__main__':
                 drop=True,
             )
             subsetted_nodes = subsetted_nodes[::point_spacing]
-
-            subset = values.drop_sel(run='original')
-            subset = subset.sel(node=subsetted_nodes)
-        subset = subset.chunk({'node': -1})
+            subset = values.sel(node=subsetted_nodes)
+            try:
+                subset = subset.drop_sel(run='original')
+            except:
+                pass
         if len(subset['node']) != num_nodes:
             LOGGER.info(
                 f'subsetted down to {len(subset["node"])} nodes ({len(subset["node"]) / num_nodes:.1%})'
             )
         LOGGER.info(f'saving subset to "{subset_filename}"')
         subset.to_netcdf(subset_filename)
-    else:
-        LOGGER.info(f'loading subset from "{subset_filename}"')
-        subset = xarray.open_dataset(subset_filename)[values.name]
-
-    if storm_name is not None:
-        storm = BestTrackForcing(storm_name)
-    else:
-        storm = BestTrackForcing.from_fort22(input_directory / 'track_files' / 'original.22')
+       
+    # subset chunking can be disturbed by point_spacing so load from saved filename always 
+    LOGGER.info(f'loading subset from "{subset_filename}"')
+    subset = xarray.open_dataset(subset_filename)[values.name]
 
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         training_set = (
@@ -244,7 +250,7 @@ if __name__ == '__main__':
         )
         plot_sensitivities(
             sensitivities=sensitivities,
-            storm=storm,
+            storm=storm_name,
             output_filename=output_directory / 'sensitivities.png' if save_plots else None,
         )
 
@@ -266,7 +272,7 @@ if __name__ == '__main__':
 
         plot_selected_validations(
             validation=node_validation,
-            run_list=node_validation['run'][numpy.arange(0, 50, 9)].values,
+            run_list=validation_set['run'][numpy.linspace(0, validation_set.shape[0], 6, endpoint=False).astype(int)].values,
             output_directory=output_directory if save_plots else None,
         )
 

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, List, Union
 import zipfile
 
-from adcircpy.forcing import BestTrackForcing
 import appdirs
 import cartopy
 import geopandas
@@ -633,9 +632,9 @@ def plot_node_map(
     if storm is not None:
         if not isinstance(storm, VortexForcing):
             try:
-                storm = BestTrackForcing.from_fort22(storm)
+                storm = VortexForcing.from_fort22(storm)
             except FileNotFoundError:
-                storm = BestTrackForcing(storm)
+                storm = VortexForcing(storm)
 
         map_axis.plot(
             storm.data['longitude'], storm.data['latitude'], label=storm.name,
@@ -1343,7 +1342,7 @@ def plot_kl_surrogate_fit(
 
         if statistics_text:
             xpos = alim[0] + 0.1 * (alim[-1] - alim[0])
-            ypos = alim[0].values + numpy.array([0.95, 0.85]) * (alim[-1] - alim[0]).values
+            ypos = alim[0].values + numpy.array([0.85, 0.7]) * (alim[-1] - alim[0]).values
             rmse, corr, nmb, nme = get_validation_statistics(qoi, qoi_pc, 3)
             axis.text(xpos, ypos[0], 'RMSE = ' + str(rmse))
             axis.text(xpos, ypos[1], 'CORR = ' + str(corr))
