@@ -180,15 +180,14 @@ def karhunen_loeve_prediction(
 
         bounds = np.array(
             [
-            actual_values['x'].min(),
-            actual_values['y'].min(),
-            actual_values['x'].max(),
-            actual_values['y'].max(),
+                actual_values['x'].min(),
+                actual_values['y'].min(),
+                actual_values['x'].max(),
+                actual_values['y'].max(),
             ]
         )
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
-        sources = {'actual': actual_values,
-                   'reconstructed': kl_prediction}
+        sources = {'actual': actual_values, 'reconstructed': kl_prediction}
         for example in ensembles_to_plot:
             figure = pyplot.figure()
             figure.set_size_inches(10, 10 / 1.61803398875)
@@ -198,16 +197,16 @@ def karhunen_loeve_prediction(
                 index += 1
                 map_axis = figure.add_subplot(2, len(sources), index)
                 map_axis.title.set_text(f'{source}')
-                countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+                countries = geopandas.read_file(
+                    geopandas.datasets.get_path('naturalearth_lowres')
+                )
                 map_axis.set_xlim((bounds[0], bounds[2]))
                 map_axis.set_ylim((bounds[1], bounds[3]))
                 xlim = map_axis.get_xlim()
                 ylim = map_axis.get_ylim()
                 countries.plot(color='lightgrey', ax=map_axis)
                 im = plot_points(
-                    np.vstack(
-                        (actual_values['x'], actual_values['y'], value[:, example].T)
-                    ).T,
+                    np.vstack((actual_values['x'], actual_values['y'], value[:, example].T)).T,
                     axis=map_axis,
                     add_colorbar=False,
                     vmax=vmax,

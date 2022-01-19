@@ -854,7 +854,10 @@ def plot_perturbed_variables(
     color_map = cm.get_cmap('jet')
 
     perturbation_colors = perturbations['weights']
-    if perturbation_colors.isnull().values.all() or (perturbation_colors == perturbation_colors[0]).values.all():
+    if (
+        perturbation_colors.isnull().values.all()
+        or (perturbation_colors == perturbation_colors[0]).values.all()
+    ):
         perturbation_colors = numpy.arange(len(perturbation_colors))
         normalization = None
     else:
@@ -914,15 +917,14 @@ def plot_perturbed_variables_1d(
         axis = figure.add_subplot(len(variables), 1, index + 1)
         axis.title.set_text(f'{variable}')
         perturbed_var = perturbations.sel(variable=variable)
-        axis.scatter(perturbed_var,perturbed_var*0)
+        axis.scatter(perturbed_var, perturbed_var * 0)
         min_val = perturbed_var.values.min().round(3)
         max_val = perturbed_var.values.max().round(3)
-        axis.text(min_val,0.02,f'min value = {min_val}',ha='left')
-        axis.text(max_val,0.02,f'max value = {max_val}',ha='right')
-    
+        axis.text(min_val, 0.02, f'min value = {min_val}', ha='left')
+        axis.text(max_val, 0.02, f'max value = {max_val}', ha='right')
+
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
-
 
 
 def plot_comparison(

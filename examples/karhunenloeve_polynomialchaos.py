@@ -40,8 +40,8 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    #use_depth = True   # for depths (must be >= 0)
-    use_depth = False # for elevations
+    # use_depth = True   # for depths (must be >= 0)
+    use_depth = False  # for elevations
     training_runs = 'sobol'
     validation_runs = 'latin_hypercube'
     # PC parameters
@@ -102,9 +102,12 @@ if __name__ == '__main__':
             'run',
             (
                 numpy.where(
-                    perturbations['run'].str.contains(training_runs), 'training',
+                    perturbations['run'].str.contains(training_runs),
+                    'training',
                     numpy.where(
-                        perturbations['run'].str.contains(validation_runs), 'validation', 'none'
+                        perturbations['run'].str.contains(validation_runs),
+                        'validation',
+                        'none',
                     ),
                 )
             ),
@@ -163,8 +166,8 @@ if __name__ == '__main__':
             )
         LOGGER.info(f'saving subset to "{subset_filename}"')
         subset.to_netcdf(subset_filename)
-       
-    # subset chunking can be disturbed by point_spacing so load from saved filename always 
+
+    # subset chunking can be disturbed by point_spacing so load from saved filename always
     LOGGER.info(f'loading subset from "{subset_filename}"')
     subset = xarray.open_dataset(subset_filename)[values.name]
 
@@ -272,7 +275,9 @@ if __name__ == '__main__':
 
         plot_selected_validations(
             validation=node_validation,
-            run_list=validation_set['run'][numpy.linspace(0, validation_set.shape[0], 6, endpoint=False).astype(int)].values,
+            run_list=validation_set['run'][
+                numpy.linspace(0, validation_set.shape[0], 6, endpoint=False).astype(int)
+            ].values,
             output_directory=output_directory if save_plots else None,
         )
 
