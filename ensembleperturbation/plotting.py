@@ -16,11 +16,11 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import Colormap, LogNorm, Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
-from modelforcings.vortex import VortexForcing
 import numpy
 import requests
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.geometry import shape as shapely_shape
+from stormevents import VortexTrack
 import xarray
 
 from ensembleperturbation.utilities import encode_categorical_values, get_logger
@@ -630,11 +630,11 @@ def plot_node_map(
     countries.plot(color='lightgrey', ax=map_axis)
 
     if storm is not None:
-        if not isinstance(storm, VortexForcing):
+        if not isinstance(storm, VortexTrack):
             try:
-                storm = VortexForcing.from_fort22(storm)
+                storm = VortexTrack.from_fort22(storm)
             except FileNotFoundError:
-                storm = VortexForcing(storm)
+                storm = VortexTrack(storm)
 
         map_axis.plot(
             storm.data['longitude'], storm.data['latitude'], label=storm.name,
@@ -1082,7 +1082,7 @@ def plot_perturbations(
 
             bounds = numpy.array([None, None, None, None])
             for index, run in enumerate(runs):
-                storm = VortexForcing.from_fort22(track_filenames[run]).data
+                storm = VortexTrack.from_fort22(track_filenames[run]).data
                 points = storm.loc[:, ['longitude', 'latitude']].values.reshape(-1, 1, 2)
                 segments = numpy.concatenate([points[:-1], points[1:]], axis=1)
                 line_collection = LineCollection(
