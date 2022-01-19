@@ -1065,7 +1065,7 @@ class VortexPerturber:
                 is_equal = True
 
         if not is_equal:
-            if self.__filename is not None:
+            if self.__filename is not None and self.__filename.exists():
                 if '.22' in self.__filename.suffix:
                     self.__forcing = VortexTrack.from_fort22(
                         self.__filename,
