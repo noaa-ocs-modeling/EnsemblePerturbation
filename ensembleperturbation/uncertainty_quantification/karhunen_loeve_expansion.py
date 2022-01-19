@@ -170,7 +170,7 @@ def karhunen_loeve_prediction(
         axis.plot(actual_values, kl_prediction, '.')
 
         axis.set_xlabel('actual')
-        axis.set_ylabel('prediction')
+        axis.set_ylabel('reconstructed')
         axis.title.set_text(f'KL fit for each ensemble')
 
         figure.savefig(
@@ -188,11 +188,11 @@ def karhunen_loeve_prediction(
         )
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
         sources = {'actual': actual_values,
-                   'predicted': kl_prediction}
+                   'reconstructed': kl_prediction}
         for example in ensembles_to_plot:
             figure = pyplot.figure()
             figure.set_size_inches(10, 10 / 1.61803398875)
-            figure.suptitle(f'KL prediction comparison, ensemble #{example}')
+            figure.suptitle(f'KL reconstruction comparison, ensemble #{example}')
             index = 0
             for source, value in sources.items():
                 index += 1

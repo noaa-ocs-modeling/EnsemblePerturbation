@@ -854,7 +854,10 @@ def plot_perturbed_variables(
     color_map = cm.get_cmap('jet')
 
     perturbation_colors = perturbations['weights']
-    if not perturbation_colors.isnull().values.all():
+    if perturbation_colors.isnull().values.all() or (perturbation_colors == perturbation_colors[0]).values.all():
+        perturbation_colors = numpy.arange(len(perturbation_colors))
+        normalization = None
+    else:
         min_value = float(perturbation_colors.min().values)
         max_value = float(perturbation_colors.max().values)
 
@@ -879,9 +882,6 @@ def plot_perturbed_variables(
         colorbar.set_label('weight')
 
         perturbation_colors.loc[perturbation_colors.isnull()] = 0
-    else:
-        perturbation_colors = numpy.arange(len(perturbation_colors))
-        normalization = None
 
     perturbations = perturbations['perturbations']
     for row_variable, columns in axes.items():
@@ -896,6 +896,33 @@ def plot_perturbed_variables(
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
+
+def plot_perturbed_variables_1d(
+    perturbations: xarray.Dataset, title: str = None, output_filename: PathLike = None,
+):
+    figure = pyplot.figure()
+    figure.set_size_inches(11, 11 / 1.61803398875)
+    if title is None:
+        title = f'{len(perturbations["run"])} pertubation(s) of {len(perturbations["variable"])} variable(s)'
+    figure.suptitle(title)
+
+    variables = perturbations['variable'].values
+
+    perturbations = perturbations['perturbations']
+    for index, variable in enumerate(variables):
+        axis = figure.add_subplot(len(variables), 1, index + 1)
+        axis.title.set_text(f'{variable}')
+        perturbed_var = perturbations.sel(variable=variable)
+        axis.scatter(perturbed_var,perturbed_var*0)
+        min_val = perturbed_var.values.min().round(3)
+        max_val = perturbed_var.values.max().round(3)
+        axis.text(min_val,0.02,f'min value = {min_val}',ha='left')
+        axis.text(max_val,0.02,f'max value = {max_val}',ha='right')
+    
+    if output_filename is not None:
+        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
 
 
 def plot_comparison(
@@ -1006,10 +1033,25 @@ def plot_perturbations(
         if output_directory is not None
         else None,
     )
+    plot_perturbed_variables_1d(
+        training_perturbations,
+        title=f'{len(training_perturbations["run"])} training pertubation(s) of {len(training_perturbations["variable"])} variable(s)',
+        output_filename=output_directory / 'training_perturbations_1d.png'
+        if output_directory is not None
+        else None,
+    )
+
     plot_perturbed_variables(
         validation_perturbations,
         title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
         output_filename=output_directory / 'validation_perturbations.png'
+        if output_directory is not None
+        else None,
+    )
+    plot_perturbed_variables_1d(
+        validation_perturbations,
+        title=f'{len(validation_perturbations["run"])} validation pertubation(s) of {len(validation_perturbations["variable"])} variable(s)',
+        output_filename=output_directory / 'validation_perturbations_1d.png'
         if output_directory is not None
         else None,
     )
