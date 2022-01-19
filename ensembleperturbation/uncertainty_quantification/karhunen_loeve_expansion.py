@@ -3,6 +3,7 @@ from pathlib import Path
 import pickle
 from typing import Union
 
+import geopandas
 from matplotlib import pyplot
 import numpy as np
 
@@ -99,20 +100,6 @@ def karhunen_loeve_expansion(
         figure.savefig(output_directory / 'KL_eigenvalues.png', dpi=200, bbox_inches='tight')
         pyplot.close()
 
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
-
-        axis.plot(range(ngrid), mean_vector, label='Mean')
-        for imode in range(neig):
-            axis.plot(range(ngrid), modes[:, imode], label='Mode ' + str(imode + 1))
-
-        axis.set_xlabel('x')
-        axis.set_ylabel('KL Modes')
-        axis.legend()
-
-        figure.savefig(output_directory / 'KL_modes.png', dpi=200, bbox_inches='tight')
-        pyplot.close()
-
     return kl_dict
 
 
@@ -183,32 +170,56 @@ def karhunen_loeve_prediction(
         axis.plot(actual_values, kl_prediction, '.')
 
         axis.set_xlabel('actual')
-        axis.set_ylabel('prediction')
+        axis.set_ylabel('reconstructed')
+        axis.title.set_text(f'KL fit for each ensemble')
 
-        figure.savefig(plot_directory / 'KL_fit.png')
+        figure.savefig(
+            plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
+        )
         pyplot.close()
 
+        bounds = np.array(
+            [
+            actual_values['x'].min(),
+            actual_values['y'].min(),
+            actual_values['x'].max(),
+            actual_values['y'].max(),
+            ]
+        )
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
+        sources = {'actual': actual_values,
+                   'reconstructed': kl_prediction}
         for example in ensembles_to_plot:
-            plot_points(
-                np.vstack(
-                    (actual_values['x'], actual_values['y'], actual_values[:, example].T)
-                ).T,
-                save_filename=plot_directory / f'modeled_{example}',
-                title=f'actual value, ensemble #{example}',
-                vmax=vmax,
-                vmin=0.0,
+            figure = pyplot.figure()
+            figure.set_size_inches(10, 10 / 1.61803398875)
+            figure.suptitle(f'KL reconstruction comparison, ensemble #{example}')
+            index = 0
+            for source, value in sources.items():
+                index += 1
+                map_axis = figure.add_subplot(2, len(sources), index)
+                map_axis.title.set_text(f'{source}')
+                countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+                map_axis.set_xlim((bounds[0], bounds[2]))
+                map_axis.set_ylim((bounds[1], bounds[3]))
+                xlim = map_axis.get_xlim()
+                ylim = map_axis.get_ylim()
+                countries.plot(color='lightgrey', ax=map_axis)
+                im = plot_points(
+                    np.vstack(
+                        (actual_values['x'], actual_values['y'], value[:, example].T)
+                    ).T,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    vmax=vmax,
+                    vmin=0.0,
+                )
+                map_axis.set_xlim(xlim)
+                map_axis.set_ylim(ylim)
+            cbar = figure.colorbar(im, shrink=0.95, extend='max')
+            figure.savefig(
+                plot_directory / f'KL_ensemble{example}.png', dpi=200, bbox_inches='tight',
             )
-
-            plot_points(
-                np.vstack(
-                    (actual_values['x'], actual_values['y'], kl_prediction[:, example].T)
-                ).T,
-                save_filename=plot_directory / f'predicted_{example}',
-                title=f'predicted value, ensemble #{example}',
-                vmax=vmax,
-                vmin=0.0,
-            )
+            pyplot.close()
 
     return kl_prediction
 
