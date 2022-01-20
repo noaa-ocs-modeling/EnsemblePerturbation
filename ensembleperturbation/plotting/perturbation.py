@@ -157,9 +157,14 @@ def plot_perturbations(
                 for track_filename in track_directory.glob('*.22')
             }
 
+            num_perturbations = len(runs)
+            if 'original' in track_filenames.keys():
+                runs = numpy.append(runs, 'original')
+                perturbation_types = numpy.append(perturbation_types, 'original')
+
             figure = pyplot.figure()
             figure.set_size_inches(12, 12 / 1.61803398875)
-            figure.suptitle(f'{len(track_filenames)} perturbations of storm track')
+            figure.suptitle(f'{num_perturbations} perturbations of storm track')
 
             map_axis = figure.add_subplot(1, 1, 1)
             countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
