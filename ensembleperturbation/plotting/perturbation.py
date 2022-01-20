@@ -12,8 +12,8 @@ import numpy
 from stormevents import VortexTrack
 import xarray
 
-from ensembleperturbation.plotting.utilities import colorbar_axis
 from ensembleperturbation.plotting.surrogate import comparison_plot_grid
+from ensembleperturbation.plotting.utilities import colorbar_axis
 from ensembleperturbation.utilities import encode_categorical_values
 
 
@@ -235,5 +235,3 @@ def plot_perturbations(
                 figure.savefig(
                     output_directory / 'storm_tracks.png', dpi=200, bbox_inches='tight',
                 )
-
-

@@ -5,7 +5,8 @@ from matplotlib import pyplot
 from matplotlib.axis import Axis
 from matplotlib.cm import get_cmap
 import numpy
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon, shape as shapely_shape
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import shape as shapely_shape
 
 
 def plot_polygon(

@@ -7,7 +7,7 @@ import shutil
 from matplotlib import pyplot
 import numpy as np
 
-from ensembleperturbation.plotting import plot_points
+from ensembleperturbation.plotting.geometry import plot_points
 from ensembleperturbation.uncertainty_quantification.ensemble_array import (
     ensemble_array,
     read_combined_hdf,

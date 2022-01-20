@@ -113,7 +113,9 @@ class TaylorDiagram:
     def add_contours(self, levels, data_std, **kwargs):
         """Add constant centered RMS difference contours."""
 
-        rs, ts = numpy.meshgrid(numpy.linspace(self.smin, self.smax), numpy.linspace(0, numpy.pi / 2))
+        rs, ts = numpy.meshgrid(
+            numpy.linspace(self.smin, self.smax), numpy.linspace(0, numpy.pi / 2)
+        )
         # Compute centered RMS difference
         rms = numpy.sqrt(data_std ** 2 + rs ** 2 - 2 * data_std * rs * numpy.cos(ts))
 

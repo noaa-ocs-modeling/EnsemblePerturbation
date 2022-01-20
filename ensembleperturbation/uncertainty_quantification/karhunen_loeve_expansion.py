@@ -7,7 +7,7 @@ import geopandas
 from matplotlib import pyplot
 import numpy as np
 
-from ensembleperturbation.plotting import plot_points
+from ensembleperturbation.plotting.geometry import plot_points
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('karhunen_loeve')
