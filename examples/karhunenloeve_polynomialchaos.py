@@ -9,9 +9,9 @@ import xarray
 
 from ensembleperturbation.parsing.adcirc import FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
-from ensembleperturbation.plotting import (
+from ensembleperturbation.plotting.perturbation import plot_perturbations
+from ensembleperturbation.plotting.surrogate import (
     plot_kl_surrogate_fit,
-    plot_perturbations,
     plot_selected_percentiles,
     plot_selected_validations,
     plot_sensitivities,

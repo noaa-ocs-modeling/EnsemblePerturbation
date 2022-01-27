@@ -31,5 +31,3 @@ def colorbar_axis(
         orientation=orientation,
         ax=axis,
     )
-
-

@@ -12,8 +12,8 @@ import numpy
 from stormevents import VortexTrack
 import xarray
 
-from ensembleperturbation.plotting.utilities import colorbar_axis
 from ensembleperturbation.plotting.surrogate import comparison_plot_grid
+from ensembleperturbation.plotting.utilities import colorbar_axis
 from ensembleperturbation.utilities import encode_categorical_values
 
 
@@ -157,9 +157,14 @@ def plot_perturbations(
                 for track_filename in track_directory.glob('*.22')
             }
 
+            num_perturbations = len(runs)
+            if 'original' in track_filenames.keys():
+                runs = numpy.append(runs, 'original')
+                perturbation_types = numpy.append(perturbation_types, 'original')
+
             figure = pyplot.figure()
             figure.set_size_inches(12, 12 / 1.61803398875)
-            figure.suptitle(f'{len(track_filenames)} perturbations of storm track')
+            figure.suptitle(f'{num_perturbations} perturbations of storm track')
 
             map_axis = figure.add_subplot(1, 1, 1)
             countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
@@ -230,5 +235,3 @@ def plot_perturbations(
                 figure.savefig(
                     output_directory / 'storm_tracks.png', dpi=200, bbox_inches='tight',
                 )
-
-
