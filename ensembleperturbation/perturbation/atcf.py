@@ -1052,7 +1052,9 @@ class VortexPerturber:
         is_equal = False
         if self.__previous_configuration is not None:
             for key in configuration:
-                if type(configuration[key]) is not type(self.__previous_configuration[key]):
+                if not isinstance(
+                    configuration[key], type(self.__previous_configuration[key])
+                ):
                     break
                 elif isinstance(configuration[key], DataFrame) and isinstance(
                     self.__previous_configuration[key], DataFrame

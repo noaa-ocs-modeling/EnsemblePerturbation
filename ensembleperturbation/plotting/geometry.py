@@ -1,5 +1,5 @@
 from os import PathLike
-from typing import List, Union
+from typing import Iterable, List, Union
 
 from matplotlib import pyplot
 from matplotlib.axis import Axis
@@ -34,11 +34,11 @@ def plot_polygon(
     if isinstance(geometry, dict):
         geometry = shapely_shape(geometry)
 
-    if type(geometry) is Polygon:
+    if isinstance(geometry, Polygon):
         axis.plot(*geometry.exterior.xy, **kwargs)
         for interior in geometry.interiors:
             axis.plot(*interior.xy, **kwargs)
-    elif type(geometry) is MultiPolygon:
+    elif isinstance(geometry, MultiPolygon):
         for polygon in geometry:
             plot_polygon(polygon, axis, show=False, **kwargs)
     else:
@@ -65,8 +65,7 @@ def plot_polygons(
     """
 
     if axis is None:
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
+        axis = pyplot.gca()
 
     if 'c' in kwargs:
         colors = [kwargs['c'] for _ in range(len(geometries))]
@@ -129,7 +128,9 @@ def plot_points(
     :param title: whether to add a title to the plot
     """
 
-    if type(points) is MultiPoint:
+    if isinstance(points, Iterable):
+        if not isinstance(points, MultiPoint):
+            points = MultiPoint(points)
         points = numpy.squeeze(numpy.stack((point._get_coords() for point in points), axis=0))
 
     if axis is None:
