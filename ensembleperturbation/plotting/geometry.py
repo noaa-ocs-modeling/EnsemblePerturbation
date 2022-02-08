@@ -21,8 +21,7 @@ def plot_polygon(
     """
 
     if axis is None:
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
+        axis = pyplot.gca()
 
     if 'c' not in kwargs:
         try:
@@ -96,8 +95,7 @@ def plot_bounding_box(
     """
 
     if axis is None:
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
+        axis = pyplot.gca()
 
     corner_points = numpy.array([sw, (ne[0], sw[1]), ne, (sw[0], ne[1]), sw])
 
@@ -134,8 +132,7 @@ def plot_points(
         points = numpy.squeeze(numpy.stack((point._get_coords() for point in points), axis=0))
 
     if axis is None:
-        figure = pyplot.figure()
-        axis = figure.add_subplot(1, 1, 1)
+        axis = pyplot.gca()
 
     if 'c' not in kwargs and points.shape[1] > 2:
         kwargs['c'] = points[:, index + 2]
@@ -156,7 +153,5 @@ def plot_points(
 
     if show:
         pyplot.show()
-    else:
-        pyplot.close()
 
     return sc
