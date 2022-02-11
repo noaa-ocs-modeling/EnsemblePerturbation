@@ -1514,7 +1514,7 @@ class VortexPerturber:
     @property
     def validation_times(self) -> List[timedelta]:
         """ get the validation time of storm """
-        return self.forcing.datetime - self.forcing.start_date
+        return self.forcing.data['datetime'] - self.forcing.start_date
 
     @property
     def holland_B(self) -> float:

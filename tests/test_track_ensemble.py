@@ -145,23 +145,24 @@ def test_original_file():
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
-
-    assert VortexTrack.from_fort22(run_1_directory / 'original.22') == reference_track
+    track_1 = VortexTrack.from_fort22(run_1_directory / 'original.22')
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
-
-    assert VortexTrack.from_fort22(run_1_directory / 'original.22') == reference_track
+    track_2 = VortexTrack.from_fort22(run_1_directory / 'original.22')
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory
     )
-
-    assert VortexTrack.from_fort22(run_2_directory / 'original.22') == reference_track
+    track_3 = VortexTrack.from_fort22(run_2_directory / 'original.22')
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory
     )
+    track_4 = VortexTrack.from_fort22(run_2_directory / 'original.22')
 
-    assert VortexTrack.from_fort22(run_2_directory / 'original.22') == reference_track
+    assert track_1 == reference_track
+    assert track_2 == reference_track
+    assert track_3 == reference_track
+    assert track_4 == reference_track
