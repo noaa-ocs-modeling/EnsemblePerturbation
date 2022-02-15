@@ -31,14 +31,14 @@ def download_coastline(overwrite: bool = False) -> pathlib.Path:
     return coastline_filename
 
 
-def plot_coastline(axis: Axis = None, show: bool = False, save_filename: PathLike = None):
+def plot_coastline(axis: Axis = None, show: bool = False, save_filename: PathLike = None, **kwargs):
     if axis is None:
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
 
     coastline_filename = download_coastline()
     dataframe = geopandas.read_file(coastline_filename)
-    dataframe.plot(ax=axis)
+    dataframe.plot(ax=axis, **kwargs)
 
     if save_filename is not None:
         pyplot.savefig(save_filename)
