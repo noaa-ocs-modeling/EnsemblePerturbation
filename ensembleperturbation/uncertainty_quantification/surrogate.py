@@ -5,7 +5,7 @@ from typing import List
 import chaospy
 import numpoly
 import numpy
-from sklearn.linear_model import BayesianRidge, LinearRegression, OrthogonalMatchingPursuit
+import sklearn
 import xarray
 
 from ensembleperturbation.utilities import get_logger
@@ -95,6 +95,7 @@ def surrogate_from_samples(
     samples: xarray.DataArray,
     perturbations: xarray.DataArray,
     polynomials: numpoly.ndpoly,
+    regression_model: sklearn.linear_model, 
     norms: numpy.ndarray = None,
     quadrature: bool = False,
     quadrature_weights: xarray.DataArray = None,
@@ -130,17 +131,13 @@ def surrogate_from_samples(
             f'fitting polynomial surrogate to {samples.shape} samples using regression'
         )
         try:
-            ## Using sklearn tools...
-            # model = LinearRegression(fit_intercept=False)
-            # model = OrthogonalMatchingPursuit(fit_intercept=False)
-            model = BayesianRidge(fit_intercept=False)  # (same method as UQTk)
             poly_list = [None] * samples.shape[1]
             for mode in range(samples.shape[1]):
                 poly_list[mode] = chaospy.fit_regression(
                     polynomials=polynomials,
                     abscissas=perturbations.T,
                     evals=samples[:, mode],
-                    model=model,
+                    model=regression_model,
                 )
             surrogate_model = numpoly.polynomial(poly_list)
             ## Or just call this for default regression
@@ -161,6 +158,7 @@ def surrogate_from_training_set(
     filename: PathLike = None,
     use_quadrature: bool = False,
     polynomial_order: int = 3,
+    regression_model: sklearn.linear_model = sklearn.linear_model.LinearRegression(fit_intercept=False),
 ) -> numpoly.ndpoly:
     """
     use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
@@ -171,6 +169,7 @@ def surrogate_from_training_set(
     :param filename: path to file to store polynomial
     :param use_quadrature: assume that the variable perturbations and training set are built along a quadrature, and fit accordingly
     :param polynomial_order: order of the polynomial chaos expansion
+    :param regression_model: the scikit linear model to use to fit the polynomial regression [LinearRegression (OLS) by default]: https://scikit-learn.org/stable/modules/linear_model.html
     :return: polynomial
     """
 
@@ -199,6 +198,7 @@ def surrogate_from_training_set(
             norms=norms,
             quadrature=use_quadrature,
             quadrature_weights=training_perturbations['weights'] if use_quadrature else None,
+            regression_model=regression_model,    
         )
 
         if filename is not None:

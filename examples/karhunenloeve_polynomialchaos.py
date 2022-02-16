@@ -6,6 +6,8 @@ import dask
 from matplotlib import pyplot
 import numpy
 import xarray
+from sklearn.linear_model import LassoCV, LassoLarsCV, LassoLarsIC
+from sklearn.model_selection import ShuffleSplit, LeaveOneOut
 
 from ensembleperturbation.parsing.adcirc import FieldOutput
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
@@ -40,12 +42,15 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    # use_depth = True   # for depths (must be >= 0)
-    use_depth = False  # for elevations
+    #use_depth = True   # for depths (must be >= 0)
+    use_depth = False   # for elevations
     training_runs = 'sobol'
-    validation_runs = 'latin_hypercube'
+    validation_runs = 'random'
     # PC parameters
     polynomial_order = 3
+    #ss = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
+    loo = LeaveOneOut()
+    regression_model = LassoCV(fit_intercept=False, cv=loo, selection='random', random_state=666) 
     if training_runs == 'quadrature':
         use_quadrature = True
     else:
@@ -94,16 +99,15 @@ if __name__ == '__main__':
         else:
             raise FileNotFoundError(filename.name)
 
-    perturbations = datasets['perturbations.nc']
-    max_elevations = datasets['maxele.63.nc']
+    perturbations = datasets[filenames[0]]
+    max_elevations = datasets[filenames[1]]
 
     perturbations = perturbations.assign_coords(
         type=(
             'run',
             (
                 numpy.where(
-                    perturbations['run'].str.contains(training_runs),
-                    'training',
+                    perturbations['run'].str.contains(training_runs), 'training',
                     numpy.where(
                         perturbations['run'].str.contains(validation_runs),
                         'validation',
@@ -218,6 +222,7 @@ if __name__ == '__main__':
         filename=kl_surrogate_filename,
         use_quadrature=use_quadrature,
         polynomial_order=polynomial_order,
+        regression_model=regression_model,
     )
 
     # plot kl surrogate model versus training set
