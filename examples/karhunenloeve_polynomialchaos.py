@@ -42,15 +42,15 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = 10
     # analysis type
-    #use_depth = True   # for depths (must be >= 0)
-    use_depth = False   # for elevations
+    use_depth = True   # for depths (must be >= 0, use log-scale for analysis)
+    #use_depth = False   # for elevations
     training_runs = 'sobol'
     validation_runs = 'random'
     # PC parameters
     polynomial_order = 3
-    #ss = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
-    loo = LeaveOneOut()
-    regression_model = LassoCV(fit_intercept=False, cv=loo, selection='random', random_state=666) 
+    #cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
+    cross_validator = LeaveOneOut()
+    regression_model = LassoCV(fit_intercept=False, cv=cross_validator, selection='random', random_state=666)
     if training_runs == 'quadrature':
         use_quadrature = True
     else:
@@ -101,6 +101,7 @@ if __name__ == '__main__':
 
     perturbations = datasets[filenames[0]]
     max_elevations = datasets[filenames[1]]
+    min_depth = 0.1*max_elevations.h0
 
     perturbations = perturbations.assign_coords(
         type=(
@@ -175,13 +176,27 @@ if __name__ == '__main__':
     LOGGER.info(f'loading subset from "{subset_filename}"')
     subset = xarray.open_dataset(subset_filename)[values.name]
 
-    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        training_set = (
-            subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
-        )
-        validation_set = (
-            subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
-        )
+    if use_depth:
+        min_depth = min_depth + 0*subset['depth']
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            training_set = (
+                numpy.log(numpy.maximum(
+                    subset.sel(run=training_perturbations['run']) + subset['depth'], min_depth
+                ) )
+            )
+            validation_set = (
+                numpy.log(numpy.maximum(
+                    subset.sel(run=validation_perturbations['run']) + subset['depth'], min_depth
+                ) )
+            )
+    else:
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            training_set = (
+                subset.sel(run=training_perturbations['run']) + subset['depth']
+            )
+            validation_set = (
+                subset.sel(run=validation_perturbations['run']) + subset['depth']
+            )
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
@@ -269,8 +284,9 @@ if __name__ == '__main__':
             training_perturbations=training_perturbations,
             validation_set=validation_set,
             validation_perturbations=validation_perturbations,
-            enforce_positivity=use_depth,
             filename=validation_filename,
+            convert_from_log_scale=use_depth,
+            convert_from_depths=use_depth,
         )
 
         plot_validations(
@@ -293,7 +309,8 @@ if __name__ == '__main__':
             distribution=distribution,
             training_set=validation_set,
             percentiles=percentiles,
-            enforce_positivity=use_depth,
+            convert_from_log_scale=use_depth,
+            convert_from_depths=use_depth,
             filename=percentile_filename,
         )
 
