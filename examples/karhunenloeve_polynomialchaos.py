@@ -101,7 +101,8 @@ if __name__ == '__main__':
 
     perturbations = datasets[filenames[0]]
     max_elevations = datasets[filenames[1]]
-    min_depth = 0.1*max_elevations.h0
+    min_depth = 0.8*max_elevations.h0 # the minimum allowable depth
+    null_depth = 0.1*min_depth         # value to set for null depths
 
     perturbations = perturbations.assign_coords(
         type=(
@@ -177,16 +178,16 @@ if __name__ == '__main__':
     subset = xarray.open_dataset(subset_filename)[values.name]
 
     if use_depth:
-        min_depth = min_depth + 0*subset['depth']
+        null_depth = null_depth + 0*subset['depth']
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             training_set = (
                 numpy.log(numpy.maximum(
-                    subset.sel(run=training_perturbations['run']) + subset['depth'], min_depth
+                    subset.sel(run=training_perturbations['run']) + subset['depth'], null_depth
                 ) )
             )
             validation_set = (
                 numpy.log(numpy.maximum(
-                    subset.sel(run=validation_perturbations['run']) + subset['depth'], min_depth
+                    subset.sel(run=validation_perturbations['run']) + subset['depth'], null_depth
                 ) )
             )
     else:
@@ -284,9 +285,10 @@ if __name__ == '__main__':
             training_perturbations=training_perturbations,
             validation_set=validation_set,
             validation_perturbations=validation_perturbations,
-            filename=validation_filename,
             convert_from_log_scale=use_depth,
             convert_from_depths=use_depth,
+            minimum_allowable_value=min_depth,
+            filename=validation_filename,
         )
 
         plot_validations(
@@ -311,6 +313,7 @@ if __name__ == '__main__':
             percentiles=percentiles,
             convert_from_log_scale=use_depth,
             convert_from_depths=use_depth,
+            minimum_allowable_value=min_depth,
             filename=percentile_filename,
         )
 
