@@ -275,6 +275,8 @@ def validations_from_surrogate(
     validation_set: xarray.Dataset = None,
     validation_perturbations: xarray.Dataset = None,
     enforce_positivity: bool = False,
+    convert_from_log_scale: bool = False,
+    convert_from_depths: bool = False,
     filename: PathLike = None,
 ) -> xarray.Dataset:
     """
@@ -286,6 +288,8 @@ def validations_from_surrogate(
     :param validation_set: set of validation data (across nodes and perturbations)
     :param validation_perturbations: array of perturbations corresponding to validation set
     :param enforce_positivity: whether to make sure results always return >= 0
+    :param convert_from_log_scale: whether to take the exp() of the result
+    :param convert_from_depths: whether to substract still water depth from the result
     :param filename: file path to which to save
     :return: array of validations
     """
@@ -296,8 +300,15 @@ def validations_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
+        if convert_from_log_scale:
+            training_results = numpy.exp(training_results)
+            training_set = numpy.exp(training_set)
         if enforce_positivity:
             training_results[training_results < 0] = 0
+        if convert_from_depths: 
+            training_results -= training_set['depth'].values
+            training_set -= training_set['depth']
+        
         training_results = numpy.stack([training_set, training_results], axis=0)
         training_results = xarray.DataArray(
             training_results,
@@ -313,8 +324,14 @@ def validations_from_surrogate(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
+            if convert_from_log_scale:
+                node_validation = numpy.exp(node_validation)
+                validation_set = numpy.exp(validation_set)
             if enforce_positivity:
                 node_validation[node_validation < 0] = 0
+            if convert_from_depths: 
+                node_validation -= validation_set['depth'].values
+                validation_set -= validation_set['depth']
             node_validation = numpy.stack([validation_set, node_validation], axis=0)
             node_validation = xarray.DataArray(
                 node_validation,
@@ -393,6 +410,7 @@ def percentiles_from_samples(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     enforce_positivity: bool = False,
+    convert_from_log_scale: bool = False,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
     # surrogate_percentiles = chaospy.Perc(
@@ -403,6 +421,7 @@ def percentiles_from_samples(
         q=percentiles,
         dist=distribution,
         enforce_positivity=enforce_positivity,
+        convert_from_log_scale=convert_from_log_scale,
     )
 
     surrogate_percentiles = xarray.DataArray(
@@ -427,6 +446,8 @@ def percentiles_from_surrogate(
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
     enforce_positivity: bool = False,
+    convert_from_log_scale: bool = False,
+    convert_from_depths: bool = False,
     filename: PathLike = None,
 ) -> xarray.Dataset:
     if filename is not None and not isinstance(filename, Path):
@@ -439,8 +460,14 @@ def percentiles_from_surrogate(
             surrogate_model=surrogate_model,
             distribution=distribution,
             enforce_positivity=enforce_positivity,
+            convert_from_log_scale=convert_from_log_scale,
         )
 
+        if convert_from_log_scale:
+            training_set = numpy.exp(training_set)
+        if convert_from_depths:
+            training_set -= training_set['depth']
+            surrogate_percentiles -= training_set['depth']
         modeled_percentiles = training_set.quantile(
             dim='run', q=surrogate_percentiles['quantile'] / 100
         )
@@ -472,6 +499,7 @@ def compute_surrogate_percentiles(
     dist: chaospy.Distribution,
     sample: int = 10000,
     enforce_positivity: bool = False,
+    convert_from_log_scale: bool = False,
     **kws,
 ):
     """
@@ -492,6 +520,8 @@ def compute_surrogate_percentiles(
             Number of samples used in estimation.
         enforce_positivity (bool):
             Whether to make sure samples always return >= 0
+        convert_from_log_scale:  
+            Whether to take the exp() of the result
 
     Returns:
         (numpy.ndarray):
@@ -529,6 +559,8 @@ def compute_surrogate_percentiles(
     # Finish
     if poly2.shape:
         poly1 = numpy.concatenate([poly1, poly2], -1)
+    if convert_from_log_scale:
+        poly1 = numpy.exp(poly1)
     if enforce_positivity:
         negative = poly1 < 0
         poly1[negative] = 0
