@@ -293,7 +293,7 @@ if __name__ == '__main__':
 
         plot_validations(
             validation=node_validation,
-            output_filename=output_directory / 'validation.png' if save_plots else None,
+            output_directory=output_directory if save_plots else None,
         )
 
         plot_selected_validations(
