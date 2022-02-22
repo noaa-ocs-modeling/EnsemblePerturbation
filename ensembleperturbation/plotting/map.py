@@ -31,7 +31,9 @@ def download_coastline(overwrite: bool = False) -> pathlib.Path:
     return coastline_filename
 
 
-def plot_coastline(axis: Axis = None, show: bool = False, save_filename: PathLike = None, **kwargs):
+def plot_coastline(
+    axis: Axis = None, show: bool = False, save_filename: PathLike = None, **kwargs
+):
     if axis is None:
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
