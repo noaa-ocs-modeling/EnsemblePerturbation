@@ -1084,8 +1084,8 @@ class VortexPerturber:
                 self.__forcing = VortexTrack(**configuration)
             self.__previous_configuration = configuration
 
-        if self.__forcing.storm_id is not None:
-            self.__storm = self.__forcing.storm_id
+        if self.__forcing.nhc_code is not None:
+            self.__storm = self.__forcing.nhc_code
 
         return self.__forcing
 
