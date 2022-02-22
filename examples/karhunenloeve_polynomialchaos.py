@@ -38,8 +38,8 @@ if __name__ == '__main__':
     # KL parameters
     variance_explained = 0.99
     # subsetting parameters
-    subset_bounds = (-81, 32, -75, 37)
-    depth_bounds = 25.0
+    isotach = 34 #-kt wind swath of the cyclone 
+    depth_bounds = 50.0
     point_spacing = 10
     # analysis type
     use_depth = True   # for depths (must be >= 0, use log-scale for analysis)
@@ -155,7 +155,7 @@ if __name__ == '__main__':
                 numpy.logical_and(
                     ~values.isnull().any('run'),
                     FieldOutput.subset(
-                        values['node'], maximum_depth=depth_bounds, bounds=subset_bounds
+                        values['node'], maximum_depth=depth_bounds, wind_swath=[storm_name, isotach],
                     ),
                 ),
                 drop=True,
