@@ -43,7 +43,7 @@ def main():
     original_track_filename = track_directory / 'original.22'
 
     if original_track_filename.exists():
-        storm_id = original_track_filename
+        nhc_code = original_track_filename
 
         vortex_forcing = BestTrackForcingJSON.from_fort22(
             original_track_filename,
@@ -58,7 +58,7 @@ def main():
     else:
         for forcing in arguments['forcings']:
             if isinstance(forcing, BestTrackForcingJSON):
-                storm_id = forcing.adcircpy_forcing.storm_id
+                nhc_code = forcing.adcircpy_forcing.nhc_code
                 break
         else:
             raise ValueError('no best track forcing specified')
@@ -66,7 +66,7 @@ def main():
     perturbations = perturb_tracks(
         perturbations=arguments['perturbations'],
         directory=Path(arguments['output_directory']) / 'track_files',
-        storm=storm_id,
+        storm=nhc_code,
         variables=arguments['variables'],
         sample_from_distribution=arguments['sample'],
         sample_rule=arguments['sample_rule'],
