@@ -18,7 +18,7 @@ def main():
                 bool,
                 'override given perturbations with random samples from the joint distribution',
             ),
-            'sample_rule': (
+            'sample-rule': (
                 str,
                 "rule to use for the distribution sampling. Please choose from: 'random' [default], 'sobol', 'halton', 'hammersley', 'korobov', 'additive_recursion', or 'latin_hypercube'",
             ),
