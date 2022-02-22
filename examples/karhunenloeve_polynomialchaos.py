@@ -32,7 +32,7 @@ from ensembleperturbation.uncertainty_quantification.surrogate import (
 )
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('parse_karhunen_loeve')
+LOGGER = get_logger('karhunen_loeve_polynomial_chaos')
 
 if __name__ == '__main__':
     # KL parameters
@@ -205,7 +205,8 @@ if __name__ == '__main__':
             f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
         )
         kl_expansion = karhunen_loeve_expansion(
-            training_set.values.T, neig=variance_explained, output_directory=output_directory,
+            training_set.values, neig=variance_explained, method = 'PCA', 
+            output_directory=output_directory,
         )
     else:
         LOGGER.info(f'loading Karhunen-Loeve expansion from "{kl_filename}"')
@@ -220,7 +221,7 @@ if __name__ == '__main__':
     if make_klprediction_plot:
         kl_predicted = karhunen_loeve_prediction(
             kl_dict=kl_expansion,
-            actual_values=training_set.T,
+            actual_values=training_set,
             ensembles_to_plot=[0, int(nens / 2), nens - 1],
             plot_directory=output_directory,
         )

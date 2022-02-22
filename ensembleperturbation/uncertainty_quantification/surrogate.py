@@ -57,6 +57,7 @@ def surrogate_from_karhunen_loeve(
         kl_surrogate_model
     ), 'number of kl_dict eigenvalues must be equal to the length of the kl_surrogate_model'
 
+    LOGGER.info(f'transforming surrogate to {num_points} points from {num_modes} eigenmodes')
     if filename is None or not filename.exists():
         # get the coefficients of the PC for each point in z (spatiotemporal dimension)
         pc_exponents = kl_surrogate_model.exponents
@@ -66,7 +67,7 @@ def surrogate_from_karhunen_loeve(
                 [
                     numpy.dot(
                         (pc_coefficients * numpy.sqrt(eigenvalues))[:, mode_index, None],
-                        modes[None, :, mode_index],
+                        modes[None, mode_index, :],
                     )
                     for mode_index in range(num_modes)
                 ],
