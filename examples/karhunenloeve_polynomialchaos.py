@@ -101,7 +101,7 @@ if __name__ == '__main__':
 
     perturbations = datasets[filenames[0]]
     max_elevations = datasets[filenames[1]]
-    min_depth = 0.8*max_elevations.h0 # the minimum allowable depth
+    min_depth  = 0.8*max_elevations.h0 # the minimum allowable depth
     null_depth = 0.1*min_depth         # value to set for null depths
 
     perturbations = perturbations.assign_coords(
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             subsetted_nodes = values['node'].where(
                 numpy.logical_and(
-                    ~values.isnull().any('run'),
+                    ~values.isnull().all('run'),
                     FieldOutput.subset(
                         values['node'], maximum_depth=depth_bounds, wind_swath=[storm_name, isotach],
                     ),
@@ -181,23 +181,19 @@ if __name__ == '__main__':
         null_depth = null_depth + 0*subset['depth']
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             training_set = (
-                numpy.log(numpy.maximum(
+                numpy.log(numpy.fmax(
                     subset.sel(run=training_perturbations['run']) + subset['depth'], null_depth
                 ) )
             )
             validation_set = (
-                numpy.log(numpy.maximum(
+                numpy.log(numpy.fmax(
                     subset.sel(run=validation_perturbations['run']) + subset['depth'], null_depth
                 ) )
             )
     else:
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            training_set = (
-                subset.sel(run=training_perturbations['run']) + subset['depth']
-            )
-            validation_set = (
-                subset.sel(run=validation_perturbations['run']) + subset['depth']
-            )
+            training_set = subset.sel(run=training_perturbations['run'])
+            validation_set = subset.sel(run=validation_perturbations['run'])
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
