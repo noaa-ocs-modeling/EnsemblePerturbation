@@ -306,6 +306,8 @@ def validations_from_surrogate(
         if minimum_allowable_value is not None:
             too_small = training_results < minimum_allowable_value
             training_results[too_small] = numpy.nan
+            too_small = training_set.values < minimum_allowable_value
+            training_set.values[too_small] = numpy.nan
         if convert_from_depths: 
             training_results -= training_set['depth'].values
             training_set -= training_set['depth']
@@ -331,6 +333,8 @@ def validations_from_surrogate(
             if minimum_allowable_value is not None:
                 too_small = node_validation < minimum_allowable_value
                 node_validation[too_small] = numpy.nan
+                too_small = validation_set.values < minimum_allowable_value
+                validation_set.values[too_small] = numpy.nan
             if convert_from_depths: 
                 node_validation -= validation_set['depth'].values
                 validation_set -= validation_set['depth']
@@ -480,16 +484,19 @@ def percentiles_from_surrogate(
 
         if convert_from_log_scale:
             training_set = numpy.exp(training_set)
-        if minimum_allowable_value is not None:
-            too_small = surrogate_percentiles.values < minimum_allowable_value
-            surrogate_percentiles.values[too_small] = numpy.nan
-        if convert_from_depths:
-            training_set -= training_set['depth']
-            surrogate_percentiles -= training_set['depth']
-
         modeled_percentiles = training_set.quantile(
             dim='run', q=surrogate_percentiles['quantile'] / 100
         )
+
+        if minimum_allowable_value is not None:
+            too_small = modeled_percentiles.values < minimum_allowable_value
+            modeled_percentiles.values[too_small] = numpy.nan
+            too_small = surrogate_percentiles.values < minimum_allowable_value
+            surrogate_percentiles.values[too_small] = numpy.nan
+        if convert_from_depths:
+            modeled_percentiles -= training_set['depth']
+            surrogate_percentiles -= training_set['depth']
+
         modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
 
         node_percentiles = xarray.combine_nested(
