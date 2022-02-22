@@ -69,7 +69,7 @@ def main():
         storm=nhc_code,
         variables=arguments['variables'],
         sample_from_distribution=arguments['sample'],
-        sample_rule=arguments['sample_rule'],
+        sample_rule=arguments['sample-rule'],
         quadrature=arguments['quadrature'],
         start_date=arguments['modeled_start_time'],
         end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
