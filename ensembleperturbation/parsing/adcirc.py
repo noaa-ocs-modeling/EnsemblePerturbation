@@ -15,6 +15,7 @@ from shapely.geometry import Point
 from typepigeon import convert_value
 import xarray
 from xarray import DataArray, Dataset
+from stormevents import VortexTrack
 
 from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
@@ -338,10 +339,29 @@ class FieldOutput(AdcircOutput, ABC):
         cls,
         dataset: Union[Dataset, DataArray],
         bounds: (float, float, float, float) = None,
+        wind_swath: [str, int] = None,
         maximum_depth: float = None,
         **kwargs,
     ) -> Union[Dataset, DataArray]:
         subset = ~dataset['node'].isnull()
+
+        if wind_swath is not None:
+            cyclone = wind_swath[0]
+            isotach = wind_swath[1]
+            LOGGER.debug(f'filtering within {cyclone} wind swath {isotach}')
+            if not isinstance(cyclone, VortexTrack):
+                try:
+                    cyclone = VortexTrack.from_fort22(cyclone)
+                except FileNotFoundError:
+                    cyclone = VortexTrack(cyclone)
+            swath = cyclone.wind_swath(isotach=isotach)
+            points = GeoDataFrame(
+                {'lon': dataset['x'].values,'lat': dataset['y'].values},
+                geometry=geopandas.points_from_xy(dataset['x'].values, dataset['y'].values),
+            )
+            polygon = GeoDataFrame(index=[0], geometry=[swath]) 
+            inpoly = geopandas.tools.sjoin(points, polygon, op="within", how='left') 
+            subset = numpy.logical_and(subset, ~numpy.isnan(inpoly.index_right.values))
 
         if bounds is not None:
             LOGGER.debug(f'filtering within bounds {bounds}')
