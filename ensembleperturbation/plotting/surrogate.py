@@ -18,15 +18,24 @@ from ensembleperturbation.plotting.utilities import colorbar_axis
 
 
 def get_validation_statistics(O, P, decimals):
+    # pearson correlation coefficient
+    def corrcoef(O,P):
+        MP = P.mean()
+        MO = O.mean()
+        PD2 = ((P - MP) ** 2).sum()
+        OD2 = ((O - MO) ** 2).sum()
+        PDOD = ((P - MP) * (O - MO)).sum()
+        corr = PDOD / (PD2 * OD2) ** 0.5
+        if numpy.isnan(corr.values):
+            corr.values = 1.0 #0/0: perfect correlation
+        return corr
+
     # correlation coefficient
-    MP = P.mean()
-    MO = O.mean()
-    PD2 = ((P - MP) ** 2).sum()
-    OD2 = ((O - MO) ** 2).sum()
-    PDOD = ((P - MP) * (O - MO)).sum()
-    corr = PDOD / (PD2 * OD2) ** 0.5
-    if numpy.isnan(corr.values):
-        corr.values = 0.0
+    corr = corrcoef(O,P)
+    # wet-dry correlation coefficient
+    OW = ~numpy.isnan(O) 
+    PW = ~numpy.isnan(P)  
+    corr_wd = corrcoef(OW,PW)
     # mean bias
     mb = (P - O).mean() 
     # mean absolute error
@@ -39,6 +48,7 @@ def get_validation_statistics(O, P, decimals):
         numpy.round(mb.values, decimals),
         numpy.round(mae.values, decimals),
         numpy.round(rmse.values, decimals),
+        numpy.round(corr_wd.values, decimals),
     )
 
 
@@ -170,7 +180,7 @@ def plot_scatter_comparison(
                 ylim = axis.get_ylim()
                 xpos = xlim[0] + ratio * (xlim[-1] - xlim[0])
                 ypos = ylim[0] + numpy.array([0.95, 0.90, 0.85, 0.80]) * (ylim[-1] - ylim[0])
-                corr, mb, mae, rmse = get_validation_statistics(x, y, decimals=3)
+                corr, mb, mae, rmse, _ = get_validation_statistics(x, y, decimals=3)
                 color = kwargs['c']
                 axis.text(xpos, ypos[0], 'CORR = ' + str(corr), color=color)
                 axis.text(xpos, ypos[1], 'MB = ' + str(mb) + ' m', color=color)
@@ -203,7 +213,7 @@ def plot_boxplot_comparison(
 
     if figure is None:
         figure = pyplot.figure()
-        figure.set_size_inches(10, 10 / 1.61803398875)
+        figure.set_size_inches(11, 11 / 1.61803398875)
 
     if title is not None:
         figure.suptitle(title)
@@ -215,10 +225,11 @@ def plot_boxplot_comparison(
     corr = numpy.empty(num_runs)
     mb   = numpy.empty(num_runs)
     mae  = numpy.empty(num_runs)
+    crwd = numpy.empty(num_runs)
     r = 0
     for run in nodes['run'].values:
         if not numpy.isnan(nodes.sel(run=run)).all():
-            corr[r], mb[r], mae[r], rmse[r] = get_validation_statistics(
+            corr[r], mb[r], mae[r], rmse[r], crwd[r] = get_validation_statistics(
                 nodes.sel(source='model',run=run), 
                 nodes.sel(source='surrogate',run=run), 
                 decimals=9,
@@ -229,9 +240,9 @@ def plot_boxplot_comparison(
     c2 = 'black'
     colors = ['blue', 'red']
     box = axis.boxplot(
-        [corr[0:r], mb[0:r], mae[0:r], rmse[0:r]],
+        [corr[0:r], crwd[0:r], mb[0:r], mae[0:r], rmse[0:r]],
         whis=[5,95],showfliers=True,patch_artist=True,
-        widths=0.08,positions=[0.05, 0.2, 0.35, 0.5],
+        widths=0.08,positions=[0.05, 0.2, 0.35, 0.5, 0.65],
         boxprops=dict(facecolor=c, color=c2, linewidth=0.25),
         whiskerprops=dict(color=c2, linewidth=1, linestyle='dashed'),
         medianprops=dict(color=c2, linewidth=1.5),
@@ -246,9 +257,9 @@ def plot_boxplot_comparison(
 
     pyplot.grid(True)
     pyplot.ylim([-1,1])
-    pyplot.xlim([-0.01,0.6])
+    pyplot.xlim([-0.01,0.75])
     axis.title.set_text(f'{dataset_type}: {r} runs')
-    axis.set_xticklabels(['CORR', 'MB [m]', 'MAE [m]', 'RMSE [m]'])
+    axis.set_xticklabels(['CORR', 'CORR$_{w/d}$', 'MB [m]', 'MAE [m]', 'RMSE [m]'])
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
@@ -493,13 +504,14 @@ def plot_kl_surrogate_fit(
 ):
     kl_fit = kl_fit['results']
 
-    figure = pyplot.figure()
-    figure.set_size_inches(11, 11 / 1.61803398875)
-    figure.suptitle(f'comparison of surrogate for the KL samples')
-
     alim = [kl_fit.min(), kl_fit.max()]
     subplot_width = 3
     subplot_height = numpy.ceil(len(kl_fit['node']) / subplot_width).astype(int)
+    
+    figure = pyplot.figure()
+    figure.set_size_inches(11, 11 * subplot_height / 5 / 1.61803398875)
+    figure.suptitle(f'comparison of surrogate for the KL samples')
+
     for mode in range(len(kl_fit['node'])):
         axis = figure.add_subplot(subplot_height, subplot_width, mode + 1)
         qoi = kl_fit.sel(node=mode, source='model')
@@ -513,7 +525,7 @@ def plot_kl_surrogate_fit(
         if statistics_text:
             xpos = alim[0] + 0.1 * (alim[-1] - alim[0])
             ypos = alim[0].values + numpy.array([0.85, 0.7]) * (alim[-1] - alim[0]).values
-            corr, mb, mae, rmse = get_validation_statistics(qoi, qoi_pc, decimals=3)
+            corr, _, _, rmse, _ = get_validation_statistics(qoi, qoi_pc, decimals=3)
             axis.text(xpos, ypos[0], 'RMSE = ' + str(rmse))
             axis.text(xpos, ypos[1], 'CORR = ' + str(corr))
 
