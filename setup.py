@@ -22,12 +22,10 @@ from setuptools import config, find_packages, setup
 DEPENDENCIES = {
     'adcircpy>=1.1.0': ['gdal', 'fiona'],
     'appdirs': [],
-    'cython': [],
     'cartopy': ['cython', 'numpy', 'proj'],
     'chaospy': [],
     'cmocean': [],
     'bs4': [],
-    'click': [],
     'coupledmodeldriver>=1.4.11': [],
     'dask': [],
     'fiona': ['gdal'],
