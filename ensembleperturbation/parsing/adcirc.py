@@ -24,9 +24,9 @@ LOGGER = get_logger('parsing.adcirc')
 
 
 class ElevationSelection(Enum):
-    wet = 'inundated'
+    wet = 'wet'
     inundated = 'inundated'
-    dry = 'inundated'
+    dry = 'dry'
 
 
 class AdcircOutput(ABC):
@@ -93,7 +93,7 @@ class AdcircOutput(ABC):
                 variable_name
                 for variable_name in sample_dataset.variables
                 if variable_name not in variables
-                and variable_name not in ['node', 'time', 'x', 'y', 'depth']
+                and variable_name not in ['node', 'time', 'x', 'y', 'depth', 'element']
             )
 
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
@@ -112,11 +112,19 @@ class AdcircOutput(ABC):
             dataset = dataset.assign_coords(
                 {'depth': dataset['depth'].isel(run=0).drop_vars('run')}
             )
+        
+        if 'element' in dataset:
+            dataset = dataset.assign_coords( #subtract one from element table          
+                {'element': dataset['element'].isel(run=0).drop_vars('run')-1}
+            )
 
         if 'node' not in dataset:
             dataset = dataset.assign_coords({'node': dataset['node']})
-
-        return dataset[variables]
+  
+        if 'element' in dataset:
+            return dataset[variables].assign_coords({'element': dataset['element']})        
+        else: 
+            return dataset[variables]
 
     @classmethod
     @abstractmethod
@@ -284,6 +292,8 @@ class FieldOutput(AdcircOutput, ABC):
         coordinate_variables = ['x', 'y']
         if 'depth' in dataset.variables:
             coordinate_variables += ['depth']
+        if 'element' in dataset.variables:
+            coordinate_variables += ['element']
         coordinates = numpy.stack(
             [dataset[variable] for variable in coordinate_variables], axis=1
         )
@@ -344,7 +354,7 @@ class FieldOutput(AdcircOutput, ABC):
         **kwargs,
     ) -> Union[Dataset, DataArray]:
         subset = ~dataset['node'].isnull()
-
+   
         if wind_swath is not None:
             cyclone = wind_swath[0]
             isotach = wind_swath[1]
@@ -741,3 +751,65 @@ def combine_outputs(
             )
 
     return output_data
+
+
+def subset_dataset(
+    ds: Dataset,
+    variable: str,
+    maximum_depth: float = None, 
+    wind_swath: list = None,
+    bounds: (float, float, float, float) = None,
+    node_status_selection: dict = None,
+    point_spacing: int = None,
+    output_filename: PathLike = None,
+):
+
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        if node_status_selection is None:
+            node_status_mask = ~ds[variable].isnull()
+        elif node_status_selection['mask'] == 'sometimes_wet':
+            node_status_mask = ~ds[variable].sel(run=node_status_selection['runs']).isnull().all('run'),
+        elif node_status_selection['mask'] == 'always_wet':
+            node_status_mask = ~ds[variable].sel(run=node_status_selection['runs']).isnull().any('run'),
+        else:
+            raise f'node_status_selection {node_status_selection["mask"]} unrecognized' 
+
+        node_subset_mask = FieldOutput.subset(
+            ds['node'], maximum_depth=maximum_depth, bounds=bounds, wind_swath=wind_swath,
+        ),
+        subsetted_nodes = ds['node'].values[
+            numpy.logical_and(node_status_mask,node_subset_mask).squeeze()
+        ]
+        if point_spacing is not None:
+            subsetted_nodes = subsetted_nodes[::point_spacing]
+        subset = ds.sel(node=subsetted_nodes)
+       
+        # adjust element table if present
+        if 'element' in subset:
+            # keep only elements where all nodes are present
+            elements = subset['element'].values
+            element_mask = numpy.isin(elements,subset['node'].values).all(axis=1)
+            elements = elements[element_mask]
+            # map nodes in element table to local numbering system (start at 0)
+            node_mapper = numpy.zeros(subset['node'].max().values+1,dtype=int)
+            node_index = numpy.arange(len(subset['node']))
+            node_mapper[subset['node'].values] = node_index
+            elements = node_mapper[elements]
+            # update element table in dataset
+            ele_da = DataArray(data=elements, dims=['nele', 'nvertex'])
+            subset = ds.assign_coords({'element': ele_da})        
+        try:
+            subset = subset.drop_sel(run='original')
+        except:
+            pass
+        if len(subset['node']) != len(ds['node']):
+            LOGGER.info(
+                f'subsetted down to {len(subset["node"])} nodes ({len(subset["node"]) / len(ds["node"]):.1%})'
+            )
+        if output_filename is not None:
+            if not isinstance(output_filename, Path):
+                output_filename = Path(output_filename)
+            LOGGER.info(f'saving subset to "{output_filename}"')
+            subset.to_netcdf(output_filename)
+
+    return subset

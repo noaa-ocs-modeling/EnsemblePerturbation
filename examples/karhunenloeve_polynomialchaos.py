@@ -9,7 +9,7 @@ import xarray
 from sklearn.linear_model import LassoCV, LassoLarsCV, LassoLarsIC
 from sklearn.model_selection import ShuffleSplit, LeaveOneOut
 
-from ensembleperturbation.parsing.adcirc import FieldOutput
+from ensembleperturbation.parsing.adcirc import FieldOutput, subset_dataset
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting.perturbation import plot_perturbations
 from ensembleperturbation.plotting.surrogate import (
@@ -41,6 +41,7 @@ if __name__ == '__main__':
     isotach = 34 #-kt wind swath of the cyclone 
     depth_bounds = 50.0
     point_spacing = 10
+    node_status_mask = 'sometimes_wet'
     # analysis type
     use_depth = True   # for depths (must be >= 0, use log-scale for analysis)
     #use_depth = False   # for elevations
@@ -145,33 +146,18 @@ if __name__ == '__main__':
         )
     )
 
-    # sample based on subset and always wet locations
-    values = max_elevations['zeta_max']
+    # sample based on subset and excluding points that are never wet during training run
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
-        num_nodes = len(values['node'])
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            subsetted_nodes = values['node'].where(
-                numpy.logical_and(
-                    ~values.isnull().all('run'),
-                    FieldOutput.subset(
-                        values['node'], maximum_depth=depth_bounds, wind_swath=[storm_name, isotach],
-                    ),
-                ),
-                drop=True,
-            )
-            subsetted_nodes = subsetted_nodes[::point_spacing]
-            subset = values.sel(node=subsetted_nodes)
-            try:
-                subset = subset.drop_sel(run='original')
-            except:
-                pass
-        if len(subset['node']) != num_nodes:
-            LOGGER.info(
-                f'subsetted down to {len(subset["node"])} nodes ({len(subset["node"]) / num_nodes:.1%})'
-            )
-        LOGGER.info(f'saving subset to "{subset_filename}"')
-        subset.to_netcdf(subset_filename)
+        subset = subset_dataset(
+            ds=max_elevations, 
+            variable='zeta_max',
+            maximum_depth=depth_bounds, 
+            wind_swath=[storm_name, isotach],
+            node_status_selection={'mask': node_status_mask, 'runs': training_perturbations['run']},
+            point_spacing=point_spacing,
+            output_filename=subset_filename,
+        )
 
     # subset chunking can be disturbed by point_spacing so load from saved filename always
     LOGGER.info(f'loading subset from "{subset_filename}"')
