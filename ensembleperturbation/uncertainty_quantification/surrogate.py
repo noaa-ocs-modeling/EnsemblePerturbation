@@ -218,6 +218,7 @@ def sensitivities_from_surrogate(
     distribution: chaospy.Distribution,
     variables: [str],
     nodes: xarray.Dataset,
+    element_table: xarray.DataArray,
     filename: PathLike = None,
 ) -> xarray.DataArray:
     """
@@ -238,8 +239,8 @@ def sensitivities_from_surrogate(
         LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
 
         sensitivities = [
-            chaospy.Sens_t(surrogate_model, distribution),
             chaospy.Sens_m(surrogate_model, distribution),
+            chaospy.Sens_t(surrogate_model, distribution),
         ]
 
         sensitivities = numpy.stack(sensitivities)
@@ -247,7 +248,7 @@ def sensitivities_from_surrogate(
         sensitivities = xarray.DataArray(
             sensitivities,
             coords={
-                'order': ['total', 'main'],
+                'order': ['main', 'total'],
                 'variable': variables,
                 'node': nodes['node'],
                 'x': nodes['x'],
@@ -259,6 +260,9 @@ def sensitivities_from_surrogate(
 
         sensitivities = sensitivities.to_dataset(name='sensitivities')
 
+        if element_table is not None:
+            sensitivities = sensitivities.assign_coords({'element': element_table})
+
         if filename is not None:
             LOGGER.info(f'saving sensitivities to "{filename}"')
             sensitivities.to_netcdf(filename)
@@ -266,7 +270,7 @@ def sensitivities_from_surrogate(
         LOGGER.info(f'loading sensitivities from "{filename}"')
         sensitivities = xarray.open_dataset(filename)
 
-    return sensitivities['sensitivities']
+    return sensitivities
 
 
 def validations_from_surrogate(

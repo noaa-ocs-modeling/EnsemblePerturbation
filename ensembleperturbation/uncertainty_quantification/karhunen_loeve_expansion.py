@@ -8,7 +8,7 @@ import geopandas
 from matplotlib import pyplot
 import numpy as np
 
-from ensembleperturbation.plotting.geometry import plot_points
+from ensembleperturbation.plotting.geometry import plot_points, plot_surface
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('karhunen_loeve')
@@ -39,9 +39,9 @@ def karhunen_loeve_expansion(
             'mean_vector': pca_obj.mean_,
             'modes': pca_obj.components_,
             'eigenvalues': pca_obj.explained_variance_,
+            'neig': len(pca_obj.explained_variance_),
             'samples': pca_obj.transform(ymodel),
         }
-        neig = len(kl_dict['eigenvalues'])
 
     else:
         LOGGER.info(f'Using native KL decomposition method')
@@ -90,6 +90,7 @@ def karhunen_loeve_expansion(
             'mean_vector': mean_vector,
             'modes': modes[:, :neig].T,
             'eigenvalues': eigen_values[:neig],
+            'neig': neig,
             'samples': xi[:, :neig],
         }   
 
@@ -103,7 +104,7 @@ def karhunen_loeve_expansion(
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
 
-        axis.plot(range(1, neig + 1), kl_dict['eigenvalues'], 'o-')
+        axis.plot(range(1, kl_dict['neig'] + 1), kl_dict['eigenvalues'], 'o-')
 
         axis.set_xlabel('x')
         axis.set_ylabel('Eigenvalue')
@@ -155,6 +156,7 @@ def karhunen_loeve_prediction(
     samples=None,
     actual_values=None,
     ensembles_to_plot=None,
+    element_table = None,
     plot_directory: PathLike = None,
 ):
     """
@@ -177,11 +179,16 @@ def karhunen_loeve_prediction(
         axis = figure.add_subplot(1, 1, 1)
 
         # Plot to make sure kl_prediction and actual_values are close
-        axis.plot(actual_values, kl_prediction, '.')
+        axis.plot(actual_values.values.T, kl_prediction.T, '.', markersize=1)
 
         axis.set_xlabel('actual')
         axis.set_ylabel('reconstructed')
         axis.title.set_text(f'KL fit for each ensemble')
+        
+        xlim = axis.get_xlim()
+        ylim = axis.get_ylim()
+        axis.set_xlim(min(xlim[0],ylim[0]),max(xlim[1],ylim[1]))
+        axis.set_ylim(min(xlim[0],ylim[0]),max(xlim[1],ylim[1]))
 
         figure.savefig(
             plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
@@ -197,6 +204,7 @@ def karhunen_loeve_prediction(
             ]
         )
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
+        vmin = min(0.0,np.round_(actual_values.quantile(0.02), decimals=1))
         sources = {'actual': actual_values, 'reconstructed': kl_prediction}
         for example in ensembles_to_plot:
             figure = pyplot.figure()
@@ -212,19 +220,29 @@ def karhunen_loeve_prediction(
                 )
                 map_axis.set_xlim((bounds[0], bounds[2]))
                 map_axis.set_ylim((bounds[1], bounds[3]))
-                xlim = map_axis.get_xlim()
-                ylim = map_axis.get_ylim()
                 countries.plot(color='lightgrey', ax=map_axis)
-                im = plot_points(
-                    np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
-                    axis=map_axis,
-                    add_colorbar=False,
-                    vmax=vmax,
-                    vmin=0.0,
-                )
-                map_axis.set_xlim(xlim)
-                map_axis.set_ylim(ylim)
-            cbar = figure.colorbar(im, shrink=0.95, extend='max')
+
+                if element_table is None:
+                    im = plot_points(
+                        np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
+                        axis=map_axis,
+                        add_colorbar=index == 2,
+                        vmax=vmax,
+                        vmin=vmin,
+                        s=1,
+                        extend='both',
+                    )
+                else:
+                    im = plot_surface(
+                        points=np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
+                        element_table=element_table.values,
+                        axis=map_axis,
+                        add_colorbar=index == 2,
+                        levels = np.linspace(vmin,vmax,25+1),
+                        extend='both',
+                    )
+
+            pyplot.subplots_adjust(wspace=0.05)
             figure.savefig(
                 plot_directory / f'KL_ensemble{example}.png', dpi=200, bbox_inches='tight',
             )
