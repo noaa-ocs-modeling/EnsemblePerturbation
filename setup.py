@@ -5,32 +5,31 @@ import sys
 
 from setuptools import config, find_packages, setup
 
-DEPENDENCIES = {
-    'adcircpy>=1.1.0': ['gdal', 'fiona'],
-    'appdirs': [],
-    'cartopy': ['cython', 'numpy', 'proj'],
-    'chaospy': [],
-    'cmocean': [],
-    'bs4': [],
-    'coupledmodeldriver>=1.4.11': [],
-    'dask': [],
-    'fiona': ['gdal'],
-    'geopandas': [],
-    'matplotlib': [],
-    'netcdf4': [],
-    'numpy': [],
-    'pandas': [],
-    'pint': [],
-    'pint-pandas': ['pint'],
-    'pyproj>=2.6': [],
-    'tables': [],
-    'typepigeon': [],
-    'python-dateutil': [],
-    'requests': [],
-    'shapely': [],
-    'scikit-learn': [],
-    'stormevents': [],
-}
+DEPENDENCIES = [
+    'adcircpy>=1.1.0',
+    'appdirs',
+    'cartopy',
+    'chaospy',
+    'cmocean',
+    'bs4',
+    'coupledmodeldriver>=1.4.11',
+    'dask',
+    'fiona',
+    'geopandas',
+    'matplotlib',
+    'netcdf4',
+    'numpy',
+    'pandas',
+    'pint-pandas',
+    'pyproj>=2.6',
+    'tables',
+    'typepigeon',
+    'python-dateutil',
+    'requests',
+    'shapely',
+    'scikit-learn',
+    'stormevents',
+]
 
 if (Path(sys.prefix) / 'conda-meta').exists() or os.name == 'nt':
     try:
