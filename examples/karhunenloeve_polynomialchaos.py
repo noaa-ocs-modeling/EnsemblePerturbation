@@ -43,6 +43,7 @@ if __name__ == '__main__':
     point_spacing = 10
     node_status_mask = 'sometimes_wet'
     # analysis type
+    variable_name = 'zeta_max'
     use_depth = True   # for depths (must be >= 0, use log-scale for analysis)
     #use_depth = False   # for elevations
     training_runs = 'sobol'
@@ -151,7 +152,7 @@ if __name__ == '__main__':
         LOGGER.info('subsetting nodes')
         subset = subset_dataset(
             ds=max_elevations, 
-            variable='zeta_max',
+            variable=variable_name,
             maximum_depth=depth_bounds, 
             wind_swath=[storm_name, isotach],
             node_status_selection={'mask': node_status_mask, 'runs': training_perturbations['run']},
@@ -161,7 +162,10 @@ if __name__ == '__main__':
 
     # subset chunking can be disturbed by point_spacing so load from saved filename always
     LOGGER.info(f'loading subset from "{subset_filename}"')
-    subset = xarray.open_dataset(subset_filename)[values.name]
+    subset = xarray.open_dataset(subset_filename)
+    if 'element' in subset:
+        elements = subset['element']
+    subset = subset[variable_name]
 
     if use_depth:
         null_depth = null_depth + 0*subset['depth']
@@ -199,8 +203,7 @@ if __name__ == '__main__':
         with open(kl_filename, 'rb') as kl_handle:
             kl_expansion = pickle.load(kl_handle)
 
-    neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
-    LOGGER.info(f'found {neig} Karhunen-Loeve modes')
+    LOGGER.info(f'found {kl_expansion["neig"]} Karhunen-Loeve modes')
     LOGGER.info(f'Karhunen-Loeve expansion: {list(kl_expansion)}')
 
     # plot prediction versus actual simulated
@@ -209,6 +212,7 @@ if __name__ == '__main__':
             kl_dict=kl_expansion,
             actual_values=training_set,
             ensembles_to_plot=[0, int(nens / 2), nens - 1],
+            element_table=elements if point_spacing is None else None,
             plot_directory=output_directory,
         )
 
@@ -253,6 +257,7 @@ if __name__ == '__main__':
             distribution=distribution,
             variables=perturbations['variable'],
             nodes=subset,
+            element_table=elements if point_spacing is None else None,
             filename=sensitivities_filename,
         )
         plot_sensitivities(
@@ -271,6 +276,7 @@ if __name__ == '__main__':
             convert_from_log_scale=use_depth,
             convert_from_depths=use_depth,
             minimum_allowable_value=min_depth,
+            element_table=elements if point_spacing is None else None,
             filename=validation_filename,
         )
 
@@ -297,6 +303,7 @@ if __name__ == '__main__':
             convert_from_log_scale=use_depth,
             convert_from_depths=use_depth,
             minimum_allowable_value=min_depth,
+            element_table=elements if point_spacing is None else None,
             filename=percentile_filename,
         )
 
