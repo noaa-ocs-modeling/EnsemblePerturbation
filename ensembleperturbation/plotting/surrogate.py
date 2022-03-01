@@ -277,8 +277,8 @@ def plot_sensitivities(
     )
 
     grid = gridspec.GridSpec(
-        len(sensitivities['order']),
-        len(sensitivities['variable']) + 1,
+        len(sensitivities['order'])+1,
+        len(sensitivities['variable']),
         figure=figure,
         wspace=0,
         hspace=0,
@@ -287,13 +287,13 @@ def plot_sensitivities(
 
     for order_index, order in enumerate(sensitivities['order']):
         for variable_index, variable in enumerate(sensitivities['variable']):
-            axis = figure.add_subplot(grid[order_index, variable_index], projection=map_crs)
+            axis = figure.add_subplot(grid[order_index, variable_index]) #, projection=map_crs)
             order_variable_sensitivities = sensitivities.sel(order=order, variable=variable)
 
             plot_node_map(
                 order_variable_sensitivities,
                 map_title=None,
-                colors=order_variable_sensitivities,
+                colors=order_variable_sensitivities['sensitivities'] if 'element' not in sensitivities else None,
                 storm=storm,
                 map_axis=axis,
                 min_value=0,
@@ -316,9 +316,10 @@ def plot_sensitivities(
 
     colorbar_axis(
         normalization=Normalize(vmin=0, vmax=1),
-        axis=figure.add_subplot(grid[:, -1]),
-        orientation='vertical',
+        axis=figure.add_subplot(grid[-1, :]),
+        orientation='horizontal',
         own_axis=True,
+        color_map='plasma',
     )
 
     if output_filename is not None:
@@ -427,7 +428,9 @@ def plot_selected_validations(
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
 
-        cbar = figure.colorbar(im, shrink=0.95, extend='max')
+        pyplot.subplots_adjust(wspace=0.02, right=0.96)
+        cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
+        cbar = figure.colorbar(im, extend='max', cax=cax)
 
         if output_directory is not None:
             figure.savefig(
@@ -488,7 +491,9 @@ def plot_selected_percentiles(
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
 
-        cbar = figure.colorbar(im, shrink=0.95, extend='max')
+        pyplot.subplots_adjust(wspace=0.02, right=0.96)
+        cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
+        cbar = figure.colorbar(im, extend='max', cax=cax)
 
         if output_directory is not None:
             figure.savefig(
