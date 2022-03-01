@@ -218,7 +218,7 @@ def sensitivities_from_surrogate(
     distribution: chaospy.Distribution,
     variables: [str],
     nodes: xarray.Dataset,
-    element_table: xarray.DataArray,
+    element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.DataArray:
     """
@@ -282,6 +282,7 @@ def validations_from_surrogate(
     minimum_allowable_value: float = None,
     convert_from_log_scale: bool = False,
     convert_from_depths: bool = False,
+    element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
     """
@@ -358,6 +359,9 @@ def validations_from_surrogate(
             )
             node_validation = node_validation.assign_coords(type=['training', 'validation'])
             node_validation = node_validation.to_dataset(name='results')
+        
+        if element_table is not None:
+            node_validation = node_validation.assign_coords({'element': element_table})
 
         if filename is not None:
             LOGGER.info(f'saving validation to "{filename}"')
@@ -446,7 +450,7 @@ def percentiles_from_samples(
         },
         dims=('quantile', *(dim for dim in samples.dims if dim not in ['run', 'type'])),
     )
-
+            
     return surrogate_percentiles
 
 
@@ -458,6 +462,7 @@ def percentiles_from_surrogate(
     minimum_allowable_value: float = None,
     convert_from_log_scale: bool = False,
     convert_from_depths: bool = False,
+    element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
     """
@@ -513,6 +518,9 @@ def percentiles_from_surrogate(
         node_percentiles = node_percentiles.assign(
             differences=numpy.fabs(surrogate_percentiles - modeled_percentiles)
         )
+        
+        if element_table is not None:
+            node_percentiles = node_percentiles.assign_coords({'element': element_table})
 
         if filename is not None:
             LOGGER.info(f'saving percentiles to "{filename}"')

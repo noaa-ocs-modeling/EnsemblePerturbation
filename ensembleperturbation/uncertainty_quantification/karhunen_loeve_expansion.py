@@ -226,7 +226,7 @@ def karhunen_loeve_prediction(
                     im = plot_points(
                         np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
                         axis=map_axis,
-                        add_colorbar=index == 2,
+                        add_colorbar=False,
                         vmax=vmax,
                         vmin=vmin,
                         s=1,
@@ -237,12 +237,15 @@ def karhunen_loeve_prediction(
                         points=np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
                         element_table=element_table.values,
                         axis=map_axis,
-                        add_colorbar=index == 2,
+                        add_colorbar=False,
                         levels = np.linspace(vmin,vmax,25+1),
                         extend='both',
                     )
 
-            pyplot.subplots_adjust(wspace=0.05)
+            pyplot.subplots_adjust(wspace=0.02, right=0.96)
+            cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
+            cbar = figure.colorbar(im, extend='both', cax=cax)
+
             figure.savefig(
                 plot_directory / f'KL_ensemble{example}.png', dpi=200, bbox_inches='tight',
             )
