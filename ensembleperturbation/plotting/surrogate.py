@@ -277,7 +277,7 @@ def plot_sensitivities(
     )
 
     grid = gridspec.GridSpec(
-        len(sensitivities['order'])+1,
+        len(sensitivities['order']),
         len(sensitivities['variable']),
         figure=figure,
         wspace=0,
@@ -316,7 +316,7 @@ def plot_sensitivities(
 
     colorbar_axis(
         normalization=Normalize(vmin=0, vmax=1),
-        axis=figure.add_subplot(grid[-1, :]),
+        axis=pyplot.axes([-1, 0.1, 3, 0.15]), 
         orientation='horizontal',
         own_axis=True,
         color_map='plasma',
