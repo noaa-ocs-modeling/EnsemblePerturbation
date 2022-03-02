@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 import numpy
 import xarray
 
-from ensembleperturbation.plotting.geometry import plot_points
+from ensembleperturbation.plotting.geometry import plot_points, plot_surface
 from ensembleperturbation.plotting.nodes import plot_node_map
 from ensembleperturbation.plotting.utilities import colorbar_axis
 
@@ -377,7 +377,6 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
 def plot_selected_validations(
     validation: xarray.Dataset, run_list: list, output_directory: PathLike
 ):
-    validation = validation['results']
 
     sources = validation['source'].values
     if output_directory is not None:
@@ -392,7 +391,8 @@ def plot_selected_validations(
             validation['y'].max(),
         ]
     )
-    vmax = numpy.round_(validation.quantile(0.98), decimals=1)
+    vmax = numpy.round_(validation.results.quantile(0.98), decimals=1)
+    vmin = 0.0
     for run in run_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
@@ -411,19 +411,30 @@ def plot_selected_validations(
 
             countries.plot(color='lightgrey', ax=map_axis)
 
-            im = plot_points(
-                points=numpy.vstack(
-                    (
-                        validation['x'],
-                        validation['y'],
-                        validation.sel(type='validation', run=run, source=source),
-                    )
-                ).T,
-                axis=map_axis,
-                add_colorbar=False,
-                vmax=vmax,
-                vmin=0.0,
-            )
+            points = numpy.vstack(
+                (
+                     validation['x'],
+                     validation['y'],
+                     validation.sel(type='validation', run=run, source=source).results,
+                )
+            ).T
+            if 'element' not in validation:
+                im = plot_points(
+                    points=points,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    vmax=vmax,
+                    vmin=vmin,
+                )
+            else:
+                im = plot_surface(
+                    points=points,
+                    element_table=validation['element'].values,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    levels = numpy.linspace(vmin,vmax,25+1),
+                    extend='max',
+                )
 
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
@@ -457,6 +468,7 @@ def plot_selected_percentiles(
         ]
     )
     vmax = numpy.round_(percentiles.quantile(0.98), decimals=1)
+    vmin = 0.0
     for perc in perc_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
@@ -474,19 +486,30 @@ def plot_selected_percentiles(
 
             countries.plot(color='lightgrey', ax=map_axis)
 
-            im = plot_points(
-                points=numpy.vstack(
-                    (
-                        node_percentiles['x'],
-                        node_percentiles['y'],
-                        percentiles.sel(quantile=perc, source=source),
-                    )
-                ).T,
-                axis=map_axis,
-                add_colorbar=False,
-                vmax=vmax,
-                vmin=0.0,
-            )
+            points = numpy.vstack(
+                (
+                    node_percentiles['x'],
+                    node_percentiles['y'],
+                    percentiles.sel(quantile=perc, source=source),
+                )
+            ).T
+            if 'element' not in node_percentiles:
+                im = plot_points(
+                    points=points,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    vmax=vmax,
+                    vmin=vmin,
+                )
+            else:
+                im = plot_surface(
+                    points=points,
+                    element_table=node_percentiles['element'].values,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    levels = numpy.linspace(vmin,vmax,25+1),
+                    extend='max',
+                )
 
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
