@@ -391,7 +391,7 @@ def plot_selected_validations(
             validation['y'].max(),
         ]
     )
-    vmax = numpy.round_(validation.results.quantile(0.98), decimals=1)
+    vmax = numpy.round_(validation.sel(source='model').results.quantile(0.98), decimals=1)
     vmin = 0.0
     for run in run_list:
         figure = pyplot.figure()
@@ -467,7 +467,7 @@ def plot_selected_percentiles(
             node_percentiles['y'].max(),
         ]
     )
-    vmax = numpy.round_(percentiles.quantile(0.98), decimals=1)
+    vmax = numpy.round_(percentiles.sel(source='model').quantile(0.98), decimals=1)
     vmin = 0.0
     for perc in perc_list:
         figure = pyplot.figure()
