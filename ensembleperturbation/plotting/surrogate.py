@@ -164,15 +164,17 @@ def plot_scatter_comparison(
             axis.scatter(x, y, **kwargs)
 
             if reference_line:
-                xlim = axis.get_xlim()
-                ylim = axis.get_ylim()
-
                 min_value = numpy.nanmax([x.min(), y.min()])
                 max_value = numpy.nanmin([x.max(), y.max()])
                 axis.plot([min_value, max_value], [min_value, max_value], '--k', alpha=0.3)
+            
+            xlim = axis.get_xlim()
+            ylim = axis.get_ylim()
 
-                axis.set_xlim(xlim)
-                axis.set_ylim(ylim)
+            lim_min = min(xlim[0],ylim[0])
+            lim_max = max(xlim[1],ylim[1])
+            axis.set_xlim(lim_min,lim_max)
+            axis.set_ylim(lim_min,lim_max)
 
             if statistics_text_offset > 0:
                 ratio = statistics_text_offset * 0.1
@@ -433,7 +435,7 @@ def plot_selected_validations(
                     axis=map_axis,
                     add_colorbar=False,
                     levels = numpy.linspace(vmin,vmax,25+1),
-                    extend='max',
+                    extend='both',
                 )
 
             map_axis.set_xlim(xlim)
@@ -441,7 +443,7 @@ def plot_selected_validations(
 
         pyplot.subplots_adjust(wspace=0.02, right=0.96)
         cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
-        cbar = figure.colorbar(im, extend='max', cax=cax)
+        cbar = figure.colorbar(im, extend='both', cax=cax)
 
         if output_directory is not None:
             figure.savefig(
@@ -508,7 +510,7 @@ def plot_selected_percentiles(
                     axis=map_axis,
                     add_colorbar=False,
                     levels = numpy.linspace(vmin,vmax,25+1),
-                    extend='max',
+                    extend='both',
                 )
 
             map_axis.set_xlim(xlim)
@@ -516,7 +518,7 @@ def plot_selected_percentiles(
 
         pyplot.subplots_adjust(wspace=0.02, right=0.96)
         cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
-        cbar = figure.colorbar(im, extend='max', cax=cax)
+        cbar = figure.colorbar(im, extend='both', cax=cax)
 
         if output_directory is not None:
             figure.savefig(
