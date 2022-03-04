@@ -6,10 +6,10 @@ import dask
 from matplotlib import pyplot
 import numpy
 import xarray
-from sklearn.linear_model import LassoCV, LassoLarsCV, LassoLarsIC
-from sklearn.model_selection import ShuffleSplit, LeaveOneOut
+from sklearn.linear_model import LassoCV, LinearRegression
+from sklearn.model_selection import ShuffleSplit, LeaveOneOut, RepeatedKFold
 
-from ensembleperturbation.parsing.adcirc import FieldOutput, subset_dataset
+from ensembleperturbation.parsing.adcirc import FieldOutput, subset_dataset, extrapolate_water_elevation_to_dry_areas
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting.perturbation import plot_perturbations
 from ensembleperturbation.plotting.surrogate import (
@@ -50,14 +50,15 @@ if __name__ == '__main__':
     validation_runs = 'random'
     # PC parameters
     polynomial_order = 3
-    #cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
-    cross_validator = LeaveOneOut()
+    cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
+    #cross_validator = RepeatedKFold(n_splits=5, n_repeats=10, random_state=666)
+    #cross_validator = LeaveOneOut()
     regression_model = LassoCV(fit_intercept=False, cv=cross_validator, selection='random', random_state=666)
+    #regression_model = LinearRegression(fit_intercept=False)
     if training_runs == 'quadrature':
         use_quadrature = True
     else:
         use_quadrature = False
-    print(f'use_quad: {use_quadrature}')
 
     make_perturbations_plot = True
     make_klprediction_plot = True
@@ -104,7 +105,6 @@ if __name__ == '__main__':
     perturbations = datasets[filenames[0]]
     max_elevations = datasets[filenames[1]]
     min_depth  = 0.8*max_elevations.h0 # the minimum allowable depth
-    null_depth = 0.1*min_depth         # value to set for null depths
 
     perturbations = perturbations.assign_coords(
         type=(
@@ -167,18 +167,21 @@ if __name__ == '__main__':
         elements = subset['element']
     subset = subset[variable_name]
 
+    subset = extrapolate_water_elevation_to_dry_areas(
+        da=subset,
+        method='nearest',
+    )
+
     if use_depth:
-        null_depth = null_depth + 0*subset['depth']
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            training_set = (
-                numpy.log(numpy.fmax(
-                    subset.sel(run=training_perturbations['run']) + subset['depth'], null_depth
-                ) )
+        # adjust the mesh depth by making sure training values will always be positive for surrogate evaluation
+        min_depth += (subset.min() - subset['depth'].min()).values # min allowable depth needs to be the adjusted one
+        subset['depth'] += min_depth
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}): 
+            training_set = numpy.log(
+                subset.sel(run=training_perturbations['run']) + subset['depth'] 
             )
-            validation_set = (
-                numpy.log(numpy.fmax(
-                    subset.sel(run=validation_perturbations['run']) + subset['depth'], null_depth
-                ) )
+            validation_set = numpy.log(
+                subset.sel(run=validation_perturbations['run']) + subset['depth'] 
             )
     else:
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
@@ -275,7 +278,7 @@ if __name__ == '__main__':
             validation_perturbations=validation_perturbations,
             convert_from_log_scale=use_depth,
             convert_from_depths=use_depth,
-            minimum_allowable_value=min_depth,
+            minimum_allowable_value=min_depth if use_depth else None,
             element_table=elements if point_spacing is None else None,
             filename=validation_filename,
         )
@@ -302,7 +305,7 @@ if __name__ == '__main__':
             percentiles=percentiles,
             convert_from_log_scale=use_depth,
             convert_from_depths=use_depth,
-            minimum_allowable_value=min_depth,
+            minimum_allowable_value=min_depth if use_depth else None,
             element_table=elements if point_spacing is None else None,
             filename=percentile_filename,
         )

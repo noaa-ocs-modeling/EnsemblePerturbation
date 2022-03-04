@@ -12,6 +12,8 @@ import numpy
 import pandas
 from pandas import DataFrame
 from shapely.geometry import Point
+from pyproj.transformer import Transformer
+from scipy.spatial import KDTree
 from typepigeon import convert_value
 import xarray
 from xarray import DataArray, Dataset
@@ -813,3 +815,46 @@ def subset_dataset(
             subset.to_netcdf(output_filename)
 
     return subset
+
+
+def extrapolate_water_elevation_to_dry_areas(
+    da: DataArray,
+    method: str = 'nearest',
+):
+
+    # Get coordinates in conformal projection (e.g,, Mercator) 
+    # for determining closest distance 
+    crs_from = 'EPSG:4326' # WGS84
+    crs_to   = 'EPSG:3857' # Mercator
+    transformer = Transformer.from_crs(crs_from=crs_from, crs_to=crs_to, always_xy=True)
+    x, y = transformer.transform(da['x'].values, da['y'].values)
+    projected_coordinates = numpy.vstack([x, y]).T
+
+    nodes = numpy.arange(da.sizes['node'])
+    if method == 'nearest':
+        for run in range(da.sizes['run']):
+            null = numpy.isnan(da[run,:]) 
+            tree = KDTree(projected_coordinates[~null])
+            _, nn = tree.query(projected_coordinates[null],k=1) 
+            da[run,null] = da[run, nodes[~null][nn]].values 
+    elif method == 'idw':
+        # inverse distance weighting with 9 nearest neighbors
+        k_nearest_neighbors = 9
+        p = 2 # second order inverse distance weighting
+        for run in range(da.sizes['run']):
+            null = numpy.isnan(da[run,:]) 
+            tree = KDTree(projected_coordinates[~null])
+            dd, nn = tree.query(projected_coordinates[null],k=k_nearest_neighbors)
+            for kk in range(k_nearest_neighbors):
+                weights = dd[:,kk]**(-p)
+                if kk == 0:
+                     idw_sum = da[run, nodes[~null][nn[:,kk]]].values * weights
+                     weight_sum = weights
+                else:
+                     idw_sum += da[run, nodes[~null][nn[:,kk]]].values * weights
+                     weight_sum += weights
+            da[run,null] = idw_sum / weight_sum
+    else: # method = hydraulic friction
+        raise 'not yet implemented' 
+   
+    return da
