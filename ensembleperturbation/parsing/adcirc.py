@@ -822,6 +822,9 @@ def extrapolate_water_elevation_to_dry_areas(
     method: str = 'nearest',
 ):
 
+    # return a deep copy of original datarrary on output
+    da_adjusted = da.copy(deep=True) 
+
     # Get coordinates in conformal projection (e.g,, Mercator) 
     # for determining closest distance 
     crs_from = 'EPSG:4326' # WGS84
@@ -836,7 +839,7 @@ def extrapolate_water_elevation_to_dry_areas(
             null = numpy.isnan(da[run,:]) 
             tree = KDTree(projected_coordinates[~null])
             _, nn = tree.query(projected_coordinates[null],k=1) 
-            da[run,null] = da[run, nodes[~null][nn]].values 
+            da_adjusted[run,null] = da[run, nodes[~null][nn]].values 
     elif method == 'idw':
         # inverse distance weighting with 9 nearest neighbors
         k_nearest_neighbors = 9
@@ -853,8 +856,8 @@ def extrapolate_water_elevation_to_dry_areas(
                 else:
                      idw_sum += da[run, nodes[~null][nn[:,kk]]].values * weights
                      weight_sum += weights
-            da[run,null] = idw_sum / weight_sum
+            da_adjusted[run,null] = idw_sum / weight_sum
     else: # method = hydraulic friction
         raise 'not yet implemented' 
    
-    return da
+    return da_adjusted
