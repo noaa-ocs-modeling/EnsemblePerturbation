@@ -1,6 +1,6 @@
 from os import PathLike
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import chaospy
 import numpoly
@@ -281,7 +281,7 @@ def validations_from_surrogate(
     validation_perturbations: xarray.Dataset = None,
     minimum_allowable_value: float = None,
     convert_from_log_scale: bool = False,
-    convert_from_depths: bool = False,
+    convert_from_depths: Union[bool, float] = False,
     element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
@@ -308,15 +308,16 @@ def validations_from_surrogate(
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
         if convert_from_log_scale:
             training_results = numpy.exp(training_results)
-            training_set = numpy.exp(training_set)
         if minimum_allowable_value is not None:
+            # compare to adjusted depths if provided
+            if isinstance(convert_from_depths,float):
+                minimum_allowable_value += convert_from_depths
             too_small = training_results < minimum_allowable_value
             training_results[too_small] = numpy.nan
-            too_small = training_set.values < minimum_allowable_value
-            training_set.values[too_small] = numpy.nan
-        if convert_from_depths: 
+        if isinstance(convert_from_depths,float):
+            training_results -= (training_set['depth'].values + convert_from_depths)
+        elif convert_from_depths:
             training_results -= training_set['depth'].values
-            training_set -= training_set['depth']
         
         training_results = numpy.stack([training_set, training_results], axis=0)
         training_results = xarray.DataArray(
@@ -335,15 +336,13 @@ def validations_from_surrogate(
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
             if convert_from_log_scale:
                 node_validation = numpy.exp(node_validation)
-                validation_set = numpy.exp(validation_set)
             if minimum_allowable_value is not None:
                 too_small = node_validation < minimum_allowable_value
                 node_validation[too_small] = numpy.nan
-                too_small = validation_set.values < minimum_allowable_value
-                validation_set.values[too_small] = numpy.nan
-            if convert_from_depths: 
+            if isinstance(convert_from_depths,float):
+                node_validation -= (validation_set['depth'].values + convert_from_depths)
+            elif convert_from_depths:
                 node_validation -= validation_set['depth'].values
-                validation_set -= validation_set['depth']
 
             node_validation = numpy.stack([validation_set, node_validation], axis=0)
             node_validation = xarray.DataArray(
@@ -461,7 +460,7 @@ def percentiles_from_surrogate(
     training_set: xarray.Dataset,
     minimum_allowable_value: float = None,
     convert_from_log_scale: bool = False,
-    convert_from_depths: bool = False,
+    convert_from_depths: Union[bool, float] = False,
     element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
@@ -492,19 +491,24 @@ def percentiles_from_surrogate(
             convert_from_log_scale=convert_from_log_scale,
         )
 
-        if convert_from_log_scale:
-            training_set = numpy.exp(training_set)
+        # before evaluating quantile for model set set null to the base elevation
+        training_set = numpy.fmax(training_set, -training_set['depth'])
         modeled_percentiles = training_set.quantile(
             dim='run', q=surrogate_percentiles['quantile'] / 100
         )
 
         if minimum_allowable_value is not None:
-            too_small = modeled_percentiles.values < minimum_allowable_value
+            # compare model to actual depth
+            too_small = (modeled_percentiles + training_set['depth']).values < minimum_allowable_value
             modeled_percentiles.values[too_small] = numpy.nan
+            # compare surrogate model to adjusted_depth
+            if isinstance(convert_from_depths,float):
+                minimum_allowable_value += convert_from_depths
             too_small = surrogate_percentiles.values < minimum_allowable_value
             surrogate_percentiles.values[too_small] = numpy.nan
-        if convert_from_depths:
-            modeled_percentiles -= training_set['depth']
+        if isinstance(convert_from_depths,float):
+            surrogate_percentiles -= (training_set['depth'] + convert_from_depths)
+        elif convert_from_depths:
             surrogate_percentiles -= training_set['depth']
 
         modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']

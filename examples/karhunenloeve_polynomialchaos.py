@@ -167,29 +167,26 @@ if __name__ == '__main__':
         elements = subset['element']
     subset = subset[variable_name]
 
-    subset = extrapolate_water_elevation_to_dry_areas(
-        da=subset,
+    # divide subset into training/validation runs
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        training_set = subset.sel(run=training_perturbations['run'])
+        validation_set = subset.sel(run=validation_perturbations['run'])
+
+    LOGGER.info(f'total {training_set.shape} training samples')
+    LOGGER.info(f'total {validation_set.shape} validation samples')
+    
+    # make an adjusted training set for dry areas.. 
+    training_set_adjusted = extrapolate_water_elevation_to_dry_areas(
+        da=training_set,
         method='nearest',
     )
 
     if use_depth:
-        # adjust the mesh depth by making sure training values will always be positive for surrogate evaluation
-        min_depth += (subset.min() - subset['depth'].min()).values # min allowable depth needs to be the adjusted one
-        subset['depth'] += min_depth
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}): 
-            training_set = numpy.log(
-                subset.sel(run=training_perturbations['run']) + subset['depth'] 
-            )
-            validation_set = numpy.log(
-                subset.sel(run=validation_perturbations['run']) + subset['depth'] 
-            )
-    else:
+        # adjust training values so that they will always be positive for log space analysis
+        adjusted_min_depth = min_depth + (training_set_adjusted.min() - training_set_adjusted['depth'].min()).values
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            training_set = subset.sel(run=training_perturbations['run'])
-            validation_set = subset.sel(run=validation_perturbations['run'])
-
-    LOGGER.info(f'total {training_set.shape} training samples')
-    LOGGER.info(f'total {validation_set.shape} validation samples')
+            training_set_adjusted += (training_set_adjusted['depth'] + adjusted_min_depth)
+            training_set_adjusted = numpy.log(training_set_adjusted)
 
     # Evaluating the Karhunen-Loeve expansion
     nens, ngrid = training_set.shape
@@ -198,7 +195,7 @@ if __name__ == '__main__':
             f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
         )
         kl_expansion = karhunen_loeve_expansion(
-            training_set.values, neig=variance_explained, method = 'PCA', 
+            training_set_adjusted.values, neig=variance_explained, method = 'PCA', 
             output_directory=output_directory,
         )
     else:
@@ -213,7 +210,7 @@ if __name__ == '__main__':
     if make_klprediction_plot:
         kl_predicted = karhunen_loeve_prediction(
             kl_dict=kl_expansion,
-            actual_values=training_set,
+            actual_values=training_set_adjusted,
             ensembles_to_plot=[0, int(nens / 2), nens - 1],
             element_table=elements if point_spacing is None else None,
             plot_directory=output_directory,
@@ -277,7 +274,7 @@ if __name__ == '__main__':
             validation_set=validation_set,
             validation_perturbations=validation_perturbations,
             convert_from_log_scale=use_depth,
-            convert_from_depths=use_depth,
+            convert_from_depths=adjusted_min_depth if use_depth else None,
             minimum_allowable_value=min_depth if use_depth else None,
             element_table=elements if point_spacing is None else None,
             filename=validation_filename,
@@ -304,7 +301,7 @@ if __name__ == '__main__':
             training_set=validation_set,
             percentiles=percentiles,
             convert_from_log_scale=use_depth,
-            convert_from_depths=use_depth,
+            convert_from_depths=adjusted_min_depth if use_depth else None,
             minimum_allowable_value=min_depth if use_depth else None,
             element_table=elements if point_spacing is None else None,
             filename=percentile_filename,
