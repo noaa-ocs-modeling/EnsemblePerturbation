@@ -819,7 +819,12 @@ def subset_dataset(
 
 def extrapolate_water_elevation_to_dry_areas(
     da: DataArray,
-    method: str = 'nearest',
+    k_neighbors: int = 1,
+    idw_order: int = 1,
+    compute_headloss: bool = False,
+    mann_coef: float = 0.05,
+    u_ref: float = 0.4,
+    d_ref: float = 1.0,
 ):
 
     # return a deep copy of original datarrary on output
@@ -833,31 +838,36 @@ def extrapolate_water_elevation_to_dry_areas(
     x, y = transformer.transform(da['x'].values, da['y'].values)
     projected_coordinates = numpy.vstack([x, y]).T
 
+    # for mapping back to node numbers
     nodes = numpy.arange(da.sizes['node'])
-    if method == 'nearest':
-        for run in range(da.sizes['run']):
-            null = numpy.isnan(da[run,:]) 
-            tree = KDTree(projected_coordinates[~null])
-            _, nn = tree.query(projected_coordinates[null],k=1) 
-            da_adjusted[run,null] = da[run, nodes[~null][nn]].values 
-    elif method == 'idw':
-        # inverse distance weighting with 9 nearest neighbors
-        k_nearest_neighbors = 9
-        p = 2 # second order inverse distance weighting
-        for run in range(da.sizes['run']):
-            null = numpy.isnan(da[run,:]) 
-            tree = KDTree(projected_coordinates[~null])
-            dd, nn = tree.query(projected_coordinates[null],k=k_nearest_neighbors)
-            for kk in range(k_nearest_neighbors):
+  
+    # compute the friction factor for headloss calculation:
+    # Rucker, et al. (2021). Natural Hazards. 
+    # https://doi.org/10.1007/s11069-021-04634-8
+    if compute_headloss: 
+        friction_factor = (u_ref*mann_coef)**2/d_ref**(4/3)
+    else:
+        friction_factor = 0.0
+
+    # inverse distance weighting of order `idw_order` with `k_nearest` neighbors
+    for run in range(da.sizes['run']):
+        null = numpy.isnan(da[run,:]) 
+        tree = KDTree(projected_coordinates[~null])
+        dd, nn = tree.query(projected_coordinates[null],k=k_neighbors)
+        if k_neighbors == 1:
+            headloss = dd*friction_factor # hydraulic friction loss
+            da_adjusted[run,null] = da[run, nodes[~null][nn]].values - headloss 
+        else:
+            for kk in range(k_neighbors):
                 weights = dd[:,kk]**(-p)
+                headloss = dd[:,kk]*friction_factor # hydraulic friction loss
+                total_head = da[run, nodes[~null][nn[:,kk]]].values - headloss
                 if kk == 0:
-                     idw_sum = da[run, nodes[~null][nn[:,kk]]].values * weights
-                     weight_sum = weights
+                    idw_sum = total_head * weights
+                    weight_sum = weights
                 else:
-                     idw_sum += da[run, nodes[~null][nn[:,kk]]].values * weights
-                     weight_sum += weights
+                    idw_sum += total_head * weights
+                    weight_sum += weights
             da_adjusted[run,null] = idw_sum / weight_sum
-    else: # method = hydraulic friction
-        raise 'not yet implemented' 
    
     return da_adjusted
