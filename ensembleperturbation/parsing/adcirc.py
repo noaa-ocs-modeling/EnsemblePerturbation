@@ -859,7 +859,7 @@ def extrapolate_water_elevation_to_dry_areas(
             da_adjusted[run,null] = da[run, nodes[~null][nn]].values - headloss 
         else:
             for kk in range(k_neighbors):
-                weights = dd[:,kk]**(-p)
+                weights = dd[:,kk]**(-idw_order)
                 headloss = dd[:,kk]*friction_factor # hydraulic friction loss
                 total_head = da[run, nodes[~null][nn[:,kk]]].values - headloss
                 if kk == 0:
