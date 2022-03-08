@@ -1097,6 +1097,9 @@ class VortexPerturber:
         sample_from_distribution: bool = False,
         sample_rule: str = 'random',
         quadrature: bool = False,
+        quadrature_order: int = 3,
+        quadrature_rule: str = 'Gaussian',
+        sparse_quadrature: bool = False,
         weights: List[float] = None,
         overwrite: bool = False,
         continue_numbering: bool = False,
@@ -1110,6 +1113,9 @@ class VortexPerturber:
         :param sample_rule: rule to use for the distribution sampling. Please choose from:
                ``random`` [default], ``sobol``, ``halton``, ``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
         :param quadrature: add perturbations along quadrature
+        :param quadrature_order: order of the quadrature
+        :param quadrature_rule: rule of the quadrature for generating abscissas and weights
+        :param sparse_quadrature: use Smolyak’s sparse grid instead of normal tensor product grid
         :param weights: weights to use with perturbations
         :param overwrite: overwrite existing files
         :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
@@ -1219,7 +1225,7 @@ class VortexPerturber:
 
         if quadrature:
             quadrature_nodes, quadrature_weights = chaospy.generate_quadrature(
-                order=3, dist=distribution, rule='Gaussian',
+                order=quadrature_order, dist=distribution, rule=quadrature_rule, sparse=sparse_quadrature,
             )
 
             quadrature_run_names = [
@@ -1717,6 +1723,9 @@ def perturb_tracks(
     sample_from_distribution: bool = False,
     sample_rule: str = 'random',
     quadrature: bool = False,
+    quadrature_order: int = 3,
+    quadrature_rule: str = 'Gaussian',
+    sparse_quadrature: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
     file_deck: ATCF_FileDeck = None,
@@ -1736,6 +1745,9 @@ def perturb_tracks(
     :param sample_rule: rule to use for the distribution sampling. Please choose from:
            ``random`` [default], ``sobol``, ``halton``,``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
     :param quadrature: add perturbations along quadrature
+    :param quadrature_order: order of the quadrature
+    :param quadrature_rule: rule of the quadrature for generating abscissas and weights
+    :param sparse_quadrature: use Smolyak’s sparse grid instead of normal tensor product grid
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
     :param file_deck: letter of file deck, one of `a`, `b`
@@ -1784,6 +1796,9 @@ def perturb_tracks(
         sample_from_distribution=sample_from_distribution,
         sample_rule=sample_rule,
         quadrature=quadrature,
+        quadrature_order=quadrature_order,
+        quadrature_rule=quadrature_rule,
+        sparse_quadrature=sparse_quadrature,
         overwrite=overwrite,
         parallel=parallel,
     )
