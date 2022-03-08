@@ -186,12 +186,6 @@ def surrogate_from_training_set(
             retall=True,
         )
 
-        # if not use_quadrature:
-        #    training_shape = training_set.shape
-        #    training_set = training_set.sel(node=~training_set.isnull().any('run'))
-        #    if training_set.shape != training_shape:
-        #        LOGGER.info(f'dropped `NaN`s to {training_set.shape}')
-
         surrogate_model = surrogate_from_samples(
             samples=training_set,
             perturbations=training_perturbations['perturbations'],
