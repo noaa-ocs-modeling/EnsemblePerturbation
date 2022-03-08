@@ -9,7 +9,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Patch
 import numpy
-from stormevents import VortexTrack
+from stormevents.nhc import VortexTrack
 import xarray
 
 from ensembleperturbation.plotting.surrogate import comparison_plot_grid

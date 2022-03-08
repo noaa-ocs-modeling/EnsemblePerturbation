@@ -6,7 +6,7 @@ from matplotlib import cm, gridspec, pyplot
 from matplotlib.axis import Axis
 from matplotlib.colors import Colormap, LogNorm, Normalize
 import numpy
-from stormevents import VortexTrack
+from stormevents.nhc import VortexTrack
 import xarray
 
 from ensembleperturbation.plotting.utilities import colorbar_axis

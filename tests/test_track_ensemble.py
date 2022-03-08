@@ -1,7 +1,7 @@
 import os
 
 import numpy
-from stormevents import VortexTrack
+from stormevents.nhc import VortexTrack
 from stormevents.nhc.atcf import ATCF_FileDeck
 
 from ensembleperturbation.perturbation.atcf import (
