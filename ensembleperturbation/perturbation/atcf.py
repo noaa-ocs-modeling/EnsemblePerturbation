@@ -1562,7 +1562,7 @@ class VortexPerturber:
                 filename, start_date=start_date, end_date=end_date
             )
 
-        instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
+        instance = cls(vortex.data, start_date=start_date, end_date=end_date)
         instance.__filename = filename
         return instance
 
