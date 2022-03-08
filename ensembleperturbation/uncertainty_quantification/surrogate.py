@@ -308,15 +308,13 @@ def validations_from_surrogate(
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
         if convert_from_log_scale:
             training_results = numpy.exp(training_results)
+        if isinstance(convert_from_depths,(float,numpy.ndarray)):
+            training_results -= convert_from_depths
         if minimum_allowable_value is not None:
             # compare to adjusted depths if provided
-            if isinstance(convert_from_depths,float):
-                minimum_allowable_value += convert_from_depths
             too_small = training_results < minimum_allowable_value
             training_results[too_small] = numpy.nan
-        if isinstance(convert_from_depths,float):
-            training_results -= (training_set['depth'].values + convert_from_depths)
-        elif convert_from_depths:
+        if bool(convert_from_depths):
             training_results -= training_set['depth'].values
         
         training_results = numpy.stack([training_set, training_results], axis=0)
@@ -336,12 +334,12 @@ def validations_from_surrogate(
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
             if convert_from_log_scale:
                 node_validation = numpy.exp(node_validation)
+            if isinstance(convert_from_depths,(float,numpy.ndarray)):
+                node_validation -= convert_from_depths
             if minimum_allowable_value is not None:
                 too_small = node_validation < minimum_allowable_value
                 node_validation[too_small] = numpy.nan
-            if isinstance(convert_from_depths,float):
-                node_validation -= (validation_set['depth'].values + convert_from_depths)
-            elif convert_from_depths:
+            if bool(convert_from_depths):
                 node_validation -= validation_set['depth'].values
 
             node_validation = numpy.stack([validation_set, node_validation], axis=0)
@@ -491,24 +489,20 @@ def percentiles_from_surrogate(
             convert_from_log_scale=convert_from_log_scale,
         )
 
-        # before evaluating quantile for model set set null to the base elevation
+        # before evaluating quantile for model set null water elevation to the ground elevation
         training_set = numpy.fmax(training_set, -training_set['depth'])
         modeled_percentiles = training_set.quantile(
             dim='run', q=surrogate_percentiles['quantile'] / 100
         )
 
+        if isinstance(convert_from_depths,(float,numpy.ndarray)):
+            surrogate_percentiles -= convert_from_depths
         if minimum_allowable_value is not None:
-            # compare model to actual depth
             too_small = (modeled_percentiles + training_set['depth']).values < minimum_allowable_value
             modeled_percentiles.values[too_small] = numpy.nan
-            # compare surrogate model to adjusted_depth
-            if isinstance(convert_from_depths,float):
-                minimum_allowable_value += convert_from_depths
             too_small = surrogate_percentiles.values < minimum_allowable_value
             surrogate_percentiles.values[too_small] = numpy.nan
-        if isinstance(convert_from_depths,float):
-            surrogate_percentiles -= (training_set['depth'] + convert_from_depths)
-        elif convert_from_depths:
+        if bool(convert_from_depths):
             surrogate_percentiles -= training_set['depth']
 
         modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
