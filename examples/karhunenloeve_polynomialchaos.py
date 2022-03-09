@@ -178,12 +178,17 @@ if __name__ == '__main__':
     # make an adjusted training set for dry areas.. 
     training_set_adjusted = extrapolate_water_elevation_to_dry_areas(
         da=training_set,
-        method='nearest',
+        k_neighbors = 1,
+        idw_order = 1,
+        compute_headloss = True,
+        mann_coef = 0.05,
+        u_ref = 0.4,
+        d_ref = 1,
     )
 
     if use_depth:
         # adjust training values so that they will always be positive for log space analysis
-        adjusted_min_depth = min_depth + (training_set_adjusted.min() - training_set_adjusted['depth'].min()).values
+        adjusted_min_depth = min_depth - training_set_adjusted.min() - training_set_adjusted['depth'].min()
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             training_set_adjusted += (training_set_adjusted['depth'] + adjusted_min_depth)
             training_set_adjusted = numpy.log(training_set_adjusted)
@@ -274,7 +279,7 @@ if __name__ == '__main__':
             validation_set=validation_set,
             validation_perturbations=validation_perturbations,
             convert_from_log_scale=use_depth,
-            convert_from_depths=adjusted_min_depth if use_depth else None,
+            convert_from_depths=adjusted_min_depth.values if use_depth else None,
             minimum_allowable_value=min_depth if use_depth else None,
             element_table=elements if point_spacing is None else None,
             filename=validation_filename,
@@ -301,7 +306,7 @@ if __name__ == '__main__':
             training_set=validation_set,
             percentiles=percentiles,
             convert_from_log_scale=use_depth,
-            convert_from_depths=adjusted_min_depth if use_depth else None,
+            convert_from_depths=adjusted_min_depth.values if use_depth else None,
             minimum_allowable_value=min_depth if use_depth else None,
             element_table=elements if point_spacing is None else None,
             filename=percentile_filename,
