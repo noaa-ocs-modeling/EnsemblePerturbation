@@ -366,13 +366,15 @@ class FieldOutput(AdcircOutput, ABC):
                     cyclone = VortexTrack.from_fort22(cyclone)
                 except FileNotFoundError:
                     cyclone = VortexTrack(cyclone)
-            swath = cyclone.wind_swath(isotach=isotach)
-            points = GeoDataFrame(
-                {'lon': dataset['x'].values,'lat': dataset['y'].values},
-                geometry=geopandas.points_from_xy(dataset['x'].values, dataset['y'].values),
-            )
-            polygon = GeoDataFrame(index=[0], geometry=[swath]) 
-            inpoly = geopandas.tools.sjoin(points, polygon, op="within", how='left') 
+            swath = cyclone.wind_swaths(wind_speed=isotach)
+            polygon = GeoDataFrame(index=[0], geometry=[next(iter(swath.values()))])
+            with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+                geometry = geopandas.points_from_xy(dataset['x'].values, dataset['y'].values)
+                points = GeoDataFrame(
+                    {'lon': dataset['x'].values,'lat': dataset['y'].values},
+                    geometry=geometry,
+                )  
+                inpoly = geopandas.tools.sjoin(points, polygon, predicate="within", how='left') 
             subset = numpy.logical_and(subset, ~numpy.isnan(inpoly.index_right.values))
 
         if bounds is not None:
