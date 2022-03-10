@@ -1069,13 +1069,13 @@ class VortexPerturber:
         if not is_equal:
             if self.__filename is not None and self.__filename.exists():
                 if '.22' in self.__filename.suffix:
-                    self.__forcing = VortexTrack.from_fort22(
+                    self.__forcing = VortexTrack.from_file(
                         self.__filename,
                         start_date=configuration['start_date'],
                         end_date=configuration['end_date'],
                     )
                 else:
-                    self.__forcing = VortexTrack.from_atcf_file(
+                    self.__forcing = VortexTrack.from_file(
                         self.__filename,
                         start_date=configuration['start_date'],
                         end_date=configuration['end_date'],
@@ -1498,7 +1498,7 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        VortexTrack(storm=dataframe).write(filename, overwrite=True)
+        VortexTrack(storm=dataframe).to_file(filename, overwrite=True)
 
         if weight is not None:
             perturbation['weight'] = weight
@@ -1547,14 +1547,7 @@ class VortexPerturber:
         if not isinstance(filename, Path):
             filename = Path(filename)
 
-        if filename.suffix == '.22':
-            vortex = VortexTrack.from_fort22(
-                filename, start_date=start_date, end_date=end_date
-            )
-        else:
-            vortex = VortexTrack.from_atcf_file(
-                filename, start_date=start_date, end_date=end_date
-            )
+        vortex = VortexTrack.from_file(filename, start_date=start_date, end_date=end_date)
 
         instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
         instance.__filename = filename

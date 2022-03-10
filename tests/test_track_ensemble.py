@@ -102,7 +102,7 @@ def test_spatial_perturbations():
         )
 
         tracks = {
-            name: VortexTrack.from_fort22(
+            name: VortexTrack.from_file(
                 output_directory.parent / perturbation['besttrack']['fort22_filename']
             )
             for name, perturbation in perturbations.items()
@@ -135,7 +135,7 @@ def test_original_file():
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    reference_track = VortexTrack.from_fort22(reference_directory / 'original.22')
+    reference_track = VortexTrack.from_file(reference_directory / 'original.22')
 
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
@@ -145,22 +145,22 @@ def test_original_file():
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
-    track_1 = VortexTrack.from_fort22(run_1_directory / 'original.22')
+    track_1 = VortexTrack.from_file(run_1_directory / 'original.22')
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
     )
-    track_2 = VortexTrack.from_fort22(run_1_directory / 'original.22')
+    track_2 = VortexTrack.from_file(run_1_directory / 'original.22')
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory
     )
-    track_3 = VortexTrack.from_fort22(run_2_directory / 'original.22')
+    track_3 = VortexTrack.from_file(run_2_directory / 'original.22')
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory
     )
-    track_4 = VortexTrack.from_fort22(run_2_directory / 'original.22')
+    track_4 = VortexTrack.from_file(run_2_directory / 'original.22')
 
     assert track_1 == reference_track
     assert track_2 == reference_track
