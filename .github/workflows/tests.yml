@@ -22,6 +22,34 @@ jobs:
         with:
           path: ${{ env.pythonLocation }}
           key: lint-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml', 'setup.*') }}
+      - name: restore built PROJ
+        uses: actions/cache@v2
+        id: cache-proj
+        with:
+          path: ~/.local/proj
+          key: ${{ runner.os }}-proj-8.1.1-0
+      - name: build PROJ
+        shell: bash
+        if: steps.cache-proj.outputs.cache-hit != 'true'
+        run: |
+          mkdir proj-build
+          curl https://download.osgeo.org/proj/proj-8.1.1.tar.gz | tar xzf - --strip-components=1 -C proj-build
+          pushd proj-build
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local/proj -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_IPO=ON -DENABLE_CURL=OFF -DBUILD_CCT:BOOL=OFF -DBUILD_CS2CS:BOOL=OFF -DBUILD_GEOD:BOOL=OFF \
+            -DBUILD_GIE:BOOL=OFF -DBUILD_PROJINFO:BOOL=OFF -DBUILD_PROJSYNC:BOOL=OFF -DBUILD_TESTING:BOOL=OFF
+          cmake --build . -j6
+          cmake --install .
+          popd
+      - name: Update environment
+        shell: bash
+        run: |
+          echo "CPATH=$CPATH:$HOME/${{ inputs.install-path }}/include" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$LIBRARY_PATH:$HOME/${{ inputs.install-path }}/lib" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/${{ inputs.install-path }}/lib" >> $GITHUB_ENV
+          echo "$HOME/${{ inputs.install-path }}/bin" >> $GITHUB_PATH
       - name: install dependencies on Linux
         if: runner.os == 'Linux'
         run: |
@@ -57,11 +85,27 @@ jobs:
         with:
           path: ${{ env.pythonLocation }}
           key: test-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml', 'setup.*') }}
-      - name: install dependencies on Linux
-        if: runner.os == 'Linux'
+      - name: restore built PROJ
+        uses: actions/cache@v2
+        id: cache-proj
+        with:
+          path: ~/.local/proj
+          key: ${{ runner.os }}-proj-8.1.1-0
+      - name: build PROJ
+        shell: bash
+        if: steps.cache-proj.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get install libproj-dev proj-data proj-bin  
-          sudo apt-get install libgeos-dev
+          mkdir proj-build
+          curl https://download.osgeo.org/proj/proj-8.1.1.tar.gz | tar xzf - --strip-components=1 -C proj-build
+          pushd proj-build
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local/proj -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_IPO=ON -DENABLE_CURL=OFF -DBUILD_CCT:BOOL=OFF -DBUILD_CS2CS:BOOL=OFF -DBUILD_GEOD:BOOL=OFF \
+            -DBUILD_GIE:BOOL=OFF -DBUILD_PROJINFO:BOOL=OFF -DBUILD_PROJSYNC:BOOL=OFF -DBUILD_TESTING:BOOL=OFF
+          cmake --build . -j6
+          cmake --install .
+          popd
       - name: install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
