@@ -22,6 +22,11 @@ jobs:
         with:
           path: ${{ env.pythonLocation }}
           key: lint-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml', 'setup.*') }}
+      - name: install dependencies on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install libproj-dev proj-data proj-bin  
+          sudo apt-get install libgeos-dev
       - name: install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: pip install ".[development]"
