@@ -14,7 +14,7 @@ from pandas import DataFrame
 from pyproj.transformer import Transformer
 from scipy.spatial import KDTree
 from shapely.geometry import Point
-from stormevents import VortexTrack
+from stormevents.nhc import VortexTrack
 from typepigeon import convert_value
 import xarray
 from xarray import DataArray, Dataset
