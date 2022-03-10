@@ -54,7 +54,9 @@ jobs:
           key: test-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml', 'setup.*') }}
       - name: install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: pip install ".[testing]"
+        run: |
+          pip install wheel 
+          pip install ".[testing]"
       - name: run tests
         if: matrix.python-version != '3.x' || matrix.os != 'ubuntu-latest'
         run: pytest --numprocesses auto
