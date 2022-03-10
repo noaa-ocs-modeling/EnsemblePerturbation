@@ -2,11 +2,11 @@ from os import PathLike
 from pathlib import Path
 import pickle
 from typing import Union
-from sklearn.decomposition import PCA
 
 import geopandas
 from matplotlib import pyplot
 import numpy as np
+from sklearn.decomposition import PCA
 
 from ensembleperturbation.plotting.geometry import plot_points, plot_surface
 from ensembleperturbation.utilities import get_logger
@@ -15,7 +15,10 @@ LOGGER = get_logger('karhunen_loeve')
 
 
 def karhunen_loeve_expansion(
-    ymodel: np.ndarray, neig, method: Union[float, str] = None, output_directory: PathLike = None
+    ymodel: np.ndarray,
+    neig,
+    method: Union[float, str] = None,
+    output_directory: PathLike = None,
 ):
     if output_directory is not None and not isinstance(output_directory, Path):
         output_directory = Path(output_directory)
@@ -50,9 +53,9 @@ def karhunen_loeve_expansion(
         # evaluate weights and eigen values
         mean_vector = np.mean(ymodel, axis=1)
         covariance = np.cov(ymodel)
-    
+
         weights = trapezoidal_rule_weights(length=ngrid)
-    
+
         eigen_values, eigen_vectors = karhunen_loeve_eigen_values(
             covariance=covariance, weights=weights
         )
@@ -92,9 +95,9 @@ def karhunen_loeve_expansion(
             'eigenvalues': eigen_values[:neig],
             'neig': neig,
             'samples': xi[:, :neig],
-        }   
+        }
 
-    # plot the eigenvalues and KL modes, and save to file
+        # plot the eigenvalues and KL modes, and save to file
     if output_directory is not None:
         filename = output_directory / 'karhunen_loeve.pkl'
         with open(filename, 'wb') as kl_handle:
@@ -156,7 +159,7 @@ def karhunen_loeve_prediction(
     samples=None,
     actual_values=None,
     ensembles_to_plot=None,
-    element_table = None,
+    element_table=None,
     plot_directory: PathLike = None,
 ):
     """
@@ -184,11 +187,11 @@ def karhunen_loeve_prediction(
         axis.set_xlabel('actual')
         axis.set_ylabel('reconstructed')
         axis.title.set_text(f'KL fit for each ensemble')
-        
+
         xlim = axis.get_xlim()
         ylim = axis.get_ylim()
-        axis.set_xlim(min(xlim[0],ylim[0]),max(xlim[1],ylim[1]))
-        axis.set_ylim(min(xlim[0],ylim[0]),max(xlim[1],ylim[1]))
+        axis.set_xlim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
+        axis.set_ylim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
 
         figure.savefig(
             plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
@@ -204,7 +207,7 @@ def karhunen_loeve_prediction(
             ]
         )
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
-        vmin = min(0.0,np.round_(actual_values.quantile(0.02), decimals=1))
+        vmin = min(0.0, np.round_(actual_values.quantile(0.02), decimals=1))
         sources = {'actual': actual_values, 'reconstructed': kl_prediction}
         for example in ensembles_to_plot:
             figure = pyplot.figure()
@@ -224,7 +227,9 @@ def karhunen_loeve_prediction(
 
                 if element_table is None:
                     im = plot_points(
-                        np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
+                        np.vstack(
+                            (actual_values['x'], actual_values['y'], value[example, :])
+                        ).T,
                         axis=map_axis,
                         add_colorbar=False,
                         vmax=vmax,
@@ -234,11 +239,13 @@ def karhunen_loeve_prediction(
                     )
                 else:
                     im = plot_surface(
-                        points=np.vstack((actual_values['x'], actual_values['y'], value[example,:])).T,
+                        points=np.vstack(
+                            (actual_values['x'], actual_values['y'], value[example, :])
+                        ).T,
                         element_table=element_table.values,
                         axis=map_axis,
                         add_colorbar=False,
-                        levels = np.linspace(vmin,vmax,25+1),
+                        levels=np.linspace(vmin, vmax, 25 + 1),
                         extend='both',
                     )
 

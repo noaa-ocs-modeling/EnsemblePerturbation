@@ -1225,7 +1225,10 @@ class VortexPerturber:
 
         if quadrature:
             quadrature_nodes, quadrature_weights = chaospy.generate_quadrature(
-                order=quadrature_order, dist=distribution, rule=quadrature_rule, sparse=sparse_quadrature,
+                order=quadrature_order,
+                dist=distribution,
+                rule=quadrature_rule,
+                sparse=sparse_quadrature,
             )
 
             quadrature_run_names = [

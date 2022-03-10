@@ -11,13 +11,13 @@ from geopandas import GeoDataFrame
 import numpy
 import pandas
 from pandas import DataFrame
-from shapely.geometry import Point
 from pyproj.transformer import Transformer
 from scipy.spatial import KDTree
+from shapely.geometry import Point
+from stormevents import VortexTrack
 from typepigeon import convert_value
 import xarray
 from xarray import DataArray, Dataset
-from stormevents import VortexTrack
 
 from ensembleperturbation.perturbation.atcf import parse_vortex_perturbations
 from ensembleperturbation.utilities import get_logger
@@ -114,18 +114,18 @@ class AdcircOutput(ABC):
             dataset = dataset.assign_coords(
                 {'depth': dataset['depth'].isel(run=0).drop_vars('run')}
             )
-        
+
         if 'element' in dataset:
-            dataset = dataset.assign_coords( #subtract one from element table          
-                {'element': dataset['element'].isel(run=0).drop_vars('run')-1}
+            dataset = dataset.assign_coords(  # subtract one from element table
+                {'element': dataset['element'].isel(run=0).drop_vars('run') - 1}
             )
 
         if 'node' not in dataset:
             dataset = dataset.assign_coords({'node': dataset['node']})
-  
+
         if 'element' in dataset:
-            return dataset[variables].assign_coords({'element': dataset['element']})        
-        else: 
+            return dataset[variables].assign_coords({'element': dataset['element']})
+        else:
             return dataset[variables]
 
     @classmethod
@@ -356,7 +356,7 @@ class FieldOutput(AdcircOutput, ABC):
         **kwargs,
     ) -> Union[Dataset, DataArray]:
         subset = ~dataset['node'].isnull()
-   
+
         if wind_swath is not None:
             cyclone = wind_swath[0]
             isotach = wind_swath[1]
@@ -371,10 +371,10 @@ class FieldOutput(AdcircOutput, ABC):
             with dask.config.set(**{'array.slicing.split_large_chunks': True}):
                 geometry = geopandas.points_from_xy(dataset['x'].values, dataset['y'].values)
                 points = GeoDataFrame(
-                    {'lon': dataset['x'].values,'lat': dataset['y'].values},
+                    {'lon': dataset['x'].values, 'lat': dataset['y'].values},
                     geometry=geometry,
-                )  
-                inpoly = geopandas.tools.sjoin(points, polygon, predicate="within", how='left') 
+                )
+                inpoly = geopandas.tools.sjoin(points, polygon, predicate='within', how='left')
             subset = numpy.logical_and(subset, ~numpy.isnan(inpoly.index_right.values))
 
         if bounds is not None:
@@ -760,48 +760,53 @@ def combine_outputs(
 def subset_dataset(
     ds: Dataset,
     variable: str,
-    maximum_depth: float = None, 
+    maximum_depth: float = None,
     wind_swath: list = None,
     bounds: (float, float, float, float) = None,
     node_status_selection: dict = None,
     point_spacing: int = None,
     output_filename: PathLike = None,
 ):
-
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         if node_status_selection is None:
             node_status_mask = ~ds[variable].isnull()
         elif node_status_selection['mask'] == 'sometimes_wet':
-            node_status_mask = ~ds[variable].sel(run=node_status_selection['runs']).isnull().all('run'),
+            node_status_mask = (
+                ~ds[variable].sel(run=node_status_selection['runs']).isnull().all('run'),
+            )
         elif node_status_selection['mask'] == 'always_wet':
-            node_status_mask = ~ds[variable].sel(run=node_status_selection['runs']).isnull().any('run'),
+            node_status_mask = (
+                ~ds[variable].sel(run=node_status_selection['runs']).isnull().any('run'),
+            )
         else:
-            raise f'node_status_selection {node_status_selection["mask"]} unrecognized' 
+            raise f'node_status_selection {node_status_selection["mask"]} unrecognized'
 
-        node_subset_mask = FieldOutput.subset(
-            ds['node'], maximum_depth=maximum_depth, bounds=bounds, wind_swath=wind_swath,
-        ),
+        node_subset_mask = (
+            FieldOutput.subset(
+                ds['node'], maximum_depth=maximum_depth, bounds=bounds, wind_swath=wind_swath,
+            ),
+        )
         subsetted_nodes = ds['node'].values[
-            numpy.logical_and(node_status_mask,node_subset_mask).squeeze()
+            numpy.logical_and(node_status_mask, node_subset_mask).squeeze()
         ]
         if point_spacing is not None:
             subsetted_nodes = subsetted_nodes[::point_spacing]
         subset = ds.sel(node=subsetted_nodes)
-       
+
         # adjust element table if present
         if 'element' in subset:
             # keep only elements where all nodes are present
             elements = subset['element'].values
-            element_mask = numpy.isin(elements,subset['node'].values).all(axis=1)
+            element_mask = numpy.isin(elements, subset['node'].values).all(axis=1)
             elements = elements[element_mask]
             # map nodes in element table to local numbering system (start at 0)
-            node_mapper = numpy.zeros(subset['node'].max().values+1,dtype=int)
+            node_mapper = numpy.zeros(subset['node'].max().values + 1, dtype=int)
             node_index = numpy.arange(len(subset['node']))
             node_mapper[subset['node'].values] = node_index
             elements = node_mapper[elements]
             # update element table in dataset
             ele_da = DataArray(data=elements, dims=['nele', 'nvertex'])
-            subset = subset.assign_coords({'element': ele_da})        
+            subset = subset.assign_coords({'element': ele_da})
         try:
             subset = subset.drop_sel(run='original')
         except:
@@ -828,48 +833,47 @@ def extrapolate_water_elevation_to_dry_areas(
     u_ref: float = 0.4,
     d_ref: float = 1.0,
 ):
-
     # return a deep copy of original datarrary on output
-    da_adjusted = da.copy(deep=True) 
+    da_adjusted = da.copy(deep=True)
 
-    # Get coordinates in conformal projection (e.g,, Mercator) 
-    # for determining closest distance 
-    crs_from = 'EPSG:4326' # WGS84
-    crs_to   = 'EPSG:3857' # Mercator
+    # Get coordinates in conformal projection (e.g,, Mercator)
+    # for determining closest distance
+    crs_from = 'EPSG:4326'  # WGS84
+    crs_to = 'EPSG:3857'  # Mercator
     transformer = Transformer.from_crs(crs_from=crs_from, crs_to=crs_to, always_xy=True)
     x, y = transformer.transform(da['x'].values, da['y'].values)
     projected_coordinates = numpy.vstack([x, y]).T
 
     # for mapping back to node numbers
     nodes = numpy.arange(da.sizes['node'])
-  
+
     # compute the friction factor for headloss calculation:
-    # Rucker, et al. (2021). Natural Hazards. 
+    # Rucker, et al. (2021). Natural Hazards.
     # https://doi.org/10.1007/s11069-021-04634-8
-    if compute_headloss: 
-        friction_factor = (u_ref*mann_coef)**2/d_ref**(4/3)
+    if compute_headloss:
+        friction_factor = (u_ref * mann_coef) ** 2 / d_ref ** (4 / 3)
     else:
         friction_factor = 0.0
 
     # inverse distance weighting of order `idw_order` with `k_nearest` neighbors
     for run in range(da.sizes['run']):
-        null = numpy.isnan(da[run,:]) 
+        null = numpy.isnan(da[run, :])
         tree = KDTree(projected_coordinates[~null])
-        dd, nn = tree.query(projected_coordinates[null],k=k_neighbors)
+        dd, nn = tree.query(projected_coordinates[null], k=k_neighbors)
         if k_neighbors == 1:
-            headloss = dd*friction_factor # hydraulic friction loss
-            da_adjusted[run,null] = da[run, nodes[~null][nn]].values - headloss 
+            headloss = dd * friction_factor  # hydraulic friction loss
+            da_adjusted[run, null] = da[run, nodes[~null][nn]].values - headloss
         else:
             for kk in range(k_neighbors):
-                weights = dd[:,kk]**(-idw_order)
-                headloss = dd[:,kk]*friction_factor # hydraulic friction loss
-                total_head = da[run, nodes[~null][nn[:,kk]]].values - headloss
+                weights = dd[:, kk] ** (-idw_order)
+                headloss = dd[:, kk] * friction_factor  # hydraulic friction loss
+                total_head = da[run, nodes[~null][nn[:, kk]]].values - headloss
                 if kk == 0:
                     idw_sum = total_head * weights
                     weight_sum = weights
                 else:
                     idw_sum += total_head * weights
                     weight_sum += weights
-            da_adjusted[run,null] = idw_sum / weight_sum
-   
+            da_adjusted[run, null] = idw_sum / weight_sum
+
     return da_adjusted

@@ -96,7 +96,7 @@ def surrogate_from_samples(
     samples: xarray.DataArray,
     perturbations: xarray.DataArray,
     polynomials: numpoly.ndpoly,
-    regression_model: sklearn.linear_model, 
+    regression_model: sklearn.linear_model,
     norms: numpy.ndarray = None,
     quadrature: bool = False,
     quadrature_weights: xarray.DataArray = None,
@@ -159,7 +159,9 @@ def surrogate_from_training_set(
     filename: PathLike = None,
     use_quadrature: bool = False,
     polynomial_order: int = 3,
-    regression_model: sklearn.linear_model = sklearn.linear_model.LinearRegression(fit_intercept=False),
+    regression_model: sklearn.linear_model = sklearn.linear_model.LinearRegression(
+        fit_intercept=False
+    ),
 ) -> numpoly.ndpoly:
     """
     use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
@@ -193,7 +195,7 @@ def surrogate_from_training_set(
             norms=norms,
             quadrature=use_quadrature,
             quadrature_weights=training_perturbations['weights'] if use_quadrature else None,
-            regression_model=regression_model,    
+            regression_model=regression_model,
         )
 
         if filename is not None:
@@ -302,7 +304,7 @@ def validations_from_surrogate(
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
         if convert_from_log_scale:
             training_results = numpy.exp(training_results)
-        if isinstance(convert_from_depths,(float,numpy.ndarray)):
+        if isinstance(convert_from_depths, (float, numpy.ndarray)):
             training_results -= convert_from_depths
         if minimum_allowable_value is not None:
             # compare to adjusted depths if provided
@@ -310,7 +312,7 @@ def validations_from_surrogate(
             training_results[too_small] = numpy.nan
         if bool(convert_from_depths):
             training_results -= training_set['depth'].values
-        
+
         training_results = numpy.stack([training_set, training_results], axis=0)
         training_results = xarray.DataArray(
             training_results,
@@ -328,7 +330,7 @@ def validations_from_surrogate(
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
             if convert_from_log_scale:
                 node_validation = numpy.exp(node_validation)
-            if isinstance(convert_from_depths,(float,numpy.ndarray)):
+            if isinstance(convert_from_depths, (float, numpy.ndarray)):
                 node_validation -= convert_from_depths
             if minimum_allowable_value is not None:
                 too_small = node_validation < minimum_allowable_value
@@ -350,7 +352,7 @@ def validations_from_surrogate(
             )
             node_validation = node_validation.assign_coords(type=['training', 'validation'])
             node_validation = node_validation.to_dataset(name='results')
-        
+
         if element_table is not None:
             node_validation = node_validation.assign_coords({'element': element_table})
 
@@ -441,7 +443,7 @@ def percentiles_from_samples(
         },
         dims=('quantile', *(dim for dim in samples.dims if dim not in ['run', 'type'])),
     )
-            
+
     return surrogate_percentiles
 
 
@@ -489,10 +491,12 @@ def percentiles_from_surrogate(
             dim='run', q=surrogate_percentiles['quantile'] / 100
         )
 
-        if isinstance(convert_from_depths,(float,numpy.ndarray)):
+        if isinstance(convert_from_depths, (float, numpy.ndarray)):
             surrogate_percentiles -= convert_from_depths
         if minimum_allowable_value is not None:
-            too_small = (modeled_percentiles + training_set['depth']).values < minimum_allowable_value
+            too_small = (
+                modeled_percentiles + training_set['depth']
+            ).values < minimum_allowable_value
             modeled_percentiles.values[too_small] = numpy.nan
             too_small = surrogate_percentiles.values < minimum_allowable_value
             surrogate_percentiles.values[too_small] = numpy.nan
@@ -510,7 +514,7 @@ def percentiles_from_surrogate(
         node_percentiles = node_percentiles.assign(
             differences=numpy.fabs(surrogate_percentiles - modeled_percentiles)
         )
-        
+
         if element_table is not None:
             node_percentiles = node_percentiles.assign_coords({'element': element_table})
 

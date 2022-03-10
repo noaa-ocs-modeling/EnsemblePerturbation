@@ -19,7 +19,7 @@ from ensembleperturbation.plotting.utilities import colorbar_axis
 
 def get_validation_statistics(O, P, decimals):
     # pearson correlation coefficient
-    def corrcoef(O,P):
+    def corrcoef(O, P):
         MP = P.mean()
         MO = O.mean()
         PD2 = ((P - MP) ** 2).sum()
@@ -27,17 +27,17 @@ def get_validation_statistics(O, P, decimals):
         PDOD = ((P - MP) * (O - MO)).sum()
         corr = PDOD / (PD2 * OD2) ** 0.5
         if numpy.isnan(corr.values):
-            corr.values = 1.0 #0/0: perfect correlation
+            corr.values = 1.0  # 0/0: perfect correlation
         return corr
 
     # correlation coefficient
-    corr = corrcoef(O,P)
+    corr = corrcoef(O, P)
     # wet-dry correlation coefficient
-    OW = ~numpy.isnan(O) 
-    PW = ~numpy.isnan(P)  
-    corr_wd = corrcoef(OW,PW)
+    OW = ~numpy.isnan(O)
+    PW = ~numpy.isnan(P)
+    corr_wd = corrcoef(OW, PW)
     # mean bias
-    mb = (P - O).mean() 
+    mb = (P - O).mean()
     # mean absolute error
     mae = (abs(P - O)).mean()
     # root-mean-square error
@@ -167,14 +167,14 @@ def plot_scatter_comparison(
                 min_value = numpy.nanmax([x.min(), y.min()])
                 max_value = numpy.nanmin([x.max(), y.max()])
                 axis.plot([min_value, max_value], [min_value, max_value], '--k', alpha=0.3)
-            
+
             xlim = axis.get_xlim()
             ylim = axis.get_ylim()
 
-            lim_min = min(xlim[0],ylim[0])
-            lim_max = max(xlim[1],ylim[1])
-            axis.set_xlim(lim_min,lim_max)
-            axis.set_ylim(lim_min,lim_max)
+            lim_min = min(xlim[0], ylim[0])
+            lim_max = max(xlim[1], ylim[1])
+            axis.set_xlim(lim_min, lim_max)
+            axis.set_ylim(lim_min, lim_max)
 
             if statistics_text_offset > 0:
                 ratio = statistics_text_offset * 0.1
@@ -193,8 +193,6 @@ def plot_scatter_comparison(
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
 
     return figure, axes
-
-
 
 
 def plot_boxplot_comparison(
@@ -221,45 +219,50 @@ def plot_boxplot_comparison(
         figure.suptitle(title)
 
     axis = figure.add_subplot(subplot_integer)
-  
+
     num_runs = len(nodes['run'])
     rmse = numpy.empty(num_runs)
     corr = numpy.empty(num_runs)
-    mb   = numpy.empty(num_runs)
-    mae  = numpy.empty(num_runs)
+    mb = numpy.empty(num_runs)
+    mae = numpy.empty(num_runs)
     crwd = numpy.empty(num_runs)
     r = 0
     for run in nodes['run'].values:
         if not numpy.isnan(nodes.sel(run=run)).all():
             corr[r], mb[r], mae[r], rmse[r], crwd[r] = get_validation_statistics(
-                nodes.sel(source='model',run=run), 
-                nodes.sel(source='surrogate',run=run), 
+                nodes.sel(source='model', run=run),
+                nodes.sel(source='surrogate', run=run),
                 decimals=9,
             )
             r += 1
-       
-    c = 'gray' 
+
+    c = 'gray'
     c2 = 'black'
     colors = ['blue', 'red']
     box = axis.boxplot(
         [corr[0:r], crwd[0:r], mb[0:r], mae[0:r], rmse[0:r]],
-        whis=[5,95],showfliers=True,patch_artist=True,
-        widths=0.08,positions=[0.05, 0.2, 0.35, 0.5, 0.65],
+        whis=[5, 95],
+        showfliers=True,
+        patch_artist=True,
+        widths=0.08,
+        positions=[0.05, 0.2, 0.35, 0.5, 0.65],
         boxprops=dict(facecolor=c, color=c2, linewidth=0.25),
         whiskerprops=dict(color=c2, linewidth=1, linestyle='dashed'),
         medianprops=dict(color=c2, linewidth=1.5),
         capprops=dict(linewidth=1.5),
         flierprops=dict(marker='x', markerfacecolor=c2, markersize=2),
     )
-    for cdx,cap in enumerate(box['caps']):
-        cap.set(color=colors[numpy.mod(cdx,2)])
+    for cdx, cap in enumerate(box['caps']):
+        cap.set(color=colors[numpy.mod(cdx, 2)])
     for median in box['medians']:
         data = median.get_data()
-        axis.text(data[0][1],data[1][0],str(numpy.round(data[1][0],2)),ha='left',va='center')
+        axis.text(
+            data[0][1], data[1][0], str(numpy.round(data[1][0], 2)), ha='left', va='center'
+        )
 
     pyplot.grid(True)
-    pyplot.ylim([-1,1])
-    pyplot.xlim([-0.01,0.75])
+    pyplot.ylim([-1, 1])
+    pyplot.xlim([-0.01, 0.75])
     axis.title.set_text(f'{dataset_type}: {r} runs')
     axis.set_xticklabels(['CORR', 'CORR$_{w/d}$', 'MB [m]', 'MAE [m]', 'RMSE [m]'])
 
@@ -289,13 +292,17 @@ def plot_sensitivities(
 
     for order_index, order in enumerate(sensitivities['order']):
         for variable_index, variable in enumerate(sensitivities['variable']):
-            axis = figure.add_subplot(grid[order_index, variable_index]) #, projection=map_crs)
+            axis = figure.add_subplot(
+                grid[order_index, variable_index]
+            )  # , projection=map_crs)
             order_variable_sensitivities = sensitivities.sel(order=order, variable=variable)
 
             plot_node_map(
                 order_variable_sensitivities,
                 map_title=None,
-                colors=order_variable_sensitivities['sensitivities'] if 'element' not in sensitivities else None,
+                colors=order_variable_sensitivities['sensitivities']
+                if 'element' not in sensitivities
+                else None,
                 storm=storm,
                 map_axis=axis,
                 min_value=0,
@@ -318,7 +325,7 @@ def plot_sensitivities(
 
     colorbar_axis(
         normalization=Normalize(vmin=0, vmax=1),
-        axis=pyplot.axes([-1, 0.1, 3, 0.15]), 
+        axis=pyplot.axes([-1, 0.1, 3, 0.15]),
         orientation='horizontal',
         own_axis=True,
         color_map='plasma',
@@ -329,20 +336,19 @@ def plot_sensitivities(
 
 
 def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
-    
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
-    
+
     validation = validation['results']
     sources = validation['source'].values
 
     type_colors = {'training': 'b', 'validation': 'r'}
     fig_scatter = None
-    fig_boxplot = None 
+    fig_boxplot = None
     axes = None
-    ncols = min(len(validation['type']),2)
-    subplot_integer = math.ceil(len(validation['type'])/ncols)*100 + ncols*10 + 1
+    ncols = min(len(validation['type']), 2)
+    subplot_integer = math.ceil(len(validation['type']) / ncols) * 100 + ncols * 10 + 1
     for index, result_type in enumerate(validation['type'].values):
         result_validation = validation.sel(type=result_type)
         fig_scatter, axes = plot_scatter_comparison(
@@ -356,11 +362,11 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
             c=type_colors[result_type],
             label=result_type,
         )
-        
+
         fig_boxplot = plot_boxplot_comparison(
             result_validation,
             title=f'error statistics of surrogate model',
-            subplot_integer=subplot_integer+index,
+            subplot_integer=subplot_integer + index,
             figure=fig_boxplot,
         )
 
@@ -370,16 +376,16 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
 
     if output_directory is not None:
         fig_scatter.savefig(
-                output_directory / f'validation_scatter.png', dpi=200, bbox_inches='tight',
-        ) 
-        fig_boxplot.savefig(
-                output_directory / f'validation_boxplot.png', dpi=200, bbox_inches='tight',
+            output_directory / f'validation_scatter.png', dpi=200, bbox_inches='tight',
         )
+        fig_boxplot.savefig(
+            output_directory / f'validation_boxplot.png', dpi=200, bbox_inches='tight',
+        )
+
 
 def plot_selected_validations(
     validation: xarray.Dataset, run_list: list, output_directory: PathLike
 ):
-
     sources = validation['source'].values
     if output_directory is not None:
         if not isinstance(output_directory, Path):
@@ -415,18 +421,14 @@ def plot_selected_validations(
 
             points = numpy.vstack(
                 (
-                     validation['x'],
-                     validation['y'],
-                     validation.sel(type='validation', run=run, source=source).results,
+                    validation['x'],
+                    validation['y'],
+                    validation.sel(type='validation', run=run, source=source).results,
                 )
             ).T
             if 'element' not in validation:
                 im = plot_points(
-                    points=points,
-                    axis=map_axis,
-                    add_colorbar=False,
-                    vmax=vmax,
-                    vmin=vmin,
+                    points=points, axis=map_axis, add_colorbar=False, vmax=vmax, vmin=vmin,
                 )
             else:
                 im = plot_surface(
@@ -434,7 +436,7 @@ def plot_selected_validations(
                     element_table=validation['element'].values,
                     axis=map_axis,
                     add_colorbar=False,
-                    levels = numpy.linspace(vmin,vmax,25+1),
+                    levels=numpy.linspace(vmin, vmax, 25 + 1),
                     extend='both',
                 )
 
@@ -497,11 +499,7 @@ def plot_selected_percentiles(
             ).T
             if 'element' not in node_percentiles:
                 im = plot_points(
-                    points=points,
-                    axis=map_axis,
-                    add_colorbar=False,
-                    vmax=vmax,
-                    vmin=vmin,
+                    points=points, axis=map_axis, add_colorbar=False, vmax=vmax, vmin=vmin,
                 )
             else:
                 im = plot_surface(
@@ -509,7 +507,7 @@ def plot_selected_percentiles(
                     element_table=node_percentiles['element'].values,
                     axis=map_axis,
                     add_colorbar=False,
-                    levels = numpy.linspace(vmin,vmax,25+1),
+                    levels=numpy.linspace(vmin, vmax, 25 + 1),
                     extend='both',
                 )
 
@@ -537,7 +535,7 @@ def plot_kl_surrogate_fit(
     alim = [kl_fit.min(), kl_fit.max()]
     subplot_width = 3
     subplot_height = numpy.ceil(len(kl_fit['node']) / subplot_width).astype(int)
-    
+
     figure = pyplot.figure()
     figure.set_size_inches(11, 11 * subplot_height / 5 / 1.61803398875)
     figure.suptitle(f'comparison of surrogate for the KL samples')

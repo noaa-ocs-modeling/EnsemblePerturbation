@@ -4,8 +4,8 @@ import cartopy
 import geopandas
 from matplotlib import cm, gridspec, pyplot
 from matplotlib.axis import Axis
-from matplotlib.tri import Triangulation
 from matplotlib.colors import Colormap, LogNorm, Normalize
+from matplotlib.tri import Triangulation
 import numpy
 from stormevents.nhc import VortexTrack
 import xarray
@@ -189,7 +189,7 @@ def plot_node_map(
     if isinstance(colors, str) and map_title is not None:
         map_title = f'"{colors}" of {map_title}'
 
-    data_var_name = [i for i in nodes.data_vars] 
+    data_var_name = [i for i in nodes.data_vars]
     color_values, normalization, color_map, colors = node_color_map(
         nodes,
         colors=colors,
@@ -228,16 +228,25 @@ def plot_node_map(
 
     if 'element' in nodes:
         mesh_tri = Triangulation(
-            nodes.coords['x'], nodes.coords['y'], triangles=nodes.coords['element'], 
+            nodes.coords['x'],
+            nodes.coords['y'],
+            triangles=nodes.coords['element'],
             mask=numpy.isnan(nodes[data_var_name[0]][nodes.coords['element']]).any(axis=1),
         )
         levels = numpy.linspace(min_value, max_value, 26)
         map_axis.tricontourf(
-            mesh_tri, nodes[data_var_name[0]].values, levels=levels, cmap=color_map, #transform=map_crs,
+            mesh_tri,
+            nodes[data_var_name[0]].values,
+            levels=levels,
+            cmap=color_map,  # transform=map_crs,
         )
     else:
         map_axis.scatter(
-            x=nodes.coords['x'], y=nodes.coords['y'], c=colors, s=2, norm=normalization, #transform=map_crs,
+            x=nodes.coords['x'],
+            y=nodes.coords['y'],
+            c=colors,
+            s=2,
+            norm=normalization,  # transform=map_crs,
         )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])

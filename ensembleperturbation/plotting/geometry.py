@@ -148,7 +148,7 @@ def plot_points(
     sc = axis.scatter(points[:, 0], points[:, 1], **kwargs)
 
     if 'c' in kwargs and add_colorbar:
-        pyplot.colorbar(sc, shrink=.8, **cb_kwarg)
+        pyplot.colorbar(sc, shrink=0.8, **cb_kwarg)
 
     if title is not None:
         pyplot.title(title)
@@ -185,17 +185,19 @@ def plot_surface(
     """
 
     mesh_tri = tri.Triangulation(
-         points[:,0], points[:,1], triangles=element_table, 
-         mask=numpy.isnan(points[:,2][element_table]).any(axis=1),
+        points[:, 0],
+        points[:, 1],
+        triangles=element_table,
+        mask=numpy.isnan(points[:, 2][element_table]).any(axis=1),
     )
 
     if axis is None:
         axis = pyplot.gca()
- 
-    tc = axis.tricontourf(mesh_tri, points[:,2], **kwargs)
-    
+
+    tc = axis.tricontourf(mesh_tri, points[:, 2], **kwargs)
+
     if add_colorbar:
-        pyplot.colorbar(tc, shrink=.8)
+        pyplot.colorbar(tc, shrink=0.8)
 
     if title is not None:
         pyplot.title(title)

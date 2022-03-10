@@ -5,11 +5,14 @@ import chaospy
 import dask
 from matplotlib import pyplot
 import numpy
+from sklearn.linear_model import LassoCV
+from sklearn.model_selection import ShuffleSplit
 import xarray
-from sklearn.linear_model import LassoCV, LinearRegression
-from sklearn.model_selection import ShuffleSplit, LeaveOneOut, RepeatedKFold
 
-from ensembleperturbation.parsing.adcirc import FieldOutput, subset_dataset, extrapolate_water_elevation_to_dry_areas
+from ensembleperturbation.parsing.adcirc import (
+    extrapolate_water_elevation_to_dry_areas,
+    subset_dataset,
+)
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting.perturbation import plot_perturbations
 from ensembleperturbation.plotting.surrogate import (
@@ -38,23 +41,25 @@ if __name__ == '__main__':
     # KL parameters
     variance_explained = 0.99
     # subsetting parameters
-    isotach = 34 #-kt wind swath of the cyclone 
+    isotach = 34  # -kt wind swath of the cyclone
     depth_bounds = 50.0
     point_spacing = 10
     node_status_mask = 'sometimes_wet'
     # analysis type
     variable_name = 'zeta_max'
-    use_depth = True   # for depths (must be >= 0, use log-scale for analysis)
-    #use_depth = False   # for elevations
+    use_depth = True  # for depths (must be >= 0, use log-scale for analysis)
+    # use_depth = False   # for elevations
     training_runs = 'sobol'
     validation_runs = 'random'
     # PC parameters
     polynomial_order = 3
     cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
-    #cross_validator = RepeatedKFold(n_splits=5, n_repeats=10, random_state=666)
-    #cross_validator = LeaveOneOut()
-    regression_model = LassoCV(fit_intercept=False, cv=cross_validator, selection='random', random_state=666)
-    #regression_model = LinearRegression(fit_intercept=False)
+    # cross_validator = RepeatedKFold(n_splits=5, n_repeats=10, random_state=666)
+    # cross_validator = LeaveOneOut()
+    regression_model = LassoCV(
+        fit_intercept=False, cv=cross_validator, selection='random', random_state=666
+    )
+    # regression_model = LinearRegression(fit_intercept=False)
     if training_runs == 'quadrature':
         use_quadrature = True
     else:
@@ -104,14 +109,15 @@ if __name__ == '__main__':
 
     perturbations = datasets[filenames[0]]
     max_elevations = datasets[filenames[1]]
-    min_depth  = 0.8*max_elevations.h0 # the minimum allowable depth
+    min_depth = 0.8 * max_elevations.h0  # the minimum allowable depth
 
     perturbations = perturbations.assign_coords(
         type=(
             'run',
             (
                 numpy.where(
-                    perturbations['run'].str.contains(training_runs), 'training',
+                    perturbations['run'].str.contains(training_runs),
+                    'training',
                     numpy.where(
                         perturbations['run'].str.contains(validation_runs),
                         'validation',
@@ -151,11 +157,14 @@ if __name__ == '__main__':
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
         subset = subset_dataset(
-            ds=max_elevations, 
+            ds=max_elevations,
             variable=variable_name,
-            maximum_depth=depth_bounds, 
+            maximum_depth=depth_bounds,
             wind_swath=[storm_name, isotach],
-            node_status_selection={'mask': node_status_mask, 'runs': training_perturbations['run']},
+            node_status_selection={
+                'mask': node_status_mask,
+                'runs': training_perturbations['run'],
+            },
             point_spacing=point_spacing,
             output_filename=subset_filename,
         )
@@ -174,23 +183,25 @@ if __name__ == '__main__':
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
-    
-    # make an adjusted training set for dry areas.. 
+
+    # make an adjusted training set for dry areas..
     training_set_adjusted = extrapolate_water_elevation_to_dry_areas(
         da=training_set,
-        k_neighbors = 1,
-        idw_order = 1,
-        compute_headloss = True,
-        mann_coef = 0.05,
-        u_ref = 0.4,
-        d_ref = 1,
+        k_neighbors=1,
+        idw_order=1,
+        compute_headloss=True,
+        mann_coef=0.05,
+        u_ref=0.4,
+        d_ref=1,
     )
 
     if use_depth:
         # adjust training values so that they will always be positive for log space analysis
-        adjusted_min_depth = min_depth - training_set_adjusted.min() - training_set_adjusted['depth'].min()
+        adjusted_min_depth = (
+            min_depth - training_set_adjusted.min() - training_set_adjusted['depth'].min()
+        )
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            training_set_adjusted += (training_set_adjusted['depth'] + adjusted_min_depth)
+            training_set_adjusted += training_set_adjusted['depth'] + adjusted_min_depth
             training_set_adjusted = numpy.log(training_set_adjusted)
 
     # Evaluating the Karhunen-Loeve expansion
@@ -200,7 +211,9 @@ if __name__ == '__main__':
             f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
         )
         kl_expansion = karhunen_loeve_expansion(
-            training_set_adjusted.values, neig=variance_explained, method = 'PCA', 
+            training_set_adjusted.values,
+            neig=variance_explained,
+            method='PCA',
             output_directory=output_directory,
         )
     else:
