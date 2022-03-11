@@ -23,7 +23,7 @@ def test_monovariate_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', end_date=None, file_deck=ATCF_FileDeck.b,
+        storm='al062018', start_date='20180911', end_date=None, file_deck='b',
     )
 
     for filename in output_directory.iterdir():
@@ -52,7 +52,7 @@ def test_multivariate_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', end_date=None, file_deck=ATCF_FileDeck.b,
+        storm='al062018', start_date='20180911', end_date=None, file_deck='b',
     )
 
     # list of variables to perturb
@@ -96,6 +96,7 @@ def test_spatial_perturbations():
             directory=output_directory,
             storm='florence2018',
             variables=[variable],
+            file_deck='a',
             sample_from_distribution=True,
             quadrature=False,
             overwrite=True,
@@ -140,7 +141,7 @@ def test_original_file():
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
 
-    perturber = VortexPerturber(storm='al062018', start_date='20180911', end_date=None)
+    perturber = VortexPerturber(storm='al062018', start_date='20180911', file_deck='a', end_date=None)
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
@@ -164,5 +165,5 @@ def test_original_file():
 
     assert track_1 == reference_track
     assert track_2 == reference_track
-    assert track_3 == reference_track
-    assert track_4 == reference_track
+    assert track_3 != reference_track
+    assert track_4 != reference_track
