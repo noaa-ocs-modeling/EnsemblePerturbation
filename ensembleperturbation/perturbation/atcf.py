@@ -990,6 +990,33 @@ class VortexPerturber:
 
         self.__filename = None
 
+    @classmethod
+    def from_file(
+        cls, filename: PathLike, start_date: datetime = None, end_date: datetime = None
+    ) -> 'VortexPerturber':
+        """
+        build storm perturber from an existing `fort.22` or ATCF file
+
+        :param filename: file path to `fort.22` / ATCF file
+        :param start_date: start time of ensemble
+        :param end_date: end time of ensemble
+        """
+
+        track = VortexTrack.from_file(filename, start_date=start_date, end_date=end_date)
+        instance = VortexPerturber.from_track(track)
+        instance.__filename = filename
+        return instance
+
+    @classmethod
+    def from_track(cls, track: VortexTrack) -> 'VortexPerturber':
+        """
+        build storm perturber from an existing `VortexTrack` object
+
+        :param track: `VortexTrack` object
+        """
+
+        return cls(track.nhc_code, start_date=track.start_date, end_date=track.end_date)
+
     @property
     def storm(self) -> str:
         return self.__storm
@@ -1067,19 +1094,12 @@ class VortexPerturber:
                 is_equal = True
 
         if not is_equal:
-            if self.__filename is not None and self.__filename.exists():
-                if '.22' in self.__filename.suffix:
-                    self.__forcing = VortexTrack.from_file(
-                        self.__filename,
-                        start_date=configuration['start_date'],
-                        end_date=configuration['end_date'],
-                    )
-                else:
-                    self.__forcing = VortexTrack.from_file(
-                        self.__filename,
-                        start_date=configuration['start_date'],
-                        end_date=configuration['end_date'],
-                    )
+            if self.__filename is not None:
+                self.__forcing = VortexTrack.from_file(
+                    self.__filename,
+                    start_date=configuration['start_date'],
+                    end_date=configuration['end_date'],
+                )
             else:
                 self.__forcing = VortexTrack(**configuration)
             self.__previous_configuration = configuration
@@ -1531,27 +1551,6 @@ class VortexPerturber:
         DelP = Vmax ** 2 * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name] - DelP
         return pc
-
-    @classmethod
-    def from_file(
-        cls, filename: PathLike, start_date: datetime = None, end_date: datetime = None,
-    ):
-        """
-        build storm perturber from an existing `fort.22` or ATCF file
-
-        :param filename: file path to `fort.22` / ATCF file
-        :param start_date: start time of ensemble
-        :param end_date: end time of ensemble
-        """
-
-        if not isinstance(filename, Path):
-            filename = Path(filename)
-
-        vortex = VortexTrack.from_file(filename, start_date=start_date, end_date=end_date)
-
-        instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
-        instance.__filename = filename
-        return instance
 
 
 def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Distribution:

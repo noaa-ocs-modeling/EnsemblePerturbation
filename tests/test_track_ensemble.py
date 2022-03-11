@@ -1,8 +1,9 @@
 import os
 
 import numpy
-import pytest
+import pandas.testing
 from stormevents.nhc import VortexTrack
+from stormevents.nhc.atcf import ATCF_FIELDS
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -80,7 +81,6 @@ def test_multivariate_besttrack_ensemble():
     check_reference_directory(output_directory, reference_directory)
 
 
-@pytest.mark.skip
 def test_spatial_perturbations():
     output_directory = DATA_DIRECTORY / 'output' / 'test_spatial_perturbations'
 
@@ -97,7 +97,7 @@ def test_spatial_perturbations():
             directory=output_directory,
             storm='florence2018',
             variables=[variable],
-            file_deck='a',
+            file_deck='b',
             sample_from_distribution=True,
             quadrature=False,
             overwrite=True,
@@ -130,43 +130,52 @@ def test_spatial_perturbations():
 
 def test_original_file():
     output_directory = DATA_DIRECTORY / 'output' / 'test_original_file'
-    reference_directory = DATA_DIRECTORY / 'reference' / 'test_original_file'
     run_1_directory = output_directory / 'run_1'
     run_2_directory = output_directory / 'run_2'
 
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    reference_track = VortexTrack.from_file(reference_directory / 'original.22')
+    original_track_0 = VortexTrack('al062018', start_date='20180911', file_deck='b')
+    original_track_0.to_file(output_directory / 'original.22')
 
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
 
-    perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', file_deck='a', end_date=None
+    perturber = VortexPerturber.from_file(
+        output_directory / 'original.22', start_date='20180911'
     )
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
+        perturbations=[1.0],
+        variables=gauss_variables,
+        directory=run_1_directory,
+        overwrite=True,
     )
-    track_1 = VortexTrack.from_file(run_1_directory / 'original.22')
+    original_track_1 = VortexTrack.from_file(run_1_directory / 'original.22')
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
+        perturbations=[1.0],
+        variables=gauss_variables,
+        directory=run_2_directory,
+        overwrite=True,
     )
-    track_2 = VortexTrack.from_file(run_1_directory / 'original.22')
+    original_track_2 = VortexTrack.from_file(run_2_directory / 'original.22')
 
     perturber.write(
-        perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_2_directory
+        perturbations=[1.0],
+        variables=range_variables,
+        directory=run_2_directory,
+        overwrite=True,
     )
-    track_3 = VortexTrack.from_file(run_2_directory / 'original.22')
+    original_track_3 = VortexTrack.from_file(run_2_directory / 'original.22')
 
-    perturber.write(
-        perturbations=[-1.0, 1.0], variables=range_variables, directory=run_2_directory
-    )
-    track_4 = VortexTrack.from_file(run_2_directory / 'original.22')
-
-    assert track_1 == reference_track
-    assert track_2 == reference_track
-    assert track_3 != reference_track
-    assert track_4 != reference_track
+    comparison_fields = [
+        field
+        for field in ATCF_FIELDS.values()
+        if field not in ['direction', 'speed', 'extra_values']
+    ]
+    original_data = original_track_0.data[comparison_fields].reset_index(drop=True)
+    pandas.testing.assert_frame_equal(original_track_1.data[comparison_fields], original_data)
+    pandas.testing.assert_frame_equal(original_track_2.data[comparison_fields], original_data)
+    pandas.testing.assert_frame_equal(original_track_3.data[comparison_fields], original_data)
