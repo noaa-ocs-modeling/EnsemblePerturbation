@@ -1,8 +1,8 @@
 import os
 
 import numpy
+import pytest
 from stormevents.nhc import VortexTrack
-from stormevents.nhc.atcf import ATCF_FileDeck
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -80,6 +80,7 @@ def test_multivariate_besttrack_ensemble():
     check_reference_directory(output_directory, reference_directory)
 
 
+@pytest.mark.skip
 def test_spatial_perturbations():
     output_directory = DATA_DIRECTORY / 'output' / 'test_spatial_perturbations'
 
@@ -141,7 +142,9 @@ def test_original_file():
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
 
-    perturber = VortexPerturber(storm='al062018', start_date='20180911', file_deck='a', end_date=None)
+    perturber = VortexPerturber(
+        storm='al062018', start_date='20180911', file_deck='a', end_date=None
+    )
 
     perturber.write(
         perturbations=[-1.0, 1.0], variables=gauss_variables, directory=run_1_directory
