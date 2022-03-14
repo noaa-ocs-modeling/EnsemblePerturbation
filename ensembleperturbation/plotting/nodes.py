@@ -5,6 +5,7 @@ import geopandas
 from matplotlib import cm, gridspec, pyplot
 from matplotlib.axis import Axis
 from matplotlib.colors import Colormap, LogNorm, Normalize
+from matplotlib.tri import Triangulation
 import numpy
 from stormevents.nhc import VortexTrack
 import xarray
@@ -20,12 +21,12 @@ def node_color_map(
     logarithmic: bool = False,
 ) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
     if colors is None:
-        color_map = cm.get_cmap('jet')
+        color_map = cm.get_cmap('plasma')
         color_values = numpy.arange(len(nodes['node']))
         normalization = Normalize(vmin=numpy.min(color_values), vmax=numpy.max(color_values))
         colors = color_map(normalization(color_values))
     elif isinstance(colors, str):
-        color_map = cm.get_cmap('jet')
+        color_map = cm.get_cmap('plasma')
         color_values = nodes[colors]
         if len(color_values.dims) > 1:
             color_values = color_values.mean(
@@ -45,7 +46,7 @@ def node_color_map(
     else:
         colors = numpy.array(colors)
 
-        color_map = cm.get_cmap('jet')
+        color_map = cm.get_cmap('plasma')
         if min_value is None:
             min_value = numpy.nanmin(colors)
         if max_value is None:
@@ -188,6 +189,7 @@ def plot_node_map(
     if isinstance(colors, str) and map_title is not None:
         map_title = f'"{colors}" of {map_title}'
 
+    data_var_name = [i for i in nodes.data_vars]
     color_values, normalization, color_map, colors = node_color_map(
         nodes,
         colors=colors,
@@ -222,11 +224,30 @@ def plot_node_map(
         )
 
         if storm.name is not None:
-            map_axis.legend()
+            map_axis.legend(fontsize=6)
 
-    map_axis.scatter(
-        x=nodes['x'], y=nodes['y'], c=colors, s=2, norm=normalization, transform=map_crs,
-    )
+    if 'element' in nodes:
+        mesh_tri = Triangulation(
+            nodes.coords['x'],
+            nodes.coords['y'],
+            triangles=nodes.coords['element'],
+            mask=numpy.isnan(nodes[data_var_name[0]][nodes.coords['element']]).any(axis=1),
+        )
+        levels = numpy.linspace(min_value, max_value, 26)
+        map_axis.tricontourf(
+            mesh_tri,
+            nodes[data_var_name[0]].values,
+            levels=levels,
+            cmap=color_map,  # transform=map_crs,
+        )
+    else:
+        map_axis.scatter(
+            x=nodes.coords['x'],
+            y=nodes.coords['y'],
+            c=colors,
+            s=2,
+            norm=normalization,  # transform=map_crs,
+        )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])

@@ -5,9 +5,14 @@ import chaospy
 import dask
 from matplotlib import pyplot
 import numpy
+from sklearn.linear_model import LassoCV
+from sklearn.model_selection import ShuffleSplit
 import xarray
 
-from ensembleperturbation.parsing.adcirc import FieldOutput
+from ensembleperturbation.parsing.adcirc import (
+    extrapolate_water_elevation_to_dry_areas,
+    subset_dataset,
+)
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting.perturbation import plot_perturbations
 from ensembleperturbation.plotting.surrogate import (
@@ -30,27 +35,35 @@ from ensembleperturbation.uncertainty_quantification.surrogate import (
 )
 from ensembleperturbation.utilities import get_logger
 
-LOGGER = get_logger('parse_karhunen_loeve')
+LOGGER = get_logger('karhunen_loeve_polynomial_chaos')
 
 if __name__ == '__main__':
     # KL parameters
     variance_explained = 0.99
     # subsetting parameters
-    subset_bounds = (-81, 32, -75, 37)
-    depth_bounds = 25.0
+    isotach = 34  # -kt wind swath of the cyclone
+    depth_bounds = 50.0
     point_spacing = 10
+    node_status_mask = 'sometimes_wet'
     # analysis type
-    # use_depth = True   # for depths (must be >= 0)
-    use_depth = False  # for elevations
+    variable_name = 'zeta_max'
+    use_depth = True  # for depths (must be >= 0, use log-scale for analysis)
+    # use_depth = False   # for elevations
     training_runs = 'sobol'
-    validation_runs = 'latin_hypercube'
+    validation_runs = 'random'
     # PC parameters
     polynomial_order = 3
+    cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
+    # cross_validator = RepeatedKFold(n_splits=5, n_repeats=10, random_state=666)
+    # cross_validator = LeaveOneOut()
+    regression_model = LassoCV(
+        fit_intercept=False, cv=cross_validator, selection='random', random_state=666
+    )
+    # regression_model = LinearRegression(fit_intercept=False)
     if training_runs == 'quadrature':
         use_quadrature = True
     else:
         use_quadrature = False
-    print(f'use_quad: {use_quadrature}')
 
     make_perturbations_plot = True
     make_klprediction_plot = True
@@ -94,8 +107,9 @@ if __name__ == '__main__':
         else:
             raise FileNotFoundError(filename.name)
 
-    perturbations = datasets['perturbations.nc']
-    max_elevations = datasets['maxele.63.nc']
+    perturbations = datasets[filenames[0]]
+    max_elevations = datasets[filenames[1]]
+    min_depth = 0.8 * max_elevations.h0  # the minimum allowable depth
 
     perturbations = perturbations.assign_coords(
         type=(
@@ -139,48 +153,56 @@ if __name__ == '__main__':
         )
     )
 
-    # sample based on subset and always wet locations
-    values = max_elevations['zeta_max']
+    # sample based on subset and excluding points that are never wet during training run
     if not subset_filename.exists():
         LOGGER.info('subsetting nodes')
-        num_nodes = len(values['node'])
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            subsetted_nodes = values['node'].where(
-                numpy.logical_and(
-                    ~values.isnull().any('run'),
-                    FieldOutput.subset(
-                        values['node'], maximum_depth=depth_bounds, bounds=subset_bounds
-                    ),
-                ),
-                drop=True,
-            )
-            subsetted_nodes = subsetted_nodes[::point_spacing]
-            subset = values.sel(node=subsetted_nodes)
-            try:
-                subset = subset.drop_sel(run='original')
-            except:
-                pass
-        if len(subset['node']) != num_nodes:
-            LOGGER.info(
-                f'subsetted down to {len(subset["node"])} nodes ({len(subset["node"]) / num_nodes:.1%})'
-            )
-        LOGGER.info(f'saving subset to "{subset_filename}"')
-        subset.to_netcdf(subset_filename)
+        subset = subset_dataset(
+            ds=max_elevations,
+            variable=variable_name,
+            maximum_depth=depth_bounds,
+            wind_swath=[storm_name, isotach],
+            node_status_selection={
+                'mask': node_status_mask,
+                'runs': training_perturbations['run'],
+            },
+            point_spacing=point_spacing,
+            output_filename=subset_filename,
+        )
 
     # subset chunking can be disturbed by point_spacing so load from saved filename always
     LOGGER.info(f'loading subset from "{subset_filename}"')
-    subset = xarray.open_dataset(subset_filename)[values.name]
+    subset = xarray.open_dataset(subset_filename)
+    if 'element' in subset:
+        elements = subset['element']
+    subset = subset[variable_name]
 
+    # divide subset into training/validation runs
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        training_set = (
-            subset.sel(run=training_perturbations['run']) + subset['depth'] * use_depth
-        )
-        validation_set = (
-            subset.sel(run=validation_perturbations['run']) + subset['depth'] * use_depth
-        )
+        training_set = subset.sel(run=training_perturbations['run'])
+        validation_set = subset.sel(run=validation_perturbations['run'])
 
     LOGGER.info(f'total {training_set.shape} training samples')
     LOGGER.info(f'total {validation_set.shape} validation samples')
+
+    # make an adjusted training set for dry areas..
+    training_set_adjusted = extrapolate_water_elevation_to_dry_areas(
+        da=training_set,
+        k_neighbors=1,
+        idw_order=1,
+        compute_headloss=True,
+        mann_coef=0.05,
+        u_ref=0.4,
+        d_ref=1,
+    )
+
+    if use_depth:
+        # adjust training values so that they will always be positive for log space analysis
+        adjusted_min_depth = (
+            min_depth - training_set_adjusted.min() - training_set_adjusted['depth'].min()
+        )
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            training_set_adjusted += training_set_adjusted['depth'] + adjusted_min_depth
+            training_set_adjusted = numpy.log(training_set_adjusted)
 
     # Evaluating the Karhunen-Loeve expansion
     nens, ngrid = training_set.shape
@@ -189,23 +211,26 @@ if __name__ == '__main__':
             f'Evaluating Karhunen-Loeve expansion from {ngrid} grid nodes and {nens} ensemble members'
         )
         kl_expansion = karhunen_loeve_expansion(
-            training_set.values.T, neig=variance_explained, output_directory=output_directory,
+            training_set_adjusted.values,
+            neig=variance_explained,
+            method='PCA',
+            output_directory=output_directory,
         )
     else:
         LOGGER.info(f'loading Karhunen-Loeve expansion from "{kl_filename}"')
         with open(kl_filename, 'rb') as kl_handle:
             kl_expansion = pickle.load(kl_handle)
 
-    neig = len(kl_expansion['eigenvalues'])  # number of eigenvalues
-    LOGGER.info(f'found {neig} Karhunen-Loeve modes')
+    LOGGER.info(f'found {kl_expansion["neig"]} Karhunen-Loeve modes')
     LOGGER.info(f'Karhunen-Loeve expansion: {list(kl_expansion)}')
 
     # plot prediction versus actual simulated
     if make_klprediction_plot:
         kl_predicted = karhunen_loeve_prediction(
             kl_dict=kl_expansion,
-            actual_values=training_set.T,
+            actual_values=training_set_adjusted,
             ensembles_to_plot=[0, int(nens / 2), nens - 1],
+            element_table=elements if point_spacing is None else None,
             plot_directory=output_directory,
         )
 
@@ -218,6 +243,7 @@ if __name__ == '__main__':
         filename=kl_surrogate_filename,
         use_quadrature=use_quadrature,
         polynomial_order=polynomial_order,
+        regression_model=regression_model,
     )
 
     # plot kl surrogate model versus training set
@@ -249,6 +275,7 @@ if __name__ == '__main__':
             distribution=distribution,
             variables=perturbations['variable'],
             nodes=subset,
+            element_table=elements if point_spacing is None else None,
             filename=sensitivities_filename,
         )
         plot_sensitivities(
@@ -264,13 +291,16 @@ if __name__ == '__main__':
             training_perturbations=training_perturbations,
             validation_set=validation_set,
             validation_perturbations=validation_perturbations,
-            enforce_positivity=use_depth,
+            convert_from_log_scale=use_depth,
+            convert_from_depths=adjusted_min_depth.values if use_depth else None,
+            minimum_allowable_value=min_depth if use_depth else None,
+            element_table=elements if point_spacing is None else None,
             filename=validation_filename,
         )
 
         plot_validations(
             validation=node_validation,
-            output_filename=output_directory / 'validation.png' if save_plots else None,
+            output_directory=output_directory if save_plots else None,
         )
 
         plot_selected_validations(
@@ -288,7 +318,10 @@ if __name__ == '__main__':
             distribution=distribution,
             training_set=validation_set,
             percentiles=percentiles,
-            enforce_positivity=use_depth,
+            convert_from_log_scale=use_depth,
+            convert_from_depths=adjusted_min_depth.values if use_depth else None,
+            minimum_allowable_value=min_depth if use_depth else None,
+            element_table=elements if point_spacing is None else None,
             filename=percentile_filename,
         )
 

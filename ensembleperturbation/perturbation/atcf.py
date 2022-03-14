@@ -33,6 +33,7 @@ from stormevents.nhc.atcf import ATCF_FileDeck, ATCF_Mode
 import typepigeon
 import xarray
 from xarray import Dataset
+from scipy.special import erfinv
 
 from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
@@ -1096,7 +1097,11 @@ class VortexPerturber:
         directory: PathLike = None,
         sample_from_distribution: bool = False,
         sample_rule: str = 'random',
+        sample_division_fraction: float = 0.99,
         quadrature: bool = False,
+        quadrature_order: int = 3,
+        quadrature_rule: str = 'Gaussian',
+        sparse_quadrature: bool = False,
         weights: List[float] = None,
         overwrite: bool = False,
         continue_numbering: bool = False,
@@ -1108,8 +1113,12 @@ class VortexPerturber:
         :param directory: directory to which to write
         :param sample_from_distribution: override given perturbations with random samples from the joint distribution
         :param sample_rule: rule to use for the distribution sampling. Please choose from:
-               ``random`` [default], ``sobol``, ``halton``, ``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
+               ``random`` [default], ``sobol``, ``halton``, ``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``, ``equal_division``
+        :param sample_division_fraction: the fraction of the distribution to cover for ``equal_division`` sampling option
         :param quadrature: add perturbations along quadrature
+        :param quadrature_order: order of the quadrature
+        :param quadrature_rule: rule of the quadrature for generating abscissas and weights
+        :param sparse_quadrature: use Smolyak’s sparse grid instead of normal tensor product grid
         :param weights: weights to use with perturbations
         :param overwrite: overwrite existing files
         :param continue_numbering: continue the existing numbering scheme if files already exist in the output directory
@@ -1204,12 +1213,14 @@ class VortexPerturber:
 
         if sample_from_distribution:
             # overwrite given perturbations with random samples from joint distribution
-            if len(variables) == 1:
-                random_sample = distribution.sample(
-                    num_perturbations, rule=sample_rule
-                ).reshape(-1, 1)
+            if sample_rule == 'equal_division':
+                random_sample = equal_division_sample(distribution, num_perturbations, edge=sample_division_fraction)
             else:
-                random_sample = distribution.sample(num_perturbations, rule=sample_rule).T
+                random_sample = distribution.sample(num_perturbations, rule=sample_rule)
+            if len(variables) == 1:
+                random_sample = random_sample.reshape(-1, 1)
+            else:
+                random_sample = random_sample.T
 
             perturbations[0] = xarray.DataArray(
                 random_sample,
@@ -1219,7 +1230,10 @@ class VortexPerturber:
 
         if quadrature:
             quadrature_nodes, quadrature_weights = chaospy.generate_quadrature(
-                order=3, dist=distribution, rule='Gaussian',
+                order=quadrature_order,
+                dist=distribution,
+                rule=quadrature_rule,
+                sparse=sparse_quadrature,
             )
 
             quadrature_run_names = [
@@ -1556,7 +1570,7 @@ class VortexPerturber:
                 filename, start_date=start_date, end_date=end_date
             )
 
-        instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
+        instance = cls(vortex.data, start_date=start_date, end_date=end_date)
         instance.__filename = filename
         return instance
 
@@ -1571,6 +1585,34 @@ def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Dis
         variables = [variable() for variable in VortexPerturbedVariable.__subclasses__()]
 
     return chaospy.J(*(variable.chaospy_distribution() for variable in variables))
+
+def equal_division_sample(distribution: Distribution, num_perturbations: int, edge: float = 0.99):
+    """
+    :param variables: names of perturbed variables
+    :param num_perturbations: number of samples to retrieve
+    :return: samples
+    """
+   
+    # get the edge percentile uniform distribution
+    sample_uniform = numpy.linspace(-edge,+edge,num_perturbations,endpoint=True)
+    # Transform the uniform dimension into gaussian
+    sample_gaussian = erfinv(sample_uniform)*sqrt(2) 
+
+    # use ordering from korobov samples
+    korobov_samples = chaospy.create_korobov_samples(num_perturbations, len(distribution)) 
+    samples_order = numpy.argsort(korobov_samples)
+
+    # add the magnitudes here
+    samples = numpy.empty(samples_order.shape)
+    for dx, dist in enumerate(distribution):
+        if isinstance(dist,chaospy.Normal):
+            samples[dx,:] = sample_gaussian[samples_order[dx,:]]
+        elif isinstance(dist,chaospy.Uniform):
+            samples[dx,:] = sample_uniform[samples_order[dx,:]]
+        else:
+            raise f'distribution {dist} not implemented'
+
+    return samples
 
 
 def utm_crs_from_longitude(longitude: float) -> CRS:
@@ -1717,6 +1759,9 @@ def perturb_tracks(
     sample_from_distribution: bool = False,
     sample_rule: str = 'random',
     quadrature: bool = False,
+    quadrature_order: int = 3,
+    quadrature_rule: str = 'Gaussian',
+    sparse_quadrature: bool = False,
     start_date: datetime = None,
     end_date: datetime = None,
     file_deck: ATCF_FileDeck = None,
@@ -1736,6 +1781,9 @@ def perturb_tracks(
     :param sample_rule: rule to use for the distribution sampling. Please choose from:
            ``random`` [default], ``sobol``, ``halton``,``hammersley``, ``korobov``, ``additive_recursion``, or ``latin_hypercube``
     :param quadrature: add perturbations along quadrature
+    :param quadrature_order: order of the quadrature
+    :param quadrature_rule: rule of the quadrature for generating abscissas and weights
+    :param sparse_quadrature: use Smolyak’s sparse grid instead of normal tensor product grid
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
     :param file_deck: letter of file deck, one of `a`, `b`
@@ -1784,6 +1832,9 @@ def perturb_tracks(
         sample_from_distribution=sample_from_distribution,
         sample_rule=sample_rule,
         quadrature=quadrature,
+        quadrature_order=quadrature_order,
+        quadrature_rule=quadrature_rule,
+        sparse_quadrature=sparse_quadrature,
         overwrite=overwrite,
         parallel=parallel,
     )

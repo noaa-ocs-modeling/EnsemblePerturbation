@@ -6,21 +6,25 @@ from typing import Union
 import geopandas
 from matplotlib import pyplot
 import numpy as np
+from sklearn.decomposition import PCA
 
-from ensembleperturbation.plotting.geometry import plot_points
+from ensembleperturbation.plotting.geometry import plot_points, plot_surface
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('karhunen_loeve')
 
 
 def karhunen_loeve_expansion(
-    ymodel, neig: Union[int, float] = None, output_directory: PathLike = None
+    ymodel: np.ndarray,
+    neig,
+    method: Union[float, str] = None,
+    output_directory: PathLike = None,
 ):
     if output_directory is not None and not isinstance(output_directory, Path):
         output_directory = Path(output_directory)
 
     # get the shape of the data
-    ngrid, nens = ymodel.shape
+    nens, ngrid = ymodel.shape
 
     if neig is None:
         neig = ngrid
@@ -29,60 +33,71 @@ def karhunen_loeve_expansion(
     elif isinstance(neig, float):
         assert neig <= 1.0 and neig >= 0.0, 'specify 0.0 <= neig <= 1.0'
 
-    # evaluate weights and eigen values
-    mean_vector = np.mean(ymodel, axis=1)
-    covariance = np.cov(ymodel)
+    if method == 'PCA':
+        LOGGER.info(f'Using sklearn PCA decomposition method')
+        # Using the scikit PCA (same as KL in discrete space)
+        pca_obj = PCA(n_components=neig, random_state=666, whiten=True)
+        pca_obj.fit(ymodel)
+        kl_dict = {
+            'mean_vector': pca_obj.mean_,
+            'modes': pca_obj.components_,
+            'eigenvalues': pca_obj.explained_variance_,
+            'neig': len(pca_obj.explained_variance_),
+            'samples': pca_obj.transform(ymodel),
+        }
 
-    weights = trapezoidal_rule_weights(length=ngrid)
-
-    eigen_values, eigen_vectors = karhunen_loeve_eigen_values(
-        covariance=covariance, weights=weights
-    )
-
-    # Karhunen–Loève modes ('principal directions')
-    modes = karhunen_loeve_modes(eigen_vectors=eigen_vectors, weights=weights)
-    eigen_values[eigen_values < 1.0e-14] = 1.0e-14
-
-    relative_diagonal = karhunen_loeve_relative_diagonal(
-        karhunen_loeve_modes=modes, eigen_values=eigen_values, covariance=covariance
-    )
-
-    xi = karhunen_loeve_coefficient_samples(
-        data=ymodel, eigen_values=eigen_values, eigen_vectors=eigen_vectors,
-    )
-
-    # re-ordering the matrices (mode-1 first)
-    xi = xi[:, ::-1]
-    modes = modes[:, ::-1]
-    eigen_values = eigen_values[::-1]
-
-    # get desired modes
-    if isinstance(neig, float):
-        # determine neig that make up neig decimal fraction of the variance explained
-        target = neig * sum(eigen_values)
-        eig_sum = 0
-        for neig in range(ngrid):
-            eig_sum = eig_sum + eigen_values[neig]
-            if eig_sum >= target:
-                break
-        xi = xi[:, :neig]
-        eigen_values = eigen_values[:neig]
-        modes = modes[:, :neig]
     else:
-        # get neig requested modes
-        xi = xi[:, :neig]
-        eigen_values = eigen_values[:neig]
-        modes = modes[:, :neig]
+        LOGGER.info(f'Using native KL decomposition method')
+        ymodel = ymodel.T
 
-    # form into KL dictionary
-    kl_dict = {
-        'mean_vector': mean_vector,
-        'modes': modes,
-        'eigenvalues': eigen_values,
-        'samples': xi,
-    }
+        # evaluate weights and eigen values
+        mean_vector = np.mean(ymodel, axis=1)
+        covariance = np.cov(ymodel)
 
-    # plot the eigenvalues and KL modes, and save to file
+        weights = trapezoidal_rule_weights(length=ngrid)
+
+        eigen_values, eigen_vectors = karhunen_loeve_eigen_values(
+            covariance=covariance, weights=weights
+        )
+
+        # Karhunen–Loève modes ('principal directions')
+        modes = karhunen_loeve_modes(eigen_vectors=eigen_vectors, weights=weights)
+        eigen_values[eigen_values < 1.0e-14] = 1.0e-14
+        #
+        relative_diagonal = karhunen_loeve_relative_diagonal(
+            karhunen_loeve_modes=modes, eigen_values=eigen_values, covariance=covariance
+        )
+        #
+        xi = karhunen_loeve_coefficient_samples(
+            data=ymodel, eigen_values=eigen_values, eigen_vectors=eigen_vectors,
+        )
+        #
+        # re-ordering the matrices (mode-1 first)
+        xi = xi[:, ::-1]
+        modes = modes[:, ::-1]
+        eigen_values = eigen_values[::-1]
+
+        # get desired modes
+        if isinstance(neig, float):
+            # determine neig that make up neig decimal fraction of the variance explained
+            target = neig * sum(eigen_values)
+            eig_sum = 0
+            for neig in range(ngrid):
+                eig_sum = eig_sum + eigen_values[neig]
+                if eig_sum >= target:
+                    break
+            neig = neig + 1
+
+        # form into KL dictionary
+        kl_dict = {
+            'mean_vector': mean_vector,
+            'modes': modes[:, :neig].T,
+            'eigenvalues': eigen_values[:neig],
+            'neig': neig,
+            'samples': xi[:, :neig],
+        }
+
+        # plot the eigenvalues and KL modes, and save to file
     if output_directory is not None:
         filename = output_directory / 'karhunen_loeve.pkl'
         with open(filename, 'wb') as kl_handle:
@@ -92,7 +107,7 @@ def karhunen_loeve_expansion(
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
 
-        axis.plot(range(1, neig + 1), eigen_values, 'o-')
+        axis.plot(range(1, kl_dict['neig'] + 1), kl_dict['eigenvalues'], 'o-')
 
         axis.set_xlabel('x')
         axis.set_ylabel('Eigenvalue')
@@ -133,7 +148,7 @@ def karhunen_loeve_pc_coefficients(
                 klpc_coefficients[z_index, coef_index] += (
                     pc_coefficients[mode_index, coef_index]
                     * np.sqrt(kl_dict['eigenvalues'][mode_index])
-                    * kl_dict['modes'][z_index, mode_index]
+                    * kl_dict['modes'][mode_index, z_index]
                 )
 
     return klpc_coefficients  #: size (num_points, num_coefficients)
@@ -144,6 +159,7 @@ def karhunen_loeve_prediction(
     samples=None,
     actual_values=None,
     ensembles_to_plot=None,
+    element_table=None,
     plot_directory: PathLike = None,
 ):
     """
@@ -158,20 +174,24 @@ def karhunen_loeve_prediction(
         samples = kl_dict['samples']
 
     kl_prediction = kl_dict['mean_vector'] + np.dot(
-        np.dot(samples, np.diag(np.sqrt(kl_dict['eigenvalues']))), kl_dict['modes'].T
+        np.dot(samples, np.diag(np.sqrt(kl_dict['eigenvalues']))), kl_dict['modes']
     )
-    kl_prediction = kl_prediction.T
 
     if actual_values is not None:
         figure = pyplot.figure()
         axis = figure.add_subplot(1, 1, 1)
 
         # Plot to make sure kl_prediction and actual_values are close
-        axis.plot(actual_values, kl_prediction, '.')
+        axis.plot(actual_values.values.T, kl_prediction.T, '.', markersize=1)
 
         axis.set_xlabel('actual')
         axis.set_ylabel('reconstructed')
         axis.title.set_text(f'KL fit for each ensemble')
+
+        xlim = axis.get_xlim()
+        ylim = axis.get_ylim()
+        axis.set_xlim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
+        axis.set_ylim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
 
         figure.savefig(
             plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
@@ -187,6 +207,7 @@ def karhunen_loeve_prediction(
             ]
         )
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
+        vmin = min(0.0, np.round_(actual_values.quantile(0.02), decimals=1))
         sources = {'actual': actual_values, 'reconstructed': kl_prediction}
         for example in ensembles_to_plot:
             figure = pyplot.figure()
@@ -202,19 +223,36 @@ def karhunen_loeve_prediction(
                 )
                 map_axis.set_xlim((bounds[0], bounds[2]))
                 map_axis.set_ylim((bounds[1], bounds[3]))
-                xlim = map_axis.get_xlim()
-                ylim = map_axis.get_ylim()
                 countries.plot(color='lightgrey', ax=map_axis)
-                im = plot_points(
-                    np.vstack((actual_values['x'], actual_values['y'], value[:, example].T)).T,
-                    axis=map_axis,
-                    add_colorbar=False,
-                    vmax=vmax,
-                    vmin=0.0,
-                )
-                map_axis.set_xlim(xlim)
-                map_axis.set_ylim(ylim)
-            cbar = figure.colorbar(im, shrink=0.95, extend='max')
+
+                if element_table is None:
+                    im = plot_points(
+                        np.vstack(
+                            (actual_values['x'], actual_values['y'], value[example, :])
+                        ).T,
+                        axis=map_axis,
+                        add_colorbar=False,
+                        vmax=vmax,
+                        vmin=vmin,
+                        s=1,
+                        extend='both',
+                    )
+                else:
+                    im = plot_surface(
+                        points=np.vstack(
+                            (actual_values['x'], actual_values['y'], value[example, :])
+                        ).T,
+                        element_table=element_table.values,
+                        axis=map_axis,
+                        add_colorbar=False,
+                        levels=np.linspace(vmin, vmax, 25 + 1),
+                        extend='both',
+                    )
+
+            pyplot.subplots_adjust(wspace=0.02, right=0.96)
+            cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
+            cbar = figure.colorbar(im, extend='both', cax=cax)
+
             figure.savefig(
                 plot_directory / f'KL_ensemble{example}.png', dpi=200, bbox_inches='tight',
             )

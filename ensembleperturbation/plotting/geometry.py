@@ -1,7 +1,7 @@
 from os import PathLike
 from typing import Iterable, List, Union
 
-from matplotlib import pyplot
+from matplotlib import pyplot, tri
 from matplotlib.axis import Axis
 from matplotlib.cm import get_cmap
 import numpy
@@ -140,10 +140,15 @@ def plot_points(
     if 's' not in kwargs:
         kwargs['s'] = 2
 
+    cb_kwarg = {}
+    if 'extend' in kwargs:
+        cb_kwarg = {'extend': kwargs['extend']}
+        kwargs.pop('extend')
+
     sc = axis.scatter(points[:, 0], points[:, 1], **kwargs)
 
     if 'c' in kwargs and add_colorbar:
-        pyplot.colorbar(sc)
+        pyplot.colorbar(sc, shrink=0.8, **cb_kwarg)
 
     if title is not None:
         pyplot.title(title)
@@ -155,3 +160,52 @@ def plot_points(
         pyplot.show()
 
     return sc
+
+
+def plot_surface(
+    points: numpy.ndarray,
+    element_table: numpy.ndarray,
+    depth: numpy.ndarray = None,
+    axis: Axis = None,
+    show: bool = False,
+    save_filename: PathLike = None,
+    title: str = None,
+    add_colorbar: bool = True,
+    **kwargs,
+):
+    """
+    create a trisurface plot of the given points
+
+    :param points: N x 3 array of coordinates and heights
+    :param element_table: NE x 3 array for element table
+    :param axis: `pyplot` axis to plot to
+    :param show: whether to show the plot
+    :param save_filename: whether to save the plot
+    :param title: whether to add a title to the plot
+    """
+
+    mesh_tri = tri.Triangulation(
+        points[:, 0],
+        points[:, 1],
+        triangles=element_table,
+        mask=numpy.isnan(points[:, 2][element_table]).any(axis=1),
+    )
+
+    if axis is None:
+        axis = pyplot.gca()
+
+    tc = axis.tricontourf(mesh_tri, points[:, 2], **kwargs)
+
+    if add_colorbar:
+        pyplot.colorbar(tc, shrink=0.8)
+
+    if title is not None:
+        pyplot.title(title)
+
+    if save_filename is not None:
+        pyplot.savefig(save_filename)
+
+    if show:
+        pyplot.show()
+
+    return tc
