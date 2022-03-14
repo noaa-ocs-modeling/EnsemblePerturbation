@@ -971,12 +971,11 @@ class VortexPerturber:
         :param record_type: record type (i.e. `BEST`, `OFCL`)
         """
 
-        self.__storm = None
         self.__start_date = None
         self.__end_date = None
         self.__file_deck = None
         self.__mode = None
-        self.__forcing = None
+        self.__track = None
         self.__previous_configuration = None
 
         self.storm = storm
@@ -1013,15 +1012,24 @@ class VortexPerturber:
         :param track: `VortexTrack` object
         """
 
-        return cls(track.nhc_code, start_date=track.start_date, end_date=track.end_date)
-
-    @property
-    def storm(self) -> str:
-        return self.__storm
-
-    @storm.setter
-    def storm(self, storm: str):
-        self.__storm = storm
+        instance = cls(
+            track.nhc_code,
+            start_date=track.start_date,
+            end_date=track.end_date,
+            file_deck=track.file_deck,
+            mode=track.mode,
+            record_type=track.record_type,
+        )
+        instance.track = track
+        instance.__previous_configuration = {
+            'storm': track.nhc_code,
+            'start_date': track.start_date,
+            'end_date': track.end_date,
+            'file_deck': track.file_deck,
+            'mode': track.mode,
+            'record_type': track.record_type,
+        }
+        return instance
 
     @property
     def start_date(self) -> datetime:
@@ -1064,7 +1072,7 @@ class VortexPerturber:
         self.__mode = mode
 
     @property
-    def forcing(self) -> VortexTrack:
+    def track(self) -> VortexTrack:
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
@@ -1093,19 +1101,23 @@ class VortexPerturber:
 
         if not is_equal:
             if self.__filename is not None and self.__filename.exists():
-                self.__forcing = VortexTrack.from_file(
+                self.__track = VortexTrack.from_file(
                     self.__filename,
                     start_date=configuration['start_date'],
                     end_date=configuration['end_date'],
                 )
             else:
-                self.__forcing = VortexTrack(**configuration)
+                self.__track = VortexTrack(**configuration)
             self.__previous_configuration = configuration
 
-        if self.__forcing.nhc_code is not None:
-            self.__storm = self.__forcing.nhc_code
+        if self.__track.nhc_code is not None:
+            self.storm = self.__track.nhc_code
 
-        return self.__forcing
+        return self.__track
+
+    @track.setter
+    def track(self, track: VortexTrack):
+        self.__track = track
 
     def write(
         self,
@@ -1258,6 +1270,15 @@ class VortexPerturber:
                 )
             )
 
+        perturbations.append(
+            xarray.DataArray(
+                numpy.full((1, len(variables)), fill_value=0),
+                coords={'run': ['original'], 'variable': variable_names},
+                dims=('run', 'variable'),
+            )
+        )
+        weights.append(xarray.DataArray([1.0], coords={'run': ['original']}, dims=('run',)))
+
         perturbations = xarray.merge(
             [
                 xarray.combine_nested(perturbations, concat_dim='run').to_dataset(
@@ -1266,18 +1287,6 @@ class VortexPerturber:
                 xarray.combine_nested(weights, concat_dim='run').to_dataset(name='weights'),
             ]
         )
-
-        # write the original track file
-        if self.__filename is None:
-            self.__filename = directory / 'original.22'
-        if not self.__filename.parent.exists():
-            self.__filename.parent.mkdir(parents=True, exist_ok=True)
-        self.forcing.to_file(self.__filename, overwrite=True)
-        with open(self.__filename.parent / 'original.json', 'w') as original_perturbation_file:
-            json.dump(
-                {variable_name: 0 for variable_name in variable_names},
-                original_perturbation_file,
-            )
 
         LOGGER.info(f'writing {len(perturbations["run"])} perturbations')
 
@@ -1352,7 +1361,7 @@ class VortexPerturber:
         if not isinstance(filename, Path):
             filename = Path(filename)
 
-        dataframe = VortexTrack.from_file(self.__filename).data
+        dataframe = self.track.data.copy()
 
         variable_names = {
             **{
@@ -1408,7 +1417,7 @@ class VortexPerturber:
                 # Interpolate from the given VT to the storm_VT
 
                 # Get the historical forecasting errors from initial storm state (intensity or size)
-                historical_forecast_errors = variable.storm_errors(self.forcing.data)
+                historical_forecast_errors = variable.storm_errors(self.track.data)
                 try:
                     # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
                     historical_forecast_errors = historical_forecast_errors.pint.dequantify()
@@ -1515,12 +1524,12 @@ class VortexPerturber:
     @property
     def validation_times(self) -> List[timedelta]:
         """ get the validation time of storm """
-        return self.forcing.data['datetime'] - self.forcing.start_date
+        return self.track.data['datetime'] - self.track.start_date
 
     @property
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
-        dataframe = self.forcing.data
+        dataframe = self.track.data
         Vmax = dataframe[MaximumSustainedWindSpeed.name]
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
