@@ -5,7 +5,7 @@ from typing import List
 import chaospy
 import numpoly
 import numpy
-from sklearn.linear_model import BayesianRidge
+from sklearn.linear_model import BayesianRidge, LinearRegression, OrthogonalMatchingPursuit
 import xarray
 
 from ensembleperturbation.utilities import get_logger
