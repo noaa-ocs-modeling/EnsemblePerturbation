@@ -178,7 +178,7 @@ def plot_perturbations(
 
             bounds = numpy.array([None, None, None, None])
             for index, run in enumerate(runs):
-                storm = VortexTrack.from_fort22(track_filenames[run]).data
+                storm = VortexTrack.from_file(track_filenames[run]).data
                 points = storm.loc[:, ['longitude', 'latitude']].values.reshape(-1, 1, 2)
                 segments = numpy.concatenate([points[:-1], points[1:]], axis=1)
                 line_collection = LineCollection(

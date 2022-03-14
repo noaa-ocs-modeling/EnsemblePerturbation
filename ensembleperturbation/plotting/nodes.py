@@ -215,7 +215,7 @@ def plot_node_map(
     if storm is not None:
         if not isinstance(storm, VortexTrack):
             try:
-                storm = VortexTrack.from_fort22(storm)
+                storm = VortexTrack.from_file(storm)
             except FileNotFoundError:
                 storm = VortexTrack(storm)
 
