@@ -10,7 +10,6 @@ import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, uniform
-from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
 import warnings
 
@@ -19,7 +18,6 @@ from chaospy import Distribution
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
-import pandas
 from pandas import DataFrame
 from pandas.core.common import SettingWithCopyWarning
 import pint
@@ -1094,7 +1092,7 @@ class VortexPerturber:
                 is_equal = True
 
         if not is_equal:
-            if self.__filename is not None:
+            if self.__filename is not None and self.__filename.exists():
                 self.__forcing = VortexTrack.from_file(
                     self.__filename,
                     start_date=configuration['start_date'],
@@ -1260,15 +1258,6 @@ class VortexPerturber:
                 )
             )
 
-        perturbations.append(
-            xarray.DataArray(
-                numpy.full((1, len(variables)), fill_value=0),
-                coords={'run': ['original'], 'variable': variable_names},
-                dims=('run', 'variable'),
-            )
-        )
-        weights.append(xarray.DataArray([1.0], coords={'run': ['original']}, dims=('run',)))
-
         perturbations = xarray.merge(
             [
                 xarray.combine_nested(perturbations, concat_dim='run').to_dataset(
@@ -1278,22 +1267,24 @@ class VortexPerturber:
             ]
         )
 
-        # extract original dataframe
-        original_data = self.forcing.data
+        # write the original track file
         if self.__filename is None:
             self.__filename = directory / 'original.22'
+        if not self.__filename.parent.exists():
+            self.__filename.parent.mkdir(parents=True, exist_ok=True)
+        self.forcing.to_file(self.__filename, overwrite=True)
+        with open(self.__filename.parent / 'original.json', 'w') as original_perturbation_file:
+            json.dump(
+                {variable_name: 0 for variable_name in variable_names},
+                original_perturbation_file,
+            )
 
         LOGGER.info(f'writing {len(perturbations["run"])} perturbations')
 
         if parallel:
             process_pool = ProcessPoolExecutorStackTraced()
-            temporary_directory = TemporaryDirectory()
-            original_data_pickle_filename = Path(temporary_directory.name) / 'original_data.df'
-            original_data.to_pickle(original_data_pickle_filename)
         else:
             process_pool = None
-            temporary_directory = None
-            original_data_pickle_filename = None
 
         # for each variable, perturb the values and write each to a new `fort.22`
         futures = []
@@ -1327,15 +1318,12 @@ class VortexPerturber:
 
                 write_kwargs = {
                     'filename': output_filename,
-                    'dataframe': original_data,
                     'perturbation': perturbation_values,
                     'variables': copy(variable_names),
                     'weight': float(perturbation['weights'].values),
                 }
 
                 if parallel:
-                    write_kwargs['dataframe'] = original_data_pickle_filename
-
                     futures.append(
                         process_pool.submit(self.write_perturbed_track, **write_kwargs)
                     )
@@ -1352,15 +1340,11 @@ class VortexPerturber:
                 directory / (run_name + '.22') for run_name in perturbations['run'].values
             ]
 
-        if temporary_directory is not None:
-            temporary_directory.cleanup()
-
         return output_filenames
 
     def write_perturbed_track(
         self,
         filename: PathLike,
-        dataframe: DataFrame,
         perturbation: Dict[str, float],
         variables: List[VortexPerturbedVariable],
         weight: float = None,
@@ -1368,10 +1352,7 @@ class VortexPerturber:
         if not isinstance(filename, Path):
             filename = Path(filename)
 
-        if isinstance(dataframe, DataFrame):
-            dataframe = dataframe.copy(deep=True)
-        else:
-            dataframe = pandas.read_pickle(dataframe)
+        dataframe = VortexTrack.from_file(self.__filename).data
 
         variable_names = {
             **{
