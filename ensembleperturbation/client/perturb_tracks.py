@@ -40,26 +40,28 @@ def main():
     track_directory = arguments['output_directory'] / 'track_files'
     if not track_directory.exists():
         track_directory.mkdir(parents=True, exist_ok=True)
-    original_track_filename = track_directory / 'original.22'
 
-    if original_track_filename.exists():
-        storm = original_track_filename
-
-        vortex_forcing = BestTrackForcingJSON.from_fort22(
-            original_track_filename,
-            start_date=arguments['modeled_start_time'],
-            end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
-        )
-        arguments['forcings'].append(vortex_forcing)
-        for index, forcing in enumerate(arguments['forcings']):
-            if isinstance(forcing, BestTrackForcingJSON):
-                arguments['forcings'][index] = vortex_forcing
-                break
+    for forcing in arguments['forcings']:
+        if isinstance(forcing, BestTrackForcingJSON):
+            storm = forcing.adcircpy_forcing.nhc_code
+            break
     else:
-        for forcing in arguments['forcings']:
-            if isinstance(forcing, BestTrackForcingJSON):
-                storm = forcing.adcircpy_forcing.nhc_code
-                break
+        original_track_filename = track_directory / 'original.22'
+
+        if original_track_filename.exists():
+            storm = original_track_filename
+
+            vortex_forcing = BestTrackForcingJSON.from_fort22(
+                original_track_filename,
+                start_date=arguments['modeled_start_time'],
+                end_date=arguments['modeled_start_time'] + arguments['modeled_duration'],
+                nws=arguments['besttrack-nws'],
+            )
+            arguments['forcings'].append(vortex_forcing)
+            for index, forcing in enumerate(arguments['forcings']):
+                if isinstance(forcing, BestTrackForcingJSON):
+                    arguments['forcings'][index] = vortex_forcing
+                    break
         else:
             raise ValueError('no best track forcing specified')
 
