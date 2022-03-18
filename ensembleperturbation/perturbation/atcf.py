@@ -298,8 +298,8 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
         super().__init__(
-            lower_bound=25,
-            upper_bound=165,
+            lower_bound=15,
+            upper_bound=175,
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
