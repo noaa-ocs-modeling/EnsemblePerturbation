@@ -353,6 +353,7 @@ class FieldOutput(AdcircOutput, ABC):
         bounds: (float, float, float, float) = None,
         wind_swath: [str, int] = None,
         maximum_depth: float = None,
+        minimum_depth: float = None,
         **kwargs,
     ) -> Union[Dataset, DataArray]:
         subset = ~dataset['node'].isnull()
@@ -390,7 +391,11 @@ class FieldOutput(AdcircOutput, ABC):
 
         if maximum_depth is not None:
             LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
-            subset = numpy.logical_and(subset, dataset['depth'] < maximum_depth)
+            subset = numpy.logical_and(subset, dataset['depth'] <= maximum_depth)
+        
+        if minimum_depth is not None:
+            LOGGER.debug(f'filtering by minimum depth {minimum_depth}')
+            subset = numpy.logical_and(subset, dataset['depth'] >= minimum_depth)
 
         return subset
 
@@ -761,6 +766,7 @@ def subset_dataset(
     ds: Dataset,
     variable: str,
     maximum_depth: float = None,
+    minimum_depth: float = None,
     wind_swath: list = None,
     bounds: (float, float, float, float) = None,
     node_status_selection: dict = None,
@@ -769,7 +775,7 @@ def subset_dataset(
 ):
     with dask.config.set(**{'array.slicing.split_large_chunks': True}):
         if node_status_selection is None:
-            node_status_mask = ~ds[variable].isnull()
+            node_status_mask = None
         elif node_status_selection['mask'] == 'sometimes_wet':
             node_status_mask = (
                 ~ds[variable].sel(run=node_status_selection['runs']).isnull().all('run'),
@@ -783,9 +789,12 @@ def subset_dataset(
 
         node_subset_mask = (
             FieldOutput.subset(
-                ds['node'], maximum_depth=maximum_depth, bounds=bounds, wind_swath=wind_swath,
+                ds['node'], maximum_depth=maximum_depth, minimum_depth=minimum_depth, 
+                bounds=bounds, wind_swath=wind_swath,
             ),
         )
+        if node_status_mask is None:
+            node_status_mask = node_subset_mask
         subsetted_nodes = ds['node'].values[
             numpy.logical_and(node_status_mask, node_subset_mask).squeeze()
         ]
