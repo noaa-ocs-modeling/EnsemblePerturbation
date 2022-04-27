@@ -22,7 +22,7 @@ enable = true
 python = '^3.7'
 adcircpy = '>=1.1.0'
 appdirs = '*'
-beautifulsoup = '*'
+beautifulsoup4 = '*'
 cartopy = { version = '*', optional = true }
 chaospy = '*'
 cmocean = { version = '*', optional = true }
