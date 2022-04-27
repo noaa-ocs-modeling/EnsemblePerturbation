@@ -1,11 +1,11 @@
 from os import PathLike
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import chaospy
 import numpoly
 import numpy
-from sklearn.linear_model import BayesianRidge, LinearRegression, OrthogonalMatchingPursuit
+import sklearn
 import xarray
 
 from ensembleperturbation.utilities import get_logger
@@ -57,6 +57,7 @@ def surrogate_from_karhunen_loeve(
         kl_surrogate_model
     ), 'number of kl_dict eigenvalues must be equal to the length of the kl_surrogate_model'
 
+    LOGGER.info(f'transforming surrogate to {num_points} points from {num_modes} eigenmodes')
     if filename is None or not filename.exists():
         # get the coefficients of the PC for each point in z (spatiotemporal dimension)
         pc_exponents = kl_surrogate_model.exponents
@@ -66,7 +67,7 @@ def surrogate_from_karhunen_loeve(
                 [
                     numpy.dot(
                         (pc_coefficients * numpy.sqrt(eigenvalues))[:, mode_index, None],
-                        modes[None, :, mode_index],
+                        modes[None, mode_index, :],
                     )
                     for mode_index in range(num_modes)
                 ],
@@ -95,6 +96,7 @@ def surrogate_from_samples(
     samples: xarray.DataArray,
     perturbations: xarray.DataArray,
     polynomials: numpoly.ndpoly,
+    regression_model: sklearn.linear_model,
     norms: numpy.ndarray = None,
     quadrature: bool = False,
     quadrature_weights: xarray.DataArray = None,
@@ -130,17 +132,13 @@ def surrogate_from_samples(
             f'fitting polynomial surrogate to {samples.shape} samples using regression'
         )
         try:
-            ## Using sklearn tools...
-            # model = LinearRegression(fit_intercept=False)
-            # model = OrthogonalMatchingPursuit(fit_intercept=False)
-            model = BayesianRidge(fit_intercept=False)  # (same method as UQTk)
             poly_list = [None] * samples.shape[1]
             for mode in range(samples.shape[1]):
                 poly_list[mode] = chaospy.fit_regression(
                     polynomials=polynomials,
                     abscissas=perturbations.T,
                     evals=samples[:, mode],
-                    model=model,
+                    model=regression_model,
                 )
             surrogate_model = numpoly.polynomial(poly_list)
             ## Or just call this for default regression
@@ -161,6 +159,9 @@ def surrogate_from_training_set(
     filename: PathLike = None,
     use_quadrature: bool = False,
     polynomial_order: int = 3,
+    regression_model: sklearn.linear_model = sklearn.linear_model.LinearRegression(
+        fit_intercept=False
+    ),
 ) -> numpoly.ndpoly:
     """
     use ``chaospy`` to build a surrogate model from the given training set / perturbations and single / joint distribution
@@ -171,6 +172,7 @@ def surrogate_from_training_set(
     :param filename: path to file to store polynomial
     :param use_quadrature: assume that the variable perturbations and training set are built along a quadrature, and fit accordingly
     :param polynomial_order: order of the polynomial chaos expansion
+    :param regression_model: the scikit linear model to use to fit the polynomial regression [LinearRegression (OLS) by default]: https://scikit-learn.org/stable/modules/linear_model.html
     :return: polynomial
     """
 
@@ -186,12 +188,6 @@ def surrogate_from_training_set(
             retall=True,
         )
 
-        # if not use_quadrature:
-        #    training_shape = training_set.shape
-        #    training_set = training_set.sel(node=~training_set.isnull().any('run'))
-        #    if training_set.shape != training_shape:
-        #        LOGGER.info(f'dropped `NaN`s to {training_set.shape}')
-
         surrogate_model = surrogate_from_samples(
             samples=training_set,
             perturbations=training_perturbations['perturbations'],
@@ -199,6 +195,7 @@ def surrogate_from_training_set(
             norms=norms,
             quadrature=use_quadrature,
             quadrature_weights=training_perturbations['weights'] if use_quadrature else None,
+            regression_model=regression_model,
         )
 
         if filename is not None:
@@ -217,6 +214,7 @@ def sensitivities_from_surrogate(
     distribution: chaospy.Distribution,
     variables: [str],
     nodes: xarray.Dataset,
+    element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.DataArray:
     """
@@ -237,8 +235,8 @@ def sensitivities_from_surrogate(
         LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
 
         sensitivities = [
-            chaospy.Sens_t(surrogate_model, distribution),
             chaospy.Sens_m(surrogate_model, distribution),
+            chaospy.Sens_t(surrogate_model, distribution),
         ]
 
         sensitivities = numpy.stack(sensitivities)
@@ -246,7 +244,7 @@ def sensitivities_from_surrogate(
         sensitivities = xarray.DataArray(
             sensitivities,
             coords={
-                'order': ['total', 'main'],
+                'order': ['main', 'total'],
                 'variable': variables,
                 'node': nodes['node'],
                 'x': nodes['x'],
@@ -258,6 +256,9 @@ def sensitivities_from_surrogate(
 
         sensitivities = sensitivities.to_dataset(name='sensitivities')
 
+        if element_table is not None:
+            sensitivities = sensitivities.assign_coords({'element': element_table})
+
         if filename is not None:
             LOGGER.info(f'saving sensitivities to "{filename}"')
             sensitivities.to_netcdf(filename)
@@ -265,7 +266,7 @@ def sensitivities_from_surrogate(
         LOGGER.info(f'loading sensitivities from "{filename}"')
         sensitivities = xarray.open_dataset(filename)
 
-    return sensitivities['sensitivities']
+    return sensitivities
 
 
 def validations_from_surrogate(
@@ -274,7 +275,10 @@ def validations_from_surrogate(
     training_perturbations: xarray.Dataset,
     validation_set: xarray.Dataset = None,
     validation_perturbations: xarray.Dataset = None,
-    enforce_positivity: bool = False,
+    minimum_allowable_value: float = None,
+    convert_from_log_scale: Union[bool, float] = False,
+    convert_from_depths: Union[bool, float] = False,
+    element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
     """
@@ -285,7 +289,9 @@ def validations_from_surrogate(
     :param training_perturbations: array of perturbations corresponding to training set
     :param validation_set: set of validation data (across nodes and perturbations)
     :param validation_perturbations: array of perturbations corresponding to validation set
-    :param enforce_positivity: whether to make sure results always return >= 0
+    :param minimum_allowable_value: if surrogate prediction falls below this value set to NaN
+    :param convert_from_log_scale: whether to take the exp() of the result
+    :param convert_from_depths: whether to substract still water depth from the result
     :param filename: file path to which to save
     :return: array of validations
     """
@@ -296,8 +302,19 @@ def validations_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
-        if enforce_positivity:
-            training_results[training_results < 0] = 0
+        if isinstance(convert_from_log_scale, float):
+            training_results = convert_from_log_scale ** training_results
+        elif convert_from_log_scale:
+            training_results = numpy.exp(training_results)
+        if isinstance(convert_from_depths, (float, numpy.ndarray)):
+            training_results -= convert_from_depths
+        if minimum_allowable_value is not None:
+            # compare to adjusted depths if provided
+            too_small = training_results < minimum_allowable_value
+            training_results[too_small] = numpy.nan
+        if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
+            training_results -= training_set['depth'].values
+
         training_results = numpy.stack([training_set, training_results], axis=0)
         training_results = xarray.DataArray(
             training_results,
@@ -313,8 +330,18 @@ def validations_from_surrogate(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
-            if enforce_positivity:
-                node_validation[node_validation < 0] = 0
+            if isinstance(convert_from_log_scale, float):
+                node_validation = convert_from_log_scale ** node_validation
+            elif convert_from_log_scale:
+                node_validation = numpy.exp(node_validation)
+            if isinstance(convert_from_depths, (float, numpy.ndarray)):
+                node_validation -= convert_from_depths
+            if minimum_allowable_value is not None:
+                too_small = node_validation < minimum_allowable_value
+                node_validation[too_small] = numpy.nan
+            if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
+                node_validation -= validation_set['depth'].values
+
             node_validation = numpy.stack([validation_set, node_validation], axis=0)
             node_validation = xarray.DataArray(
                 node_validation,
@@ -329,6 +356,9 @@ def validations_from_surrogate(
             )
             node_validation = node_validation.assign_coords(type=['training', 'validation'])
             node_validation = node_validation.to_dataset(name='results')
+
+        if element_table is not None:
+            node_validation = node_validation.assign_coords({'element': element_table})
 
         if filename is not None:
             LOGGER.info(f'saving validation to "{filename}"')
@@ -392,7 +422,7 @@ def percentiles_from_samples(
     percentiles: List[float],
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
-    enforce_positivity: bool = False,
+    convert_from_log_scale: Union[bool, float] = False,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
     # surrogate_percentiles = chaospy.Perc(
@@ -402,7 +432,7 @@ def percentiles_from_samples(
         poly=surrogate_model,
         q=percentiles,
         dist=distribution,
-        enforce_positivity=enforce_positivity,
+        convert_from_log_scale=convert_from_log_scale,
     )
 
     surrogate_percentiles = xarray.DataArray(
@@ -426,9 +456,27 @@ def percentiles_from_surrogate(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
-    enforce_positivity: bool = False,
+    minimum_allowable_value: float = None,
+    convert_from_log_scale: Union[bool, float] = False,
+    convert_from_depths: Union[bool, float] = False,
+    element_table: xarray.DataArray = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
+    """
+
+
+    :param percentiles: positions where percentiles are taken. Must be a number or a list, 
+        where all values are on the interval ``[0, 100]``.
+    :param surrogate_model: polynomial of surrogate model to query
+    :parama distribution: surrogate model ``chaospy`` distribution model
+    :param training_set: set of training data (across nodes and perturbations)
+    :param minimum_allowable_value: if surrogate prediction falls below this value set to NaN
+    :param convert_from_log_scale: whether to take the exp() of the result
+    :param convert_from_depths: whether to substract still water depth from the result
+    :param filename: file path to which to save
+    :return: array of percentiles
+    """
+
     if filename is not None and not isinstance(filename, Path):
         filename = Path(filename)
 
@@ -438,12 +486,27 @@ def percentiles_from_surrogate(
             percentiles=percentiles,
             surrogate_model=surrogate_model,
             distribution=distribution,
-            enforce_positivity=enforce_positivity,
+            convert_from_log_scale=convert_from_log_scale,
         )
 
+        # before evaluating quantile for model set null water elevation to the ground elevation
+        training_set = numpy.fmax(training_set, -training_set['depth'])
         modeled_percentiles = training_set.quantile(
             dim='run', q=surrogate_percentiles['quantile'] / 100
         )
+
+        if isinstance(convert_from_depths, (float, numpy.ndarray)):
+            surrogate_percentiles -= convert_from_depths
+        if minimum_allowable_value is not None:
+            too_small = (
+                modeled_percentiles + training_set['depth']
+            ).values < minimum_allowable_value
+            modeled_percentiles.values[too_small] = numpy.nan
+            too_small = surrogate_percentiles.values < minimum_allowable_value
+            surrogate_percentiles.values[too_small] = numpy.nan
+        if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
+            surrogate_percentiles -= training_set['depth']
+
         modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
 
         node_percentiles = xarray.combine_nested(
@@ -455,6 +518,9 @@ def percentiles_from_surrogate(
         node_percentiles = node_percentiles.assign(
             differences=numpy.fabs(surrogate_percentiles - modeled_percentiles)
         )
+
+        if element_table is not None:
+            node_percentiles = node_percentiles.assign_coords({'element': element_table})
 
         if filename is not None:
             LOGGER.info(f'saving percentiles to "{filename}"')
@@ -471,11 +537,12 @@ def compute_surrogate_percentiles(
     q: List[float],
     dist: chaospy.Distribution,
     sample: int = 10000,
-    enforce_positivity: bool = False,
+    convert_from_log_scale: Union[bool, float] = False,
     **kws,
 ):
     """
-    Percentile function (modified to be able to enforce positivity).
+    Percentile function 
+    *Modified to be able to convert from log scale
 
     Note that this function is an empirical function that operates using Monte
     Carlo sampling.
@@ -490,8 +557,8 @@ def compute_surrogate_percentiles(
             Defines the space where percentile is taken.
         sample (int):
             Number of samples used in estimation.
-        enforce_positivity (bool):
-            Whether to make sure samples always return >= 0
+        convert_from_log_scale (bool):  
+            Whether to take the exp() of the result
 
     Returns:
         (numpy.ndarray):
@@ -529,9 +596,10 @@ def compute_surrogate_percentiles(
     # Finish
     if poly2.shape:
         poly1 = numpy.concatenate([poly1, poly2], -1)
-    if enforce_positivity:
-        negative = poly1 < 0
-        poly1[negative] = 0
+    if isinstance(convert_from_log_scale, float):
+        poly1 = convert_from_log_scale ** poly1
+    elif convert_from_log_scale:
+        poly1 = numpy.exp(poly1)
     samples = poly1.shape[-1]
     poly1.sort()
     out = poly1.T[numpy.asarray(q * (samples - 1), dtype=int)]
