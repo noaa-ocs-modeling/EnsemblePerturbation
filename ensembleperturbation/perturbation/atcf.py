@@ -10,7 +10,6 @@ import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, uniform
-from tempfile import TemporaryDirectory
 from typing import Dict, List, Mapping, Union
 import warnings
 
@@ -19,7 +18,6 @@ from chaospy import Distribution
 from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
-import pandas
 from pandas import DataFrame
 from pandas.core.common import SettingWithCopyWarning
 import pint
@@ -29,7 +27,7 @@ from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
 from shapely.geometry import LineString
 from stormevents.nhc import VortexTrack
-from stormevents.nhc.atcf import ATCF_FileDeck, ATCF_Mode
+from stormevents.nhc.atcf import ATCF_FileDeck
 import typepigeon
 import xarray
 from xarray import Dataset
@@ -961,42 +959,71 @@ class VortexPerturber:
         start_date: datetime = None,
         end_date: datetime = None,
         file_deck: ATCF_FileDeck = None,
-        mode: ATCF_Mode = None,
-        record_type: str = None,
+        advisories: List[str] = None,
     ):
         """
         :param storm: NHC storm code, for instance `al062018`
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
         :param file_deck: letter of file deck, one of `a`, `b`
-        :param mode: either `realtime` / `aid_public` or `historical` / `archive`
-        :param record_type: record type (i.e. `BEST`, `OFCL`)
+        :param advisories: record types (i.e. `BEST`, `OFCL`)
         """
 
-        self.__storm = None
         self.__start_date = None
         self.__end_date = None
         self.__file_deck = None
-        self.__mode = None
-        self.__forcing = None
+        self.__track = None
         self.__previous_configuration = None
 
         self.storm = storm
         self.start_date = start_date
         self.end_date = end_date
         self.file_deck = file_deck
-        self.mode = mode
-        self.record_type = record_type
+        self.advisories = advisories
 
         self.__filename = None
 
-    @property
-    def storm(self) -> str:
-        return self.__storm
+    @classmethod
+    def from_file(
+        cls, filename: PathLike, start_date: datetime = None, end_date: datetime = None
+    ) -> 'VortexPerturber':
+        """
+        build storm perturber from an existing `fort.22` or ATCF file
 
-    @storm.setter
-    def storm(self, storm: str):
-        self.__storm = storm
+        :param filename: file path to `fort.22` / ATCF file
+        :param start_date: start time of ensemble
+        :param end_date: end time of ensemble
+        """
+
+        track = VortexTrack.from_file(filename, start_date=start_date, end_date=end_date)
+        instance = VortexPerturber.from_track(track)
+        instance.__filename = filename
+        return instance
+
+    @classmethod
+    def from_track(cls, track: VortexTrack) -> 'VortexPerturber':
+        """
+        build storm perturber from an existing `VortexTrack` object
+
+        :param track: `VortexTrack` object
+        """
+
+        instance = cls(
+            track.nhc_code,
+            start_date=track.start_date,
+            end_date=track.end_date,
+            file_deck=track.file_deck,
+            advisories=track.advisories,
+        )
+        instance.track = track
+        instance.__previous_configuration = {
+            'storm': track.nhc_code,
+            'start_date': track.start_date,
+            'end_date': track.end_date,
+            'file_deck': track.file_deck,
+            'advisories': track.advisories,
+        }
+        return instance
 
     @property
     def start_date(self) -> datetime:
@@ -1029,24 +1056,13 @@ class VortexPerturber:
         self.__file_deck = file_deck
 
     @property
-    def mode(self) -> ATCF_Mode:
-        return self.__mode
-
-    @mode.setter
-    def mode(self, mode: ATCF_Mode):
-        if mode is not None and not isinstance(mode, datetime):
-            mode = typepigeon.convert_value(mode, ATCF_Mode)
-        self.__mode = mode
-
-    @property
-    def forcing(self) -> VortexTrack:
+    def track(self) -> VortexTrack:
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
             'end_date': self.end_date,
             'file_deck': self.file_deck,
-            'mode': self.mode,
-            'record_type': self.record_type,
+            'advisories': self.advisories,
         }
 
         is_equal = False
@@ -1068,26 +1084,23 @@ class VortexPerturber:
 
         if not is_equal:
             if self.__filename is not None and self.__filename.exists():
-                if '.22' in self.__filename.suffix:
-                    self.__forcing = VortexTrack.from_fort22(
-                        self.__filename,
-                        start_date=configuration['start_date'],
-                        end_date=configuration['end_date'],
-                    )
-                else:
-                    self.__forcing = VortexTrack.from_atcf_file(
-                        self.__filename,
-                        start_date=configuration['start_date'],
-                        end_date=configuration['end_date'],
-                    )
+                self.__track = VortexTrack.from_file(
+                    self.__filename,
+                    start_date=configuration['start_date'],
+                    end_date=configuration['end_date'],
+                )
             else:
-                self.__forcing = VortexTrack(**configuration)
+                self.__track = VortexTrack(**configuration)
             self.__previous_configuration = configuration
 
-        if self.__forcing.nhc_code is not None:
-            self.__storm = self.__forcing.nhc_code
+        if self.__track.nhc_code is not None:
+            self.storm = self.__track.nhc_code
 
-        return self.__forcing
+        return self.__track
+
+    @track.setter
+    def track(self, track: VortexTrack):
+        self.__track = track
 
     def write(
         self,
@@ -1258,22 +1271,12 @@ class VortexPerturber:
             ]
         )
 
-        # extract original dataframe
-        original_data = self.forcing.data
-        if self.__filename is None:
-            self.__filename = directory / 'original.22'
-
         LOGGER.info(f'writing {len(perturbations["run"])} perturbations')
 
         if parallel:
             process_pool = ProcessPoolExecutorStackTraced()
-            temporary_directory = TemporaryDirectory()
-            original_data_pickle_filename = Path(temporary_directory.name) / 'original_data.df'
-            original_data.to_pickle(original_data_pickle_filename)
         else:
             process_pool = None
-            temporary_directory = None
-            original_data_pickle_filename = None
 
         # for each variable, perturb the values and write each to a new `fort.22`
         futures = []
@@ -1307,15 +1310,12 @@ class VortexPerturber:
 
                 write_kwargs = {
                     'filename': output_filename,
-                    'dataframe': original_data,
                     'perturbation': perturbation_values,
                     'variables': copy(variable_names),
                     'weight': float(perturbation['weights'].values),
                 }
 
                 if parallel:
-                    write_kwargs['dataframe'] = original_data_pickle_filename
-
                     futures.append(
                         process_pool.submit(self.write_perturbed_track, **write_kwargs)
                     )
@@ -1332,15 +1332,11 @@ class VortexPerturber:
                 directory / (run_name + '.22') for run_name in perturbations['run'].values
             ]
 
-        if temporary_directory is not None:
-            temporary_directory.cleanup()
-
         return output_filenames
 
     def write_perturbed_track(
         self,
         filename: PathLike,
-        dataframe: DataFrame,
         perturbation: Dict[str, float],
         variables: List[VortexPerturbedVariable],
         weight: float = None,
@@ -1348,10 +1344,7 @@ class VortexPerturber:
         if not isinstance(filename, Path):
             filename = Path(filename)
 
-        if isinstance(dataframe, DataFrame):
-            dataframe = dataframe.copy(deep=True)
-        else:
-            dataframe = pandas.read_pickle(dataframe)
+        dataframe = self.track.data.copy()
 
         variable_names = {
             **{
@@ -1407,7 +1400,7 @@ class VortexPerturber:
                 # Interpolate from the given VT to the storm_VT
 
                 # Get the historical forecasting errors from initial storm state (intensity or size)
-                historical_forecast_errors = variable.storm_errors(self.forcing.data)
+                historical_forecast_errors = variable.storm_errors(self.track.data)
                 try:
                     # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
                     historical_forecast_errors = historical_forecast_errors.pint.dequantify()
@@ -1498,7 +1491,7 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        VortexTrack(storm=dataframe).write(filename, overwrite=True)
+        VortexTrack(storm=dataframe).to_file(filename, overwrite=True)
 
         if weight is not None:
             perturbation['weight'] = weight
@@ -1514,12 +1507,12 @@ class VortexPerturber:
     @property
     def validation_times(self) -> List[timedelta]:
         """ get the validation time of storm """
-        return self.forcing.data['datetime'] - self.forcing.start_date
+        return self.track.data['datetime'] - self.track.start_date
 
     @property
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
-        dataframe = self.forcing.data
+        dataframe = self.track.data
         Vmax = dataframe[MaximumSustainedWindSpeed.name]
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
@@ -1531,34 +1524,6 @@ class VortexPerturber:
         DelP = Vmax ** 2 * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name] - DelP
         return pc
-
-    @classmethod
-    def from_file(
-        cls, filename: PathLike, start_date: datetime = None, end_date: datetime = None,
-    ):
-        """
-        build storm perturber from an existing `fort.22` or ATCF file
-
-        :param filename: file path to `fort.22` / ATCF file
-        :param start_date: start time of ensemble
-        :param end_date: end time of ensemble
-        """
-
-        if not isinstance(filename, Path):
-            filename = Path(filename)
-
-        if filename.suffix == '.22':
-            vortex = VortexTrack.from_fort22(
-                filename, start_date=start_date, end_date=end_date
-            )
-        else:
-            vortex = VortexTrack.from_atcf_file(
-                filename, start_date=start_date, end_date=end_date
-            )
-
-        instance = cls(vortex.dataframe, start_date=start_date, end_date=end_date)
-        instance.__filename = filename
-        return instance
 
 
 def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Distribution:
@@ -1720,8 +1685,7 @@ def perturb_tracks(
     start_date: datetime = None,
     end_date: datetime = None,
     file_deck: ATCF_FileDeck = None,
-    mode: ATCF_Mode = None,
-    record_type: str = None,
+    advisories: List[str] = None,
     overwrite: bool = False,
     parallel: bool = True,
 ):
@@ -1739,8 +1703,7 @@ def perturb_tracks(
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
     :param file_deck: letter of file deck, one of `a`, `b`
-    :param mode: either `realtime` / `aid_public` or `historical` / `archive`
-    :param record_type: record type (i.e. `BEST`, `OFCL`)
+    :param advisories: record types (i.e. `BEST`, `OFCL`)
     :param overwrite: overwrite existing files
     :param parallel: generate perturbations concurrently
     :return: mapping of track names to perturbation JSONs
@@ -1772,8 +1735,7 @@ def perturb_tracks(
             start_date=start_date,
             end_date=end_date,
             file_deck=file_deck,
-            mode=mode,
-            record_type=record_type,
+            advisories=advisories,
         )
 
     filenames = [directory / 'original.22']
