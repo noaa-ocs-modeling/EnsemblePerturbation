@@ -9,6 +9,8 @@ def colorbar_axis(
     color_map: str = None,
     orientation: str = None,
     own_axis: bool = False,
+    extend: str = None,
+    label: str = None,
 ) -> Axis:
     if axis is None:
         figure = pyplot.figure()
@@ -30,4 +32,6 @@ def colorbar_axis(
         mappable=cm.ScalarMappable(cmap=color_map, norm=normalization),
         orientation=orientation,
         ax=axis,
+        extend=extend,
+        label=label,
     )

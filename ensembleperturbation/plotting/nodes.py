@@ -16,18 +16,24 @@ from ensembleperturbation.plotting.utilities import colorbar_axis
 def node_color_map(
     nodes: xarray.Dataset,
     colors: list = None,
+    color_map: str = None,
     min_value: float = None,
     max_value: float = None,
     logarithmic: bool = False,
 ) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
-    if colors is None:
+    if color_map is None:
         color_map = cm.get_cmap('plasma')
+    else:
+        color_map = cm.get_cmap(color_map)
+
+    if colors is None:
         color_values = numpy.arange(len(nodes['node']))
+
         normalization = Normalize(vmin=numpy.min(color_values), vmax=numpy.max(color_values))
         colors = color_map(normalization(color_values))
     elif isinstance(colors, str):
-        color_map = cm.get_cmap('plasma')
         color_values = nodes[colors]
+
         if len(color_values.dims) > 1:
             color_values = color_values.mean(
                 [dim for dim in color_values.dims if dim != 'node']
@@ -46,7 +52,6 @@ def node_color_map(
     else:
         colors = numpy.array(colors)
 
-        color_map = cm.get_cmap('plasma')
         if min_value is None:
             min_value = numpy.nanmin(colors)
         if max_value is None:
@@ -180,11 +185,13 @@ def plot_node_map(
     nodes: xarray.Dataset,
     map_title: str = None,
     colors: list = None,
+    color_map: str = None,
     storm: str = None,
     map_axis: Axis = None,
     min_value: float = None,
     max_value: float = None,
     logarithmic: bool = False,
+    **kwargs,
 ):
     if isinstance(colors, str) and map_title is not None:
         map_title = f'"{colors}" of {map_title}'
@@ -196,6 +203,7 @@ def plot_node_map(
         min_value=min_value,
         max_value=max_value,
         logarithmic=logarithmic,
+        color_map=color_map,
     )
 
     map_crs = cartopy.crs.PlateCarree()
@@ -238,7 +246,8 @@ def plot_node_map(
             mesh_tri,
             nodes[data_var_name[0]].values,
             levels=levels,
-            cmap=color_map,  # transform=map_crs,
+            cmap=color_map,
+            **kwargs,  # transform=map_crs,
         )
     else:
         map_axis.scatter(
@@ -246,7 +255,8 @@ def plot_node_map(
             y=nodes.coords['y'],
             c=colors,
             s=2,
-            norm=normalization,  # transform=map_crs,
+            norm=normalization,
+            **kwargs,  # transform=map_crs,
         )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])

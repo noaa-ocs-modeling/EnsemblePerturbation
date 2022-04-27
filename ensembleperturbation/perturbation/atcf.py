@@ -28,7 +28,7 @@ from pyproj.enums import TransformDirection
 from scipy.special import erfinv
 from shapely.geometry import LineString
 from stormevents.nhc import VortexTrack
-from stormevents.nhc.atcf import ATCF_FileDeck, ATCF_Mode
+from stormevents.nhc.atcf import ATCF_FileDeck
 import typepigeon
 import xarray
 from xarray import Dataset
@@ -296,8 +296,8 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
         super().__init__(
-            lower_bound=25,
-            upper_bound=165,
+            lower_bound=15,
+            upper_bound=175,
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
@@ -960,22 +960,19 @@ class VortexPerturber:
         start_date: datetime = None,
         end_date: datetime = None,
         file_deck: ATCF_FileDeck = None,
-        mode: ATCF_Mode = None,
-        record_type: str = None,
+        advisories: List[str] = None,
     ):
         """
         :param storm: NHC storm code, for instance `al062018`
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
         :param file_deck: letter of file deck, one of `a`, `b`
-        :param mode: either `realtime` / `aid_public` or `historical` / `archive`
-        :param record_type: record type (i.e. `BEST`, `OFCL`)
+        :param advisories: record types (i.e. `BEST`, `OFCL`)
         """
 
         self.__start_date = None
         self.__end_date = None
         self.__file_deck = None
-        self.__mode = None
         self.__track = None
         self.__previous_configuration = None
 
@@ -983,8 +980,7 @@ class VortexPerturber:
         self.start_date = start_date
         self.end_date = end_date
         self.file_deck = file_deck
-        self.mode = mode
-        self.record_type = record_type
+        self.advisories = advisories
 
         self.__filename = None
 
@@ -1018,8 +1014,7 @@ class VortexPerturber:
             start_date=track.start_date,
             end_date=track.end_date,
             file_deck=track.file_deck,
-            mode=track.mode,
-            record_type=track.record_type,
+            advisories=track.advisories,
         )
         instance.track = track
         instance.__previous_configuration = {
@@ -1027,8 +1022,7 @@ class VortexPerturber:
             'start_date': track.start_date,
             'end_date': track.end_date,
             'file_deck': track.file_deck,
-            'mode': track.mode,
-            'record_type': track.record_type,
+            'advisories': track.advisories,
         }
         return instance
 
@@ -1063,24 +1057,13 @@ class VortexPerturber:
         self.__file_deck = file_deck
 
     @property
-    def mode(self) -> ATCF_Mode:
-        return self.__mode
-
-    @mode.setter
-    def mode(self, mode: ATCF_Mode):
-        if mode is not None and not isinstance(mode, datetime):
-            mode = typepigeon.convert_value(mode, ATCF_Mode)
-        self.__mode = mode
-
-    @property
     def track(self) -> VortexTrack:
         configuration = {
             'storm': self.storm,
             'start_date': self.start_date,
             'end_date': self.end_date,
             'file_deck': self.file_deck,
-            'mode': self.mode,
-            'record_type': self.record_type,
+            'advisories': self.advisories,
         }
 
         is_equal = False
@@ -1752,8 +1735,7 @@ def perturb_tracks(
     start_date: datetime = None,
     end_date: datetime = None,
     file_deck: ATCF_FileDeck = None,
-    mode: ATCF_Mode = None,
-    record_type: str = None,
+    advisories: List[str] = None,
     overwrite: bool = False,
     parallel: bool = True,
 ):
@@ -1774,8 +1756,7 @@ def perturb_tracks(
     :param start_date: model start time of ensemble
     :param end_date: model end time of ensemble
     :param file_deck: letter of file deck, one of `a`, `b`
-    :param mode: either `realtime` / `aid_public` or `historical` / `archive`
-    :param record_type: record type (i.e. `BEST`, `OFCL`)
+    :param advisories: record types (i.e. `BEST`, `OFCL`)
     :param overwrite: overwrite existing files
     :param parallel: generate perturbations concurrently
     :return: mapping of track names to perturbation JSONs
@@ -1807,8 +1788,7 @@ def perturb_tracks(
             start_date=start_date,
             end_date=end_date,
             file_deck=file_deck,
-            mode=mode,
-            record_type=record_type,
+            advisories=advisories,
         )
 
     filenames = [directory / 'original.22']

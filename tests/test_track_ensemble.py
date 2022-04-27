@@ -1,6 +1,5 @@
 import os
 
-import numpy
 import pandas.testing
 from stormevents.nhc import VortexTrack
 from stormevents.nhc.atcf import ATCF_FIELDS
@@ -102,30 +101,6 @@ def test_spatial_perturbations():
             quadrature=False,
             overwrite=True,
         )
-
-        tracks = {
-            name: VortexTrack.from_file(
-                output_directory.parent / perturbation['besttrack']['fort22_filename']
-            )
-            for name, perturbation in perturbations.items()
-        }
-
-        original_track = tracks['original']
-        del tracks['original']
-
-        for run, track in tracks.items():
-            same = numpy.allclose(
-                track.data[['longitude', 'latitude']],
-                original_track.data[['longitude', 'latitude']],
-            )
-
-            if same:
-                unchanged_perturbations.append(variable.name)
-                break
-
-    assert (
-        len(unchanged_perturbations) == 0
-    ), f'failure in {unchanged_perturbations} track perturbation'
 
 
 def test_original_file():

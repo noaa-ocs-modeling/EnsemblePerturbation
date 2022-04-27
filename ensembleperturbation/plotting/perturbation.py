@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 
 import geopandas
-from matplotlib import cm, pyplot
+from matplotlib import pyplot
 from matplotlib.cm import get_cmap
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm, Normalize
@@ -21,7 +21,7 @@ def plot_perturbed_variables(
     perturbations: xarray.Dataset, title: str = None, output_filename: PathLike = None,
 ):
     figure = pyplot.figure()
-    figure.set_size_inches(12, 12 / 1.61803398875)
+    figure.set_size_inches(10, 10 / 1.61803398875)
     if title is None:
         title = f'{len(perturbations["run"])} pertubation(s) of {len(perturbations["variable"])} variable(s)'
     figure.suptitle(title)
@@ -29,50 +29,57 @@ def plot_perturbed_variables(
     variables = perturbations['variable'].values
     axes, grid = comparison_plot_grid(variables, figure=figure)
 
-    color_map = cm.get_cmap('jet')
-
     perturbation_colors = perturbations['weights']
     if (
         perturbation_colors.isnull().values.all()
         or (perturbation_colors == perturbation_colors[0]).values.all()
     ):
         perturbation_colors = numpy.arange(len(perturbation_colors))
+        perturbation_size = (6 * numpy.ones(len(perturbation_colors))) ** 2
+        alpha = 0.9
+
         normalization = None
+        color_map = get_cmap('nipy_spectral')
     else:
         min_value = float(perturbation_colors.min().values)
         max_value = float(perturbation_colors.max().values)
 
+        color_map = get_cmap('Greys')
         orientation = 'horizontal'
 
-        try:
+        if min_value > 0:
             normalization = LogNorm(vmin=min_value, vmax=max_value)
-            colorbar = colorbar_axis(
-                normalization=normalization,
-                axis=figure.add_subplot(grid[-1, -1]),
-                orientation=orientation,
-                own_axis=True,
-            )
-        except ValueError:
+        else:
+            # normalization = SymLogNorm(0.01, vmin=min_value, vmax=max_value)
             normalization = Normalize(vmin=min_value, vmax=max_value)
-            colorbar = colorbar_axis(
-                normalization=normalization,
-                axis=figure.add_subplot(grid[-1, -1]),
-                orientation=orientation,
-                own_axis=True,
-            )
+        colorbar = colorbar_axis(
+            normalization=normalization,
+            axis=figure.add_subplot(grid[-1, -1]),
+            orientation=orientation,
+            color_map=color_map,
+            own_axis=True,
+        )
         colorbar.set_label('weight')
 
         perturbation_colors.loc[perturbation_colors.isnull()] = 0
+        perturbation_size = (
+            12 * (perturbation_colors.values - min_value) / (max_value - min_value)
+        ) ** 2
+        alpha = 0.75
 
     perturbations = perturbations['perturbations']
+    sort_idx = numpy.argsort(perturbation_size)[::-1]
     for row_variable, columns in axes.items():
         for column_variable, axis in columns.items():
             axis.scatter(
-                perturbations.sel(variable=column_variable),
-                perturbations.sel(variable=row_variable),
-                c=perturbation_colors,
+                perturbations.sel(variable=column_variable)[sort_idx],
+                perturbations.sel(variable=row_variable)[sort_idx],
+                c=perturbation_colors[sort_idx],
+                s=perturbation_size[sort_idx],
                 cmap=color_map,
                 norm=normalization,
+                alpha=alpha,
+                edgecolors=None,
             )
 
     if output_filename is not None:

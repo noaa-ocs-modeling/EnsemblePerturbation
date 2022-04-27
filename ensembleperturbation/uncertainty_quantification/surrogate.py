@@ -276,7 +276,7 @@ def validations_from_surrogate(
     validation_set: xarray.Dataset = None,
     validation_perturbations: xarray.Dataset = None,
     minimum_allowable_value: float = None,
-    convert_from_log_scale: bool = False,
+    convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
     element_table: xarray.DataArray = None,
     filename: PathLike = None,
@@ -302,7 +302,9 @@ def validations_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
-        if convert_from_log_scale:
+        if isinstance(convert_from_log_scale, float):
+            training_results = convert_from_log_scale ** training_results
+        elif convert_from_log_scale:
             training_results = numpy.exp(training_results)
         if isinstance(convert_from_depths, (float, numpy.ndarray)):
             training_results -= convert_from_depths
@@ -310,7 +312,7 @@ def validations_from_surrogate(
             # compare to adjusted depths if provided
             too_small = training_results < minimum_allowable_value
             training_results[too_small] = numpy.nan
-        if bool(convert_from_depths):
+        if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
             training_results -= training_set['depth'].values
 
         training_results = numpy.stack([training_set, training_results], axis=0)
@@ -328,14 +330,16 @@ def validations_from_surrogate(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
-            if convert_from_log_scale:
+            if isinstance(convert_from_log_scale, float):
+                node_validation = convert_from_log_scale ** node_validation
+            elif convert_from_log_scale:
                 node_validation = numpy.exp(node_validation)
             if isinstance(convert_from_depths, (float, numpy.ndarray)):
                 node_validation -= convert_from_depths
             if minimum_allowable_value is not None:
                 too_small = node_validation < minimum_allowable_value
                 node_validation[too_small] = numpy.nan
-            if bool(convert_from_depths):
+            if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
                 node_validation -= validation_set['depth'].values
 
             node_validation = numpy.stack([validation_set, node_validation], axis=0)
@@ -418,7 +422,7 @@ def percentiles_from_samples(
     percentiles: List[float],
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
-    convert_from_log_scale: bool = False,
+    convert_from_log_scale: Union[bool, float] = False,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
     # surrogate_percentiles = chaospy.Perc(
@@ -453,7 +457,7 @@ def percentiles_from_surrogate(
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
     minimum_allowable_value: float = None,
-    convert_from_log_scale: bool = False,
+    convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
     element_table: xarray.DataArray = None,
     filename: PathLike = None,
@@ -500,7 +504,7 @@ def percentiles_from_surrogate(
             modeled_percentiles.values[too_small] = numpy.nan
             too_small = surrogate_percentiles.values < minimum_allowable_value
             surrogate_percentiles.values[too_small] = numpy.nan
-        if bool(convert_from_depths):
+        if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
             surrogate_percentiles -= training_set['depth']
 
         modeled_percentiles.coords['quantile'] = surrogate_percentiles['quantile']
@@ -533,7 +537,7 @@ def compute_surrogate_percentiles(
     q: List[float],
     dist: chaospy.Distribution,
     sample: int = 10000,
-    convert_from_log_scale: bool = False,
+    convert_from_log_scale: Union[bool, float] = False,
     **kws,
 ):
     """
@@ -592,7 +596,9 @@ def compute_surrogate_percentiles(
     # Finish
     if poly2.shape:
         poly1 = numpy.concatenate([poly1, poly2], -1)
-    if convert_from_log_scale:
+    if isinstance(convert_from_log_scale, float):
+        poly1 = convert_from_log_scale ** poly1
+    elif convert_from_log_scale:
         poly1 = numpy.exp(poly1)
     samples = poly1.shape[-1]
     poly1.sort()
