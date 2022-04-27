@@ -21,7 +21,6 @@ def node_color_map(
     max_value: float = None,
     logarithmic: bool = False,
 ) -> (numpy.ndarray, Normalize, Colormap, numpy.ndarray):
-
     if color_map is None:
         color_map = cm.get_cmap('plasma')
     else:
@@ -247,8 +246,8 @@ def plot_node_map(
             mesh_tri,
             nodes[data_var_name[0]].values,
             levels=levels,
-            cmap=color_map,  
-            **kwargs,     # transform=map_crs,
+            cmap=color_map,
+            **kwargs,  # transform=map_crs,
         )
     else:
         map_axis.scatter(
@@ -256,8 +255,8 @@ def plot_node_map(
             y=nodes.coords['y'],
             c=colors,
             s=2,
-            norm=normalization, 
-            **kwargs,     # transform=map_crs,
+            norm=normalization,
+            **kwargs,  # transform=map_crs,
         )
 
     map_axis.set_xlim(map_bounds[0], map_bounds[2])

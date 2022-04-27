@@ -1,6 +1,5 @@
 import os
 
-import numpy
 import pandas.testing
 from stormevents.nhc import VortexTrack
 from stormevents.nhc.atcf import ATCF_FIELDS

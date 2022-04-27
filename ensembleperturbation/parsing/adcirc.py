@@ -392,7 +392,7 @@ class FieldOutput(AdcircOutput, ABC):
         if maximum_depth is not None:
             LOGGER.debug(f'filtering by maximum depth {maximum_depth}')
             subset = numpy.logical_and(subset, dataset['depth'] <= maximum_depth)
-        
+
         if minimum_depth is not None:
             LOGGER.debug(f'filtering by minimum depth {minimum_depth}')
             subset = numpy.logical_and(subset, dataset['depth'] >= minimum_depth)
@@ -789,8 +789,11 @@ def subset_dataset(
 
         node_subset_mask = (
             FieldOutput.subset(
-                ds['node'], maximum_depth=maximum_depth, minimum_depth=minimum_depth, 
-                bounds=bounds, wind_swath=wind_swath,
+                ds['node'],
+                maximum_depth=maximum_depth,
+                minimum_depth=minimum_depth,
+                bounds=bounds,
+                wind_swath=wind_swath,
             ),
         )
         if node_status_mask is None:

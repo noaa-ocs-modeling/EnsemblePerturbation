@@ -302,8 +302,8 @@ def validations_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
         training_results = surrogate_model(*training_perturbations['perturbations'].T).T
-        if isinstance(convert_from_log_scale,float):
-            training_results = convert_from_log_scale**training_results
+        if isinstance(convert_from_log_scale, float):
+            training_results = convert_from_log_scale ** training_results
         elif convert_from_log_scale:
             training_results = numpy.exp(training_results)
         if isinstance(convert_from_depths, (float, numpy.ndarray)):
@@ -330,8 +330,8 @@ def validations_from_surrogate(
                 f'running surrogate model on {validation_set.shape} validation samples'
             )
             node_validation = surrogate_model(*validation_perturbations['perturbations'].T).T
-            if isinstance(convert_from_log_scale,float):
-                node_validation = convert_from_log_scale**node_validation
+            if isinstance(convert_from_log_scale, float):
+                node_validation = convert_from_log_scale ** node_validation
             elif convert_from_log_scale:
                 node_validation = numpy.exp(node_validation)
             if isinstance(convert_from_depths, (float, numpy.ndarray)):
@@ -596,8 +596,8 @@ def compute_surrogate_percentiles(
     # Finish
     if poly2.shape:
         poly1 = numpy.concatenate([poly1, poly2], -1)
-    if isinstance(convert_from_log_scale,float):
-        poly1 = convert_from_log_scale**poly1 
+    if isinstance(convert_from_log_scale, float):
+        poly1 = convert_from_log_scale ** poly1
     elif convert_from_log_scale:
         poly1 = numpy.exp(poly1)
     samples = poly1.shape[-1]

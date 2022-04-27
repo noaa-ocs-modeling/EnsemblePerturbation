@@ -25,13 +25,13 @@ from pint import Quantity, UnitStrippedWarning
 from pint_pandas import PintArray, PintType
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
+from scipy.special import erfinv
 from shapely.geometry import LineString
 from stormevents.nhc import VortexTrack
 from stormevents.nhc.atcf import ATCF_FileDeck
 import typepigeon
 import xarray
 from xarray import Dataset
-from scipy.special import erfinv
 
 from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
 
@@ -1227,7 +1227,9 @@ class VortexPerturber:
         if sample_from_distribution:
             # overwrite given perturbations with random samples from joint distribution
             if sample_rule == 'equal_division':
-                random_sample = equal_division_sample(distribution, num_perturbations, edge=sample_division_fraction)
+                random_sample = equal_division_sample(
+                    distribution, num_perturbations, edge=sample_division_fraction
+                )
             else:
                 random_sample = distribution.sample(num_perturbations, rule=sample_rule)
             if len(variables) == 1:
@@ -1551,7 +1553,10 @@ def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Dis
 
     return chaospy.J(*(variable.chaospy_distribution() for variable in variables))
 
-def equal_division_sample(distribution: Distribution, num_perturbations: int, edge: float = 0.99):
+
+def equal_division_sample(
+    distribution: Distribution, num_perturbations: int, edge: float = 0.99
+):
     """
     :param variables: names of perturbed variables
     :param num_perturbations: number of samples to retrieve
@@ -1559,9 +1564,9 @@ def equal_division_sample(distribution: Distribution, num_perturbations: int, ed
     """
 
     # get the edge percentile uniform distribution
-    sample_uniform = numpy.linspace(-edge,+edge,num_perturbations,endpoint=True)
+    sample_uniform = numpy.linspace(-edge, +edge, num_perturbations, endpoint=True)
     # Transform the uniform dimension into gaussian
-    sample_gaussian = erfinv(sample_uniform)*sqrt(2)
+    sample_gaussian = erfinv(sample_uniform) * sqrt(2)
 
     # use ordering from korobov samples
     korobov_samples = chaospy.create_korobov_samples(num_perturbations, len(distribution))
@@ -1570,10 +1575,10 @@ def equal_division_sample(distribution: Distribution, num_perturbations: int, ed
     # add the magnitudes here
     samples = numpy.empty(samples_order.shape)
     for dx, dist in enumerate(distribution):
-        if isinstance(dist,chaospy.Normal):
-            samples[dx,:] = sample_gaussian[samples_order[dx,:]]
-        elif isinstance(dist,chaospy.Uniform):
-            samples[dx,:] = sample_uniform[samples_order[dx,:]]
+        if isinstance(dist, chaospy.Normal):
+            samples[dx, :] = sample_gaussian[samples_order[dx, :]]
+        elif isinstance(dist, chaospy.Uniform):
+            samples[dx, :] = sample_uniform[samples_order[dx, :]]
         else:
             raise f'distribution {dist} not implemented'
 

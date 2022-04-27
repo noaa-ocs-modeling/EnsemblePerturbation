@@ -3,10 +3,10 @@ from pathlib import Path
 from typing import List
 
 import geopandas
-from matplotlib import cm, pyplot
+from matplotlib import pyplot
 from matplotlib.cm import get_cmap
 from matplotlib.collections import LineCollection
-from matplotlib.colors import LogNorm, SymLogNorm, Normalize
+from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Patch
 import numpy
 from stormevents.nhc import VortexTrack
@@ -35,7 +35,7 @@ def plot_perturbed_variables(
         or (perturbation_colors == perturbation_colors[0]).values.all()
     ):
         perturbation_colors = numpy.arange(len(perturbation_colors))
-        perturbation_size = (6 * numpy.ones(len(perturbation_colors)))**2 
+        perturbation_size = (6 * numpy.ones(len(perturbation_colors))) ** 2
         alpha = 0.9
 
         normalization = None
@@ -43,14 +43,14 @@ def plot_perturbed_variables(
     else:
         min_value = float(perturbation_colors.min().values)
         max_value = float(perturbation_colors.max().values)
-     
+
         color_map = get_cmap('Greys')
         orientation = 'horizontal'
 
         if min_value > 0:
             normalization = LogNorm(vmin=min_value, vmax=max_value)
         else:
-            #normalization = SymLogNorm(0.01, vmin=min_value, vmax=max_value)
+            # normalization = SymLogNorm(0.01, vmin=min_value, vmax=max_value)
             normalization = Normalize(vmin=min_value, vmax=max_value)
         colorbar = colorbar_axis(
             normalization=normalization,
@@ -62,11 +62,13 @@ def plot_perturbed_variables(
         colorbar.set_label('weight')
 
         perturbation_colors.loc[perturbation_colors.isnull()] = 0
-        perturbation_size = (12 * (perturbation_colors.values - min_value)/(max_value-min_value))**2
+        perturbation_size = (
+            12 * (perturbation_colors.values - min_value) / (max_value - min_value)
+        ) ** 2
         alpha = 0.75
 
     perturbations = perturbations['perturbations']
-    sort_idx =  numpy.argsort(perturbation_size)[::-1] 
+    sort_idx = numpy.argsort(perturbation_size)[::-1]
     for row_variable, columns in axes.items():
         for column_variable, axis in columns.items():
             axis.scatter(
