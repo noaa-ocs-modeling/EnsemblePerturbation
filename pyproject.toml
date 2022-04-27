@@ -56,6 +56,7 @@ sphinxcontrib-bibtex = { version = '*', optional = true }
 sphinxcontrib-programoutput = { version = '*', optional = true }
 
 [tool.poetry.extras]
+plotting = ['cartopy', 'cmocean', 'matplotlib']
 testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'wget']
 development = ['isort', 'oitnb']
 documentation = ['m2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex']
