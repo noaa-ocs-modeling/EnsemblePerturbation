@@ -21,18 +21,16 @@ def main():
     # Implement argument parsing
     argument_parser = ArgumentParser()
     argument_parser.add_argument(
-        '--number-of-perturbations',
-        required=True, type=int,
-        help='number of perturbations')
-    argument_parser.add_argument(
-        '--storm-code', required=True, help='storm name/code')
+        '--number-of-perturbations', required=True, type=int, help='number of perturbations'
+    )
+    argument_parser.add_argument('--storm-code', required=True, help='storm name/code')
     argument_parser.add_argument('--start-date', help='start date')
     argument_parser.add_argument('--end-date', help='end date')
     argument_parser.add_argument(
         '--advisories', nargs='*', help='record type (i.e. `BEST`, `OFCL`)'
     )
     argument_parser.add_argument(
-        '--file-deck', help='letter of file deck, one of `a`, `b`' or 'f'
+        '--file-deck', help='letter of file deck, one of `a`, `b`, or `f`'
     )
     argument_parser.add_argument('directory', nargs='?', help='output directory')
     arguments = vars(argument_parser.parse_args())
