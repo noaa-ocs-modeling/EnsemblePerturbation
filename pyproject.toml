@@ -62,7 +62,7 @@ development = ['isort', 'oitnb']
 documentation = ['m2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex']
 
 [tool.poetry.scripts]
-initialize_adcirc = 'coupledmodeldriver.client.initialize_adcirc:main'
-generate_adcirc = 'coupledmodeldriver.client.generate_adcirc:main'
-check_completion = 'coupledmodeldriver.client.check_completion:main'
-unqueued_runs = 'coupledmodeldriver.client.unqueued_runs:main'
+make_storm_ensemble = 'ensembleperturbation.client.make_storm_ensemble:main'
+perturb_tracks = 'ensembleperturbation.client.perturb_tracks:main'
+combine_results = 'ensembleperturbation.client.combine_results:main'
+plot_results = 'ensembleperturbation.client.plot_results:main'
