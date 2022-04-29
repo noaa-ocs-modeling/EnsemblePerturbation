@@ -1,5 +1,7 @@
 from argparse import ArgumentParser
 
+from stormevents.nhc.atcf import ATCF_FileDeck
+
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
@@ -18,21 +20,22 @@ def main():
 
     # Implement argument parsing
     argument_parser = ArgumentParser()
-    argument_parser.add_argument('number-of-perturbations', help='number of perturbations')
-    argument_parser.add_argument('storm-code', help='storm name/code')
-    argument_parser.add_argument('start-date', nargs='?', help='start date')
-    argument_parser.add_argument('end-date', nargs='?', help='end date')
     argument_parser.add_argument(
-        'file-deck', nargs='?', help='letter of file deck, one of `a`, `b`'
+        '--number-of-perturbations',
+        required=True, type=int,
+        help='number of perturbations')
+    argument_parser.add_argument(
+        '--storm-code', required=True, help='storm name/code')
+    argument_parser.add_argument('--start-date', help='start date')
+    argument_parser.add_argument('--end-date', help='end date')
+    argument_parser.add_argument(
+        '--advisories', nargs='*', help='record type (i.e. `BEST`, `OFCL`)'
     )
     argument_parser.add_argument(
-        'mode', nargs='?', help='either `realtime` / `aid_public` or `historical` / `archive`'
-    )
-    argument_parser.add_argument(
-        'record-type', nargs='?', help='record type (i.e. `BEST`, `OFCL`)'
+        '--file-deck', help='letter of file deck, one of `a`, `b`' or 'f'
     )
     argument_parser.add_argument('directory', nargs='?', help='output directory')
-    arguments = argument_parser.parse_args()
+    arguments = vars(argument_parser.parse_args())
 
     # hardcoding variable list for now
     variables = [
@@ -49,9 +52,8 @@ def main():
         variables=variables,
         start_date=arguments['start_date'],
         end_date=arguments['end_date'],
-        file_deck=arguments['file_deck'],
-        mode=arguments['mode'],
-        record_type=arguments['record_type'],
+        file_deck=ATCF_FileDeck(arguments['file_deck']),
+        advisories=arguments['advisories'],
     )
 
 
