@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 
 from stormevents.nhc.atcf import ATCF_FileDeck
+import typepigeon
 
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
@@ -33,7 +34,7 @@ def main():
         '--file-deck', help='letter of file deck, one of `a`, `b`, or `f`'
     )
     argument_parser.add_argument('directory', nargs='?', help='output directory')
-    arguments = vars(argument_parser.parse_args())
+    arguments = argument_parser.parse_args()
 
     # hardcoding variable list for now
     variables = [
@@ -44,14 +45,14 @@ def main():
     ]
 
     perturb_tracks(
-        perturbations=arguments['number_of_perturbations'],
-        directory=arguments['directory'],
-        storm=arguments['storm_code'],
+        perturbations=arguments.number_of_perturbations,
+        directory=arguments.directory,
+        storm=arguments.storm_code,
         variables=variables,
-        start_date=arguments['start_date'],
-        end_date=arguments['end_date'],
-        file_deck=ATCF_FileDeck(arguments['file_deck']),
-        advisories=arguments['advisories'],
+        start_date=arguments.start_date,
+        end_date=arguments.end_date,
+        file_deck=typepigeon.convert_value(arguments.file_deck, ATCF_FileDeck),
+        advisories=arguments.advisories,
     )
 
 
