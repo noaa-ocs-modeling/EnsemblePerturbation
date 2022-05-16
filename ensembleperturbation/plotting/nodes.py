@@ -229,7 +229,8 @@ def plot_node_map(
                 storm = VortexTrack(storm)
 
         map_axis.plot(
-            storm.data['longitude'], storm.data['latitude'], label=storm.name,
+            storm.data['longitude'], storm.data['latitude'], 
+            'k--', label=storm.name,
         )
 
         if storm.name is not None:
