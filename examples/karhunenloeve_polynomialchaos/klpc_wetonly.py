@@ -9,9 +9,7 @@ from sklearn.linear_model import LassoCV, ElasticNetCV, LinearRegression
 from sklearn.model_selection import ShuffleSplit, LeaveOneOut
 import xarray
 
-from ensembleperturbation.parsing.adcirc import (
-    subset_dataset,
-)
+from ensembleperturbation.parsing.adcirc import subset_dataset
 from ensembleperturbation.perturbation.atcf import VortexPerturbedVariable
 from ensembleperturbation.plotting.perturbation import plot_perturbations
 from ensembleperturbation.plotting.surrogate import (

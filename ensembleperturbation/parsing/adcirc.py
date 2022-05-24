@@ -364,7 +364,7 @@ class FieldOutput(AdcircOutput, ABC):
             LOGGER.debug(f'filtering within {cyclone} wind swath {isotach}')
             if not isinstance(cyclone, VortexTrack):
                 try:
-                    cyclone = VortexTrack.from_fort22(cyclone)
+                    cyclone = VortexTrack.from_file(cyclone)
                 except FileNotFoundError:
                     cyclone = VortexTrack(cyclone)
             swath = cyclone.wind_swaths(wind_speed=isotach)
