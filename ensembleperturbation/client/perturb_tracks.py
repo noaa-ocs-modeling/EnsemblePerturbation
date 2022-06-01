@@ -21,12 +21,10 @@ def main():
     # to be passed as extra_arguments to the subsequent parser)
     preliminary_parser = ArgumentParser(add_help=False)
     preliminary_parser.add_argument(
-        '--adcirc',
-        action='store_true',
+        '--adcirc', action='store_true',
     )
     preliminary_parser.add_argument(
-        '--schism',
-        action='store_true',
+        '--schism', action='store_true',
     )
     prelim_args, _ = preliminary_parser.parse_known_args()
 
