@@ -43,11 +43,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
-        python-version: [ '3.7', '3.8', '3.9', '3.x' ]
+        os: [ ubuntu-latest, macos-latest ]
+        # due to coupledmodeldriver dependency python 3.10 cannot be supported
+        # macos python 3.7 results in segmentation error
+        python-version: [ '3.7', '3.8', '3.9' ]
         exclude:
           - os: macos-latest
-            python-version: '3.x'
+            python-version: '3.7'
     steps:
       - name: clone repository
         uses: actions/checkout@v2
@@ -74,6 +76,9 @@ jobs:
         uses: actions/checkout@v2
       - name: install Python
         uses: actions/setup-python@v2
+        # due to coupledmodeldriver dependency python 3.10 cannot be supported
+        with:
+          python-version: 3.9
       - name: load cached Python installation
         id: cache
         uses: actions/cache@v2
