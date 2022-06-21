@@ -45,10 +45,10 @@ if __name__ == '__main__':
     depth_bounds = 25.0
     point_spacing = None
     node_status_mask = None
-    k_neighbors=1
-    idw_order=1
-    mann_coef=0.025
-    for mann_coef in [0.025,0.05,0.1]:
+    k_neighbors = 1
+    idw_order = 1
+    mann_coef = 0.025
+    for mann_coef in [0.025, 0.05, 0.1]:
         # analysis type
         variable_name = 'zeta_max'
         use_depth = True  # for depths
@@ -57,43 +57,50 @@ if __name__ == '__main__':
         validation_runs = 'random'
         # PC parameters
         polynomial_order = 3
-        #cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
-        #cross_validator = ShuffleSplit(random_state=666)
+        # cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
+        # cross_validator = ShuffleSplit(random_state=666)
         cross_validator = LeaveOneOut()
-        #regression_model = LassoCV(
+        # regression_model = LassoCV(
         #    fit_intercept=False, cv=cross_validator, selection='random', random_state=666
-        #)
+        # )
         regression_model = ElasticNetCV(
-            fit_intercept=False, cv=cross_validator, l1_ratio=0.5, 
-            selection='random', random_state=666,
+            fit_intercept=False,
+            cv=cross_validator,
+            l1_ratio=0.5,
+            selection='random',
+            random_state=666,
         )
-        #regression_model = LinearRegression(fit_intercept=False)
+        # regression_model = LinearRegression(fit_intercept=False)
         regression_name = 'ElasticNet_LOO'
         if training_runs == 'quadrature':
             use_quadrature = True
         else:
             use_quadrature = False
-    
+
         make_perturbations_plot = True
         make_klprediction_plot = True
         make_klsurrogate_plot = True
         make_sensitivities_plot = True
         make_validation_plot = True
         make_percentile_plot = True
-    
+
         save_plots = True
         show_plots = False
-    
+
         storm_name = None
-    
+
         input_directory = Path.cwd()
         if log_space:
-            output_directory = input_directory / f'log_k{k_neighbors}_p{idw_order}_n{mann_coef}'
+            output_directory = (
+                input_directory / f'log_k{k_neighbors}_p{idw_order}_n{mann_coef}'
+            )
         else:
-            output_directory = input_directory / f'linear_k{k_neighbors}_p{idw_order}_n{mann_coef}'
+            output_directory = (
+                input_directory / f'linear_k{k_neighbors}_p{idw_order}_n{mann_coef}'
+            )
         if not output_directory.exists():
             output_directory.mkdir(parents=True, exist_ok=True)
-    
+
         subset_filename = output_directory / 'subset.nc'
         kl_filename = output_directory / 'karhunen_loeve.pkl'
         kl_surrogate_filename = output_directory / 'kl_surrogate.npy'
@@ -102,11 +109,11 @@ if __name__ == '__main__':
         sensitivities_filename = output_directory / 'sensitivities.nc'
         validation_filename = output_directory / 'validation.nc'
         percentile_filename = output_directory / 'percentiles.nc'
-    
+
         filenames = ['perturbations.nc', 'maxele.63.nc']
         if storm_name is None:
             storm_name = input_directory / 'track_files' / 'original.22'
-    
+
         datasets = {}
         existing_filenames = []
         for filename in filenames:
@@ -115,11 +122,11 @@ if __name__ == '__main__':
                 datasets[filename.name] = xarray.open_dataset(filename, chunks='auto')
             else:
                 raise FileNotFoundError(filename.name)
-    
+
         perturbations = datasets[filenames[0]]
         max_elevations = datasets[filenames[1]]
         min_depth = 0.8 * max_elevations.h0  # the minimum allowable depth
-    
+
         perturbations = perturbations.assign_coords(
             type=(
                 'run',
@@ -136,10 +143,10 @@ if __name__ == '__main__':
                 ),
             )
         )
-    
+
         training_perturbations = perturbations.sel(run=perturbations['type'] == 'training')
         validation_perturbations = perturbations.sel(run=perturbations['type'] == 'validation')
-    
+
         if make_perturbations_plot:
             plot_perturbations(
                 training_perturbations=training_perturbations,
@@ -149,19 +156,19 @@ if __name__ == '__main__':
                 track_directory=input_directory / 'track_files',
                 output_directory=output_directory if save_plots else None,
             )
-    
+
         variables = {
             variable_class.name: variable_class()
             for variable_class in VortexPerturbedVariable.__subclasses__()
         }
-    
+
         distribution = chaospy.J(
             *(
                 variables[variable_name].chaospy_distribution()
                 for variable_name in perturbations['variable'].values
             )
         )
-    
+
         # sample based on subset and excluding points that are never wet during training run
         if not subset_filename.exists():
             LOGGER.info('subsetting nodes')
@@ -177,22 +184,22 @@ if __name__ == '__main__':
                 point_spacing=point_spacing,
                 output_filename=subset_filename,
             )
-    
+
         # subset chunking can be disturbed by point_spacing so load from saved filename always
         LOGGER.info(f'loading subset from "{subset_filename}"')
         subset = xarray.open_dataset(subset_filename)
         if 'element' in subset:
             elements = subset['element']
         subset = subset[variable_name]
-    
+
         # divide subset into training/validation runs
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             training_set = subset.sel(run=training_perturbations['run'])
             validation_set = subset.sel(run=validation_perturbations['run'])
-    
+
         LOGGER.info(f'total {training_set.shape} training samples')
         LOGGER.info(f'total {validation_set.shape} validation samples')
-    
+
         if node_status_mask == 'always_wet':
             training_set_adjusted = training_set.copy(deep=True)
         else:
@@ -206,15 +213,17 @@ if __name__ == '__main__':
                 u_ref=0.4,
                 d_ref=1,
             )
-   
+
         if use_depth:
-            training_set_adjusted += training_set_adjusted['depth'] 
-           
+            training_set_adjusted += training_set_adjusted['depth']
+
         if log_space:
-            training_depth_adjust = numpy.fmax(0,min_depth - training_set_adjusted.min(axis=0)) 
+            training_depth_adjust = numpy.fmax(
+                0, min_depth - training_set_adjusted.min(axis=0)
+            )
             training_set_adjusted += training_depth_adjust
             training_set_adjusted = numpy.log(training_set_adjusted)
-    
+
         # Evaluating the Karhunen-Loeve expansion
         nens, ngrid = training_set.shape
         if not kl_filename.exists():
@@ -231,10 +240,10 @@ if __name__ == '__main__':
             LOGGER.info(f'loading Karhunen-Loeve expansion from "{kl_filename}"')
             with open(kl_filename, 'rb') as kl_handle:
                 kl_expansion = pickle.load(kl_handle)
-    
+
         LOGGER.info(f'found {kl_expansion["neig"]} Karhunen-Loeve modes')
         LOGGER.info(f'Karhunen-Loeve expansion: {list(kl_expansion)}')
-    
+
         # plot prediction versus actual simulated
         if make_klprediction_plot:
             kl_predicted = karhunen_loeve_prediction(
@@ -244,7 +253,7 @@ if __name__ == '__main__':
                 element_table=elements if point_spacing is None else None,
                 plot_directory=output_directory,
             )
- 
+
         # evaluate the surrogate for each KL sample
         kl_training_set = xarray.DataArray(data=kl_expansion['samples'], dims=['run', 'mode'])
         kl_surrogate_model = surrogate_from_training_set(
@@ -256,7 +265,7 @@ if __name__ == '__main__':
             polynomial_order=polynomial_order,
             regression_model=regression_model,
         )
- 
+
         # plot kl surrogate model versus training set
         if make_klsurrogate_plot:
             kl_fit = validations_from_surrogate(
@@ -268,9 +277,11 @@ if __name__ == '__main__':
 
             plot_kl_surrogate_fit(
                 kl_fit=kl_fit,
-                output_filename=output_directory / 'kl_surrogate_fit.png' if save_plots else None,
+                output_filename=output_directory / 'kl_surrogate_fit.png'
+                if save_plots
+                else None,
             )
-    
+
         # convert the KL surrogate model to the overall surrogate at each node
         surrogate_model = surrogate_from_karhunen_loeve(
             mean_vector=kl_expansion['mean_vector'],
@@ -279,7 +290,7 @@ if __name__ == '__main__':
             kl_surrogate_model=kl_surrogate_model,
             filename=surrogate_filename,
         )
-    
+
         if make_sensitivities_plot:
             sensitivities = sensitivities_from_surrogate(
                 surrogate_model=surrogate_model,
@@ -294,7 +305,7 @@ if __name__ == '__main__':
                 storm=storm_name,
                 output_filename=output_directory / 'sensitivities.png' if save_plots else None,
             )
-    
+
         if make_validation_plot:
             node_validation = validations_from_surrogate(
                 surrogate_model=surrogate_model,
@@ -308,12 +319,12 @@ if __name__ == '__main__':
                 element_table=elements if point_spacing is None else None,
                 filename=validation_filename,
             )
-    
+
             plot_validations(
                 validation=node_validation,
                 output_directory=output_directory if save_plots else None,
             )
-    
+
             plot_selected_validations(
                 validation=node_validation,
                 run_list=validation_set['run'][
@@ -321,7 +332,7 @@ if __name__ == '__main__':
                 ].values,
                 output_directory=output_directory if save_plots else None,
             )
-    
+
         if make_percentile_plot:
             percentiles = [10, 30, 50, 70, 90]
             node_percentiles = percentiles_from_surrogate(
@@ -335,13 +346,13 @@ if __name__ == '__main__':
                 element_table=elements if point_spacing is None else None,
                 filename=percentile_filename,
             )
-    
+
             plot_selected_percentiles(
                 node_percentiles=node_percentiles,
                 perc_list=percentiles,
                 output_directory=output_directory if save_plots else None,
             )
-    
+
         if show_plots:
             LOGGER.info('showing plots')
             pyplot.show()

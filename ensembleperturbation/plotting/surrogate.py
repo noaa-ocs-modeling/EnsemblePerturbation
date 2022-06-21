@@ -351,7 +351,7 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
     subplot_integer = math.ceil(len(validation['type']) / ncols) * 100 + ncols * 10 + 1
     for index, result_type in enumerate(validation['type'].values):
         result_validation = validation.sel(type=result_type)
-        #fig_scatter, axes = plot_scatter_comparison(
+        # fig_scatter, axes = plot_scatter_comparison(
         #    result_validation,
         #    title=f'comparison of {len(sources)} sources along {len(result_validation["node"])} node(s)',
         #    reference_line=index == 0,
@@ -361,7 +361,7 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
         #    s=1,
         #    c=type_colors[result_type],
         #    label=result_type,
-        #)
+        # )
 
         fig_boxplot = plot_boxplot_comparison(
             result_validation,
@@ -370,14 +370,14 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
             figure=fig_boxplot,
         )
 
-    #for row in axes.values():
+    # for row in axes.values():
     #    for axis in row.values():
     #        axis.legend()
 
     if output_directory is not None:
-        #fig_scatter.savefig(
+        # fig_scatter.savefig(
         #    output_directory / f'validation_scatter.png', dpi=200, bbox_inches='tight',
-        #)
+        # )
         fig_boxplot.savefig(
             output_directory / f'validation_boxplot.png', dpi=200, bbox_inches='tight',
         )

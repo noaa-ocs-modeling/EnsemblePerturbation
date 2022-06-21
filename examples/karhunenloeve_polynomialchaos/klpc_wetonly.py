@@ -47,21 +47,25 @@ if __name__ == '__main__':
     use_depth = True  # for depths
     # use_depth = False   # for elevations
     log_space = False  # normal linear space
-    #log_space = True  # use log-scale to force surrogate to positive values only
+    # log_space = True  # use log-scale to force surrogate to positive values only
     training_runs = 'korobov'
     validation_runs = 'random'
     # PC parameters
     polynomial_order = 3
-    #cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
-    #cross_validator = ShuffleSplit(random_state=666)
+    # cross_validator = ShuffleSplit(n_splits=10, test_size=12, random_state=666)
+    # cross_validator = ShuffleSplit(random_state=666)
     cross_validator = LeaveOneOut()
-    #regression_model = LassoCV(
+    # regression_model = LassoCV(
     #    fit_intercept=False, cv=cross_validator, selection='random', random_state=666
-    #)
+    # )
     regression_model = ElasticNetCV(
-        fit_intercept=False, cv=cross_validator, l1_ratio=0.5, selection='random', random_state=666
+        fit_intercept=False,
+        cv=cross_validator,
+        l1_ratio=0.5,
+        selection='random',
+        random_state=666,
     )
-    #regression_model = LinearRegression(fit_intercept=False)
+    # regression_model = LinearRegression(fit_intercept=False)
     regression_name = 'ElasticNet_LOO'
     if training_runs == 'quadrature':
         use_quadrature = True
@@ -190,9 +194,9 @@ if __name__ == '__main__':
     training_set_adjusted = training_set.copy(deep=True)
 
     if use_depth:
-        training_set_adjusted += training_set_adjusted['depth'] #+ adjusted_min_depth
-          
-    if log_space: 
+        training_set_adjusted += training_set_adjusted['depth']  # + adjusted_min_depth
+
+    if log_space:
         training_set_adjusted = numpy.log(training_set_adjusted)
 
     # Evaluating the Karhunen-Loeve expansion
