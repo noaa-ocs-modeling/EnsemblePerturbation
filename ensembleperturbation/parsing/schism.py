@@ -34,7 +34,7 @@ def is_stacked(pattern):
 
 
 def create_output_dict(file_pattern, directory=Path(), existing_dict=None):
-    output_dict = {} 
+    output_dict = {}
     if isinstance(existing_dict, Mapping):
         output_dict = deepcopy(existing_dict)
 
@@ -42,9 +42,7 @@ def create_output_dict(file_pattern, directory=Path(), existing_dict=None):
     proper_matches = [path for path in matches if path.parent.name == 'outputs']
     run_dirs = set(path.parent.parent for path in proper_matches)
     for rundir in run_dirs:
-        run_outputs = [
-            path for path in proper_matches if path.match(f'{rundir}/outputs/*')
-        ]
+        run_outputs = [path for path in proper_matches if path.match(f'{rundir}/outputs/*')]
         n_stacks = 1
         if is_stacked(file_pattern):
             n_stacks = max(int(out.stem.split('_')[-1]) for out in run_outputs)
@@ -64,7 +62,16 @@ def validate_run_output(run_dict, output_patterns):
         return False
 
     # Check if num of stacks match, for stacked (in time) outputs
-    if len({run_dict['outputs'][patt]['n_stacks'] for patt in output_patterns if is_stacked(patt)}) > 1:
+    if (
+        len(
+            {
+                run_dict['outputs'][patt]['n_stacks']
+                for patt in output_patterns
+                if is_stacked(patt)
+            }
+        )
+        > 1
+    ):
         return False
 
     return True
@@ -101,42 +108,6 @@ class ElevationSelection(Enum):
     dry = 'dry'
 
 
-#class Output
-#    quantity
-#    solver
-#    resource_handler
-#    source (field/station)
-#    deriver
-#    is_time_dependent
-#
-#class NetCDF
-#class CSV
-#class MultiFile
-#    resources
-#class SingleFile
-#    resource
-#class Quantity
-#class ScalarQuantity(Quantity)
-#class VectorQuantity(Quantity)
-#class Field
-#class Station
-#class SolverSpecificOutput
-#
-# FOR FULL INHERITANCE!
-#ScalarSingleFileNetCDFFieldDerivedOutput
-#VectorMultiFileFileNetCDFFieldDerivedOutput
-#ScalarSingleFileNetCDFFieldTimeSeriesDirectOutput
-#VectorMultiFileNetCDFFieldTimeSeriesDirectOutput
-#VectorSingleFileNetCDFFieldTimeSeriesDirectOutput
-#ScalarSingleFileCSVStationTimeSeriesDirectOutput
-#VectorMultiFileCSVStationTimeSeriesDirectOutput
-#
-#SchismElevationOutput
-#     components
-#     files
-#Velocity
-#WindSpeed
-
 class SchismOutput(ABC):
     file_patterns: str
     variables: List[str]
@@ -154,7 +125,6 @@ class SchismOutput(ABC):
         cls, directory: PathLike, variables: List[str] = None, parallel: bool = False
     ) -> Dataset:
         raise NotImplementedError
-
 
     @classmethod
     @abstractmethod
@@ -175,18 +145,18 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
 
     station_file = 'station.in'
 
-    '''
+    """
     outputs/staout_[1..,9], corresponding respectively to elev,
     air pressure, wind u, wind v, T, S, u, v, w
-    '''
+    """
 
     @classmethod
     def read(
-            cls,
-            filenames: Union[PathLike, List[PathLike]],
-            station_file: PathLike,
-            station_idx: List[int] = None
-            ) -> GeoDataFrame:
+        cls,
+        filenames: Union[PathLike, List[PathLike]],
+        station_file: PathLike,
+        station_idx: List[int] = None,
+    ) -> GeoDataFrame:
 
         if not isinstance(filenames, List):
             filenames = [filenames]
@@ -197,17 +167,24 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
                 f' input files for {" & ".join(cls.variables)}'
             )
 
-        station_df = pandas.read_csv(
-            station_file, header=None, delim_whitespace=True,
-            index_col=0, skiprows=2).drop(columns=[3, 4]).rename_axis(
-                'station_index').rename(columns={1: 'x', 2: 'y'})
+        station_df = (
+            pandas.read_csv(
+                station_file, header=None, delim_whitespace=True, index_col=0, skiprows=2
+            )
+            .drop(columns=[3, 4])
+            .rename_axis('station_index')
+            .rename(columns={1: 'x', 2: 'y'})
+        )
 
         all_results_df = pandas.DataFrame()
         for fname, var in zip(filenames, cls.variables):
-            result_df = pandas.read_csv(
-                fname, header=None, delim_whitespace=True, index_col=0
-                ).transpose().melt(var_name='time', ignore_index=False).rename_axis(
-                    'station_index').rename(columns={'value': var})
+            result_df = (
+                pandas.read_csv(fname, header=None, delim_whitespace=True, index_col=0)
+                .transpose()
+                .melt(var_name='time', ignore_index=False)
+                .rename_axis('station_index')
+                .rename(columns={'value': var})
+            )
             result_df['x'] = station_df.loc[
                 result_df.index.get_level_values('station_index')
             ].x
@@ -224,22 +201,21 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
                 station_df.loc[all_results_df.station_index].x,
                 station_df.loc[all_results_df.station_index].y,
             ),
-            data=all_results_df
+            data=all_results_df,
         )
 
         return station_gdf
 
-
     @classmethod
     def read_to_dataset(
-            cls,
-            filenames: Union[PathLike, List[PathLike]],
-            station_file: PathLike,
-            station_idx: List[int] = None,
-            run_name: str = None
-            ) -> Dataset:
+        cls,
+        filenames: Union[PathLike, List[PathLike]],
+        station_file: PathLike,
+        station_idx: List[int] = None,
+        run_name: str = None,
+    ) -> Dataset:
 
-        station_gdf = cls.read(filenames, station_file,station_idx)
+        station_gdf = cls.read(filenames, station_file, station_idx)
         if run_name is not None:
             station_gdf['run'] = run_name
 
@@ -256,7 +232,6 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
 
         return dataset
 
-
     @classmethod
     def read_directory(
         cls, directory: PathLike, variables: List[str] = None, parallel: bool = False
@@ -271,7 +246,6 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
         :return: GeoDataFrame of output data
         """
 
-
         if not isinstance(directory, Path):
             directory = Path(directory)
 
@@ -279,27 +253,33 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
         run_dirs = list(output_dict.keys())
 
         # TODO: Use variables?
-        
+
         dataset_list = []
         lazy_results = []
         for en, run_dir in enumerate(run_dirs):
             if parallel:
                 lazy_results.append(
                     dask.delayed(cls.read_to_dataset)(
-                        [f for patt_dict in output_dict[run_dir]['outputs'].values()
-                            for f in patt_dict['files']],
+                        [
+                            f
+                            for patt_dict in output_dict[run_dir]['outputs'].values()
+                            for f in patt_dict['files']
+                        ],
                         run_dir / cls.station_file,
-                        run_name=run_dir.name
+                        run_name=run_dir.name,
                     )
                 )
 
             else:
                 dataset_list.append(
                     cls.read_to_dataset(
-                        [f for patt_dict in output_dict[run_dir]['outputs'].values()
-                            for f in patt_dict['files']],
+                        [
+                            f
+                            for patt_dict in output_dict[run_dir]['outputs'].values()
+                            for f in patt_dict['files']
+                        ],
                         run_dir / cls.station_file,
-                        run_name=run_dir.name
+                        run_name=run_dir.name,
                     )
                 )
 
@@ -307,7 +287,6 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
             dataset_list = dask.compute(*lazy_results)
 
         return xarray.merge(dataset_list)
-
 
     @classmethod
     def subset(
@@ -332,6 +311,7 @@ class StationTimeSeriesOutput(SchismOutput, TimeSeriesOutput, ABC):
 
         return subset
 
+
 class ElevationStationOutput(StationTimeSeriesOutput):
     """
     ``staout_1`` - Elevation Time Series at Specified Elevation Recording Stations
@@ -354,12 +334,9 @@ class VelocityStationOutput(StationTimeSeriesOutput):
 
 
 class FieldOutput(SchismOutput, ABC):
-
     @classmethod
     def read(
-        cls,
-        filenames: Union[PathLike, List[PathLike]],
-        names: List[str] = None
+        cls, filenames: Union[PathLike, List[PathLike]], names: List[str] = None
     ) -> Union[DataFrame, DataArray]:
         """
         Parse SCHISM output files
@@ -380,14 +357,18 @@ class FieldOutput(SchismOutput, ABC):
 
         filenames = [Path(fnm) for fnm in filenames]
 
-#        LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
+        #        LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
 
         if names is None:
             names = []
             for subclass in FieldOutput.__subclasses__():
                 # NOTE: Same filename can contain info for multiple vars (out2d)
-                if all([fpath.name == Path(predef).name
-                        for fpath, predef in zip(filenames, subclass.filenames)]):
+                if all(
+                    [
+                        fpath.name == Path(predef).name
+                        for fpath, predef in zip(filenames, subclass.filenames)
+                    ]
+                ):
                     names.extend(subclass.variables)
             else:
                 raise NotImplementedError(
@@ -398,10 +379,9 @@ class FieldOutput(SchismOutput, ABC):
         dataset = xarray.open_mfdataset(filenames, drop_variables=cls.drop_variables)
         data = dataset[names]
 
-#        LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
+        #        LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
 
         return data
-
 
     @classmethod
     def read_directory(
@@ -425,13 +405,10 @@ class FieldOutput(SchismOutput, ABC):
         output_dict = find_run_dir_for_output(cls.file_patterns, directory)
 
         file_collection = [
-            [[f for f in patt_dict['files']] for patt_dict in run_dict['outputs']]
+            [[f for f in patt_dict['files']] for patt_dict in run_dict['outputs'].values()]
             for run_dict in output_dict.values()
         ]
-        run_dirs = [
-            [[run_dir for f in patt_dict['files']] for patt_dict in run_dict['outputs']]
-            for run_dir, run_dict in output_dict.items()
-        ]
+        run_dirs = list(output_dict.keys())
 
         # Open only the first set of outputs to get all drop_variables
         drop_variables = cls.drop_variables
@@ -443,9 +420,14 @@ class FieldOutput(SchismOutput, ABC):
                 variable_name
                 for variable_name in sample_dataset.variables
                 if variable_name not in variables
-                and variable_name not in [
-                    'time', 'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y',
-                    'depth', 'dryFlagNode']
+                and variable_name
+                not in [
+                    'time',
+                    'SCHISM_hgrid_node_x',
+                    'SCHISM_hgrid_node_y',
+                    'depth',
+                    'dryFlagNode',
+                ]
             )
 
         # Now open all the relevant output files for all runs
@@ -455,7 +437,7 @@ class FieldOutput(SchismOutput, ABC):
                 drop_variables=drop_variables,
                 parallel=parallel,
                 lock=False,
-            ).expand_dims({'run': [run_dirs[0]]})
+            ).expand_dims({'run': [run_dirs[0].name]})
             for run_idx, run_dir in enumerate(run_dirs[1:]):
                 run_out_filelist = [f for flist in file_collection[run_idx + 1] for f in flist]
                 dataset = xarray.combine_nested(
@@ -466,25 +448,24 @@ class FieldOutput(SchismOutput, ABC):
                             drop_variables=drop_variables,
                             parallel=parallel,
                             lock=False,
-                        ).expand_dims({'run': [run_dir.name]})
+                        ).expand_dims({'run': [run_dir.name]}),
                     ],
-                    concat_dim='run'
+                    concat_dim='run',
                 )
 
         # Drop run dimension for variables fixed across runs
-        fixed_vars = [
-            'depth', 'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'dryFlagNode'
-        ]
+        fixed_vars = ['depth', 'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'dryFlagNode']
         for var in fixed_vars:
             if var not in dataset:
                 continue
             dataset = dataset.assign({var: dataset[var].isel(run=0)})
 
-
         # TODO: Used to be check for 'element' var in ADCIRC
 
-        return dataset[variables]
+        # TODO: Should the returned dataset drop x & y?
+        # return dataset[variables]
 
+        return dataset
 
     @classmethod
     def subset(
@@ -513,12 +494,12 @@ class FieldOutput(SchismOutput, ABC):
             with dask.config.set(**{'array.slicing.split_large_chunks': True}):
                 geometry = geopandas.points_from_xy(
                     dataset['SCHISM_hgrid_node_x'].values,
-                    dataset['SCHISM_hgrid_node_y'].values
+                    dataset['SCHISM_hgrid_node_y'].values,
                 )
                 points = GeoDataFrame(
                     {
                         'lon': dataset['SCHISM_hgrid_node_x'].values,
-                        'lat': dataset['SCHISM_hgrid_node_y'].values
+                        'lat': dataset['SCHISM_hgrid_node_y'].values,
                     },
                     geometry=geometry,
                 )
@@ -555,27 +536,11 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
 
     @classmethod
     def read(
-        cls,
-        filenames: Union[PathLike, List[PathLike]],
-        names: List[str] = None
+        cls, filenames: Union[PathLike, List[PathLike]], names: List[str] = None
     ) -> Union[DataFrame, DataArray]:
-        full_ds = cls.read(filenames, names)
-        # TODO: What if the output is separated in time (out2d_1, out2d_2, etc.)
-        if len(cls.variables) > 1:
-            to_extrm_ary = np.sum([full_ds[var]**2 for var in cls.variables])**0.5
-        else:
-            to_extrm_ary = full_ds[cls.variables[0]]
-        arg_extrm_var = getattr(to_extrm_ary, cls.extermum_func)(dim='time')
-        extrm_times = to_extrm_ary.time[arg_extrm_var]
-        extrm_vals = to_extrm_ary[arg_extrm_var]
-        ds = xarray.Dataset(
-            {
-                cls.derived_name: (extrm_vals.dims, extrm_vals),
-                cls.derived_time_name: (extrm_vals.dims, extrm_times)
-            }, 
-        )
-        return ds 
-
+        full_ds = super().read(filenames, names)
+        ds = cls._calc_extermum(full_ds)
+        return ds
 
     @classmethod
     def read_directory(
@@ -583,16 +548,50 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
     ) -> Dataset:
         if variables is None:
             variables = cls.variables
-        full_ds = cls.read_directory(directory, variables, parallel)
-        # TODO: Calc Max
+        full_ds = super().read_directory(directory, variables, parallel)
+        ds = cls._calc_extermum(full_ds)
+        return ds
+
+    @classmethod
+    def _calc_extermum(cls, full_ds) -> Dataset:
+        if len(cls.variables) > 1:
+            to_extrm_ary = np.sum([full_ds[var] ** 2 for var in cls.variables]) ** 0.5
+        else:
+            to_extrm_ary = full_ds[cls.variables[0]]
+
+        uses_dask_array = False
+        if to_extrm_ary.chunks is not None and len(to_extrm_ary.chunks) > 0:
+            uses_dask_array = True
+
+        if uses_dask_array:
+            # compute() due to https://github.com/pydata/xarray/issues/2511
+            arg_extrm_var = getattr(to_extrm_ary, cls.extermum_func)(dim='time').compute()
+        else:
+            arg_extrm_var = getattr(to_extrm_ary, cls.extermum_func)(dim='time')
+        extrm_vals = to_extrm_ary.isel(time=arg_extrm_var)
+        extrm_times = to_extrm_ary.time.isel(time=arg_extrm_var)
+
+        # TODO: Chunk the dataset?
+        ds = xarray.Dataset(
+            {
+                cls.derived_name: (extrm_vals.dims, extrm_vals.data),
+                cls.derived_time_name: (extrm_vals.dims, extrm_times.data),
+                'run': extrm_vals.run.data,
+                'nSCHISM_hgrid_node': extrm_vals.nSCHISM_hgrid_node.data,
+                'SCHISM_hgrid_node_x': full_ds.SCHISM_hgrid_node_x,
+                'SCHISM_hgrid_node_y': full_ds.SCHISM_hgrid_node_y,
+            },
+        )
         return ds
 
 
 class MaximumScalarFieldOutputCalculator(ExtremumScalarFieldOutputCalculator):
     extermum_func = 'argmax'
 
+
 class MinimumScalarFieldOutputCalculator(ExtremumScalarFieldOutputCalculator):
     extermum_func = 'argmin'
+
 
 class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
     """
@@ -718,7 +717,7 @@ class SurfaceWindTimeSeriesOutput(FieldTimeSeriesOutput):
 
 
 class _GlobDict(UserDict):
-    '''A dictionary that tries to match key by unix glob if the key is not found'''
+    """A dictionary that tries to match key by unix glob if the key is not found"""
 
     def __getitem__(self, query_key):
         if query_key in self.data:
@@ -730,10 +729,7 @@ class _GlobDict(UserDict):
         return super().__getitem__(query_key)
 
 
-def schism_file_data_variables(
-    cls: type = None,
-    existing_dict = None
-) -> Dict[str, List[str]]:
+def schism_file_data_variables(cls: type = None, existing_dict=None) -> Dict[str, List[str]]:
 
     file_data_variables = _GlobDict()
     if isinstance(existing_dict, Dict):
@@ -851,9 +847,7 @@ def combine_outputs(
 
     wetdry_timeseries_filename = 'out2d_*.nc'
     if elevation_selection is not None and wetdry_timeseries_filename not in parsed_files:
-        raise ValueError(
-            f'elevation time series "{elevation_time_series_filename}" not found'
-        )
+        raise ValueError(f'elevation time series "{elevation_time_series_filename}" not found')
 
     output_data.update(parsed_files)
 
@@ -1033,6 +1027,7 @@ def extrapolate_water_elevation_to_dry_areas(
 def convert_schism_output_dataset_to_adcirc_like(schism_ds):
     # TODO
     pass
+
 
 #    element ->
 #    node -> nSCHISM_hgrid_node
