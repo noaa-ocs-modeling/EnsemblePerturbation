@@ -1116,9 +1116,9 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
         )
     else:
         # Field data
+        temp_ds = schism_ds.copy()
         if all(var in temp_ds.data_vars for var in ['x', 'y']):
             coord_vars.extend(['x', 'y'])
-        temp_ds = schism_ds.copy()
 
     temp_ds = temp_ds.rename(
         **{k: v for k, v in SCHISM_ADCIRC_VAR_MAPPING.items() if k in schism_ds.data_vars}
