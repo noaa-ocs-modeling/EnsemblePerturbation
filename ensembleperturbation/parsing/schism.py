@@ -28,6 +28,43 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.schism')
 
+SCHISM_ADCIRC_DIM_MAPPING = {
+    'nSCHISM_hgrid_node': 'node',
+}
+
+SCHISM_ADCIRC_VAR_MAPPING = {
+    'SCHISM_hgrid_node_x': 'x',
+    'SCHISM_hgrid_node_y': 'y',
+    'elevation': 'zeta',
+    'horizontalVelX': 'u-vel',
+    'horizontalVelY': 'v-vel',
+    'windSpeedX': 'windx',
+    'windSpeedY': 'windy',
+    'airPressure': 'pressure',
+    'max_elevation': 'zeta_max',
+    'max_elevation_times': 'time_of_zeta_max',
+    'max_velocity': 'vel_max',
+    'max_velocity_times': 'time_of_vel_max',
+    'min_pressure': 'pressure_min',
+    'min_pressure_times': 'time_of_pressure_min',
+    'max_wind': 'wind_max',
+    'max_wind_times': 'time_of_wind_max',
+    'station_index': 'station_name',
+}
+
+SCHISM_ADCIRC_OUT_MAPPING = {
+    'schism_point_elevtion.nc': 'fort.61.nc',  # ['station_name', 'zeta']
+    'schism_point_velocity.nc': 'fort.62.nc',  # ['station_name', 'u-vel', 'v-vel']
+    'schism_max_elevation.nc': 'maxele.63.nc',  # ['zeta_max', 'time_of_zeta_max']
+    'schism_max_velocity.nc': 'maxvel.63.nc',  # ['vel_max', 'time_of_vel_max']
+    'schism_min_pressure.nc': 'minpr.63.nc',  # ['pressure_min', 'time_of_pressure_min']
+    'schism_max_wind.nc': 'maxwvel.63.nc',  # ['wind_max', 'time_of_wind_max']
+    'schism_elevation.nc': 'fort.63.nc',  # ['zeta']
+    'schism_velocity.nc': 'fort.64.nc',  # ['u-vel', 'v-vel']
+    'schism_pressure.nc': 'fort.73.nc',  # ['pressure']
+    'schism_wind.nc': 'fort.74.nc',  # ['windx', 'windy']
+}
+
 
 def is_stacked(pattern):
     return '*' in pattern
@@ -109,6 +146,7 @@ class ElevationSelection(Enum):
 
 
 class SchismOutput(ABC):
+    out_filename: str
     file_patterns: str
     variables: List[str]
     drop_variables: List[str] = []
@@ -318,6 +356,7 @@ class ElevationStationOutput(StationTimeSeriesOutput):
 
     """
 
+    out_filename = 'schism_point_elevtion.nc'
     file_patterns = ['staout_1']
     variables = ['elevation']
 
@@ -329,6 +368,7 @@ class VelocityStationOutput(StationTimeSeriesOutput):
 
     """
 
+    out_filename = 'schism_point_velocity.nc'
     file_patterns = ['staout_7', 'staout_8']
     variables = ['horizontalVelX', 'horizontalVelY']
 
@@ -341,7 +381,7 @@ class FieldOutput(SchismOutput, ABC):
         """
         Parse SCHISM output files
 
-        :param filename: file path to SCHISM NetCDF output
+        :param filenames: file path to SCHISM NetCDF outputs
         :param names: list of data variables to extract
         :return: parsed data
         """
@@ -357,7 +397,8 @@ class FieldOutput(SchismOutput, ABC):
 
         filenames = [Path(fnm) for fnm in filenames]
 
-        #        LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
+        for filename in filenames:
+            LOGGER.debug(f'opening "{"/".join(filename.parts[-2:])}"')
 
         if names is None:
             names = []
@@ -372,14 +413,15 @@ class FieldOutput(SchismOutput, ABC):
                     names.extend(subclass.variables)
             else:
                 raise NotImplementedError(
-                    f'SCHISM output file "{filename.name}" not implemented'
+                    f'Support for one of the provided SCHISM output files is not implemented'
                 )
         names = list(set(names))
 
         dataset = xarray.open_mfdataset(filenames, drop_variables=cls.drop_variables)
         data = dataset[names]
 
-        #        LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
+        for filename in filenames:
+            LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
 
         return data
 
@@ -549,13 +591,18 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
         if variables is None:
             variables = cls.variables
         full_ds = super().read_directory(directory, variables, parallel)
-        ds = cls._calc_extermum(full_ds)
-        return ds
+        if all(var in full_ds.data_vars for var in variables):
+            ds = cls._calc_extermum(full_ds)
+            return ds
+
+        return xarray.Dataset()
 
     @classmethod
     def _calc_extermum(cls, full_ds) -> Dataset:
         if len(cls.variables) > 1:
-            to_extrm_ary = np.sum([full_ds[var] ** 2 for var in cls.variables]) ** 0.5
+            to_extrm_ary = (
+                numpy.sum(getattr(full_ds, var) ** 2 for var in cls.variables) ** 0.5
+            )
         else:
             to_extrm_ary = full_ds[cls.variables[0]]
 
@@ -599,6 +646,7 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
 
     """
 
+    out_filename = 'schism_max_elevation.nc'
     file_patterns = ['out2d_*.nc']
     variables = ['elevation']
     derived_name = 'max_elevation'
@@ -611,7 +659,9 @@ class MaximumVelocityOutput(MaximumScalarFieldOutputCalculator):
 
     """
 
-    file_patterns = ['horizontalVelX_*.nc', 'horizontalVelY_*.nc']
+    out_filename = 'schism_max_velocity.nc'
+    file_patterns = ['horizontalVel?_*.nc']
+    variables = ['horizontalVelX', 'horizontalVelY']
     derived_name = 'max_velocity'
     derived_time_name = 'max_velocity_times'
 
@@ -622,6 +672,7 @@ class MinimumSurfacePressureOutput(MinimumScalarFieldOutputCalculator):
 
     """
 
+    out_filename = 'schism_min_pressure.nc'
     file_patterns = ['out2d_*.nc']
     variables = ['airPressure']
     derived_name = 'min_pressure'
@@ -634,6 +685,7 @@ class MaximumSurfaceWindOutput(MaximumScalarFieldOutputCalculator):
 
     """
 
+    out_filename = 'schism_max_wind.nc'
     file_patterns = ['out2d_*.nc']
     variables = ['windSpeedX', 'windSpeedY']
     derived_name = 'max_wind'
@@ -650,6 +702,7 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
 
     """
 
+    out_filename = 'schism_elevation.nc'
     file_patterns = ['out2d_*.nc']
     variables = ['elevation']
 
@@ -692,7 +745,8 @@ class VelocityTimeSeriesOutput(FieldTimeSeriesOutput):
 
     """
 
-    file_patterns = ['horizontalVelX_*.nc', 'horizontalVelY_*.nc']
+    out_filename = 'schism_velocity.nc'
+    file_patterns = ['horizontalVel?_*.nc']
     variables = ['horizontalVelX', 'horizontalVelY']
 
 
@@ -702,6 +756,7 @@ class SurfacePressureTimeSeriesOutput(FieldTimeSeriesOutput):
 
     """
 
+    out_filename = 'schism_pressure.nc'
     file_patterns = ['out2d_*.nc']
     variables = ['airPressure']
 
@@ -712,6 +767,7 @@ class SurfaceWindTimeSeriesOutput(FieldTimeSeriesOutput):
 
     """
 
+    out_filename = 'schism_wind.nc'
     file_patterns = ['out2d_*.nc']
     variables = ['windSpeedX', 'windSpeedY']
 
@@ -732,7 +788,7 @@ class _GlobDict(UserDict):
 def schism_file_data_variables(cls: type = None, existing_dict=None) -> Dict[str, List[str]]:
 
     file_data_variables = _GlobDict()
-    if isinstance(existing_dict, Dict):
+    if existing_dict is not None:
         file_data_variables = deepcopy(existing_dict)
 
     if cls is None:
@@ -779,14 +835,26 @@ def parse_schism_outputs(
 
     output_tree = {}
     for basename, output_classes in file_outputs.items():
-        output_tree[basename] = list()
         for output_class in output_classes:
             try:
-                output_tree[basename].append(
-                    output_class.read_directory(
-                        directory, variables=output_class.variables, parallel=parallel,
-                    )
+                # Some classes match multiple patterns (i.e. basename)
+                if output_class in output_tree:
+                    continue
+
+                print('Read', basename, 'with', output_class)
+                dataset = output_class.read_directory(
+                    directory, variables=output_class.variables, parallel=parallel,
                 )
+                skip_ds = False
+                for var in output_class.variables:
+                    if var in dataset.data_vars:
+                        continue
+                    skip_ds = True
+                if skip_ds:
+                    continue
+
+                output_tree[output_class] = dataset
+
             except (ValueError, FileNotFoundError) as error:
                 LOGGER.warning(error)
 
@@ -845,15 +913,15 @@ def combine_outputs(
         directory=runs_directory, file_outputs=file_data_variables, parallel=parallel,
     )
 
-    wetdry_timeseries_filename = 'out2d_*.nc'
-    if elevation_selection is not None and wetdry_timeseries_filename not in parsed_files:
-        raise ValueError(f'elevation time series "{elevation_time_series_filename}" not found')
+    wetdry_timeseries_output = ElevationTimeSeriesOutput
+    if elevation_selection is not None and wetdry_timeseries_output not in parsed_files:
+        raise ValueError(f'elevation time series not found')
 
-    output_data.update(parsed_files)
+    output_data.update({k.out_filename: v for k, v in parsed_files.items()})
 
     # generate subset
     elevation_subset = None
-    for basename, file_data in output_data.items():
+    for output_class, file_data in parsed_files.items():
         if 'nSCHISM_hgrid_node' in file_data:
             num_nodes = len(file_data['nSCHISM_hgrid_node'])
 
@@ -861,10 +929,8 @@ def combine_outputs(
                 f'"{name}" {variable.shape}' for name, variable in file_data.items()
             )
             LOGGER.info(
-                f'found {len(file_data)} variable(s) in "{basename}": {variable_shape_string}'
+                f'found {len(file_data)} variable(s) in "{output_class.file_patterns}": {variable_shape_string}'
             )
-
-            file_data_variable = file_data_variables[basename]
 
             subset = ~file_data['nSCHISM_hgrid_node'].isnull()
 
@@ -873,7 +939,7 @@ def combine_outputs(
 
             subset = numpy.logical_and(
                 subset,
-                file_data_variable.subset(
+                output_class.subset(
                     file_data,
                     bounds=bounds,
                     maximum_depth=maximum_depth,
@@ -891,10 +957,13 @@ def combine_outputs(
                 if elevation_selection is not None:
                     elevation_subset = subset
 
-            output_data[basename] = file_data
+            output_data[output_class.out_filename] = file_data
 
-    for basename, file_data in output_data.items():
-        if output_directory is not None:
+    if output_directory is not None:
+        for key, file_data in output_data.items():
+            basename = key
+            if isinstance(key, type) and issubclass(key, SchismOutput):
+                basename = key.out_filename
             output_filename = output_directory / basename
             LOGGER.info(f'writing to "{output_filename}"')
             file_data.to_netcdf(
@@ -1024,42 +1093,77 @@ def extrapolate_water_elevation_to_dry_areas(
     return da_adjusted
 
 
-def convert_schism_output_dataset_to_adcirc_like(schism_ds):
-    # TODO
-    pass
+def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
+
+    # TODO: Add sanity check for schism dataset
+    # TODO: Handle quad to tria
+
+    coord_vars = ['time']
+    if 'station_index' in schism_ds.data_vars:
+        # Station data
+        temp_ds = schism_ds.swap_dims({'station_index': 'station'}).reset_coords(
+            'station_index'
+        )
+    else:
+        # Field data
+        coord_vars.extend(['x', 'y'])
+        temp_ds = schism_ds.copy()
+
+    temp_ds = temp_ds.rename(
+        **{k: v for k, v in SCHISM_ADCIRC_VAR_MAPPING.items() if k in schism_ds.data_vars}
+    )
+    temp_ds = temp_ds.rename_dims(
+        **{k: v for k, v in SCHISM_ADCIRC_DIM_MAPPING.items() if k in schism_ds.dims}
+    )
+
+    if 'run' in temp_ds.coords:
+        coord_vars.insert(0, 'run')
+
+    adcirc_ds = temp_ds.set_coords(coord_vars)
+
+    return adcirc_ds
 
 
-#    element ->
-#    node -> nSCHISM_hgrid_node
-#    x -> SCHISM_hgrid_node_x
-#    y -> SCHISM_hgrid_node_y
-#    zeta -> elevation
-#    u-vel -> horizontalVelX
-#    v-vel -> horizontalVelY
-#    windx -> windSpeedX
-#    windy -> windSpeedY
-#    pressure -> airPressure
-#    zeta_max -> max_elevation
-#    time_of_zeta_max -> max_elevation_times
-#    vel_max -> max_velocity
-#    time_of_vel_max -> max_velocity_times
-#    pressure_min -> min_pressure
-#    time_of_pressure_min -> min_pressure_times
-#    wind_max -> max_wind
-#    time_of_wind_max -> max_wind_times
+def convert_schism_output_files_to_adcirc_like(
+    directory: PathLike = None,
+    file_data_variables: Dict[str, List[str]] = None,
+    bounds: Tuple[float, float, float, float] = None,
+    maximum_depth: float = None,
+    elevation_selection: ElevationSelection = None,
+    output_directory: PathLike = None,
+    parallel: bool = False,
+) -> None:
 
-#    nSCHISM_hgrid_node is NOT a dimension, just a data_var
+    # NOTE: Don't pass the output_directory here
+    results = combine_outputs(
+        directory=directory,
+        file_data_variables=file_data_variables,
+        bounds=bounds,
+        maximum_depth=maximum_depth,
+        elevation_selection=elevation_selection,
+        output_directory=None,
+        parallel=parallel,
+    )
 
-#    filename = 'fort.61.nc' #    variables = ['station_name', 'zeta']
-#    filename = 'fort.62.nc' #    variables = ['station_name', 'u-vel', 'v-vel']
-#    filename = 'maxele.63.nc' #    variables = ['zeta_max', 'time_of_zeta_max']
-#    filename = 'maxvel.63.nc' #    variables = ['vel_max', 'time_of_vel_max']
-#    filename = 'minpr.63.nc' #    variables = ['pressure_min', 'time_of_pressure_min']
-#    filename = 'maxwvel.63.nc' #    variables = ['wind_max', 'time_of_wind_max']
-#    filename = 'fort.63.nc' #    variables = ['zeta']
-#    filename = 'fort.64.nc' #    variables = ['u-vel', 'v-vel']
-#    filename = 'fort.73.nc' #    variables = ['pressure']
-#    filename = 'fort.74.nc' #    variables = ['windx', 'windy']
+    output_data = {}
+    for out_name, data in results:
+        newkey = SCHISM_ADCIRC_OUT_MAPPING.get(out_name, None)
+        if newkey is None:
+            newkey = out_name
 
-#    filename = 'fort.67.nc' #    variables = ['zeta1', 'zeta2', 'zetad', 'u-vel', 'v-vel']
-#    filename = 'fort.68.nc'
+        if newkey != 'perturbations.nc':
+            data = convert_schism_output_dataset_to_adcirc_like(data)
+        output_data[newkey] = data
+
+    if output_directory is not None:
+        for out_name, file_data in output_data.items():
+            output_filename = output_directory / out_name
+            LOGGER.info(f'writing to "{output_filename}"')
+            file_data.to_netcdf(
+                output_filename,
+                # encoding={
+                #     variable_name: {'zlib': True} for variable_name in file_data.variables
+                # },
+            )
+
+    return output_data
