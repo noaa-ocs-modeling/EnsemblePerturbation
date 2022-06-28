@@ -453,7 +453,7 @@ class FieldOutput(SchismOutput, ABC):
         run_dirs = list(output_dict.keys())
 
         # Open only the first set of outputs to get all drop_variables
-        drop_variables = cls.drop_variables
+        drop_variables = deepcopy(cls.drop_variables)
 
         with xarray.open_mfdataset(
             [flist[0] for flist in file_collection[0]], drop_variables=drop_variables
@@ -471,6 +471,9 @@ class FieldOutput(SchismOutput, ABC):
                     'dryFlagNode',
                 ]
             )
+            if not all(var in sample_dataset.data_vars for var in variables):
+                LOGGER.warn("Files don't contain all the required variables!")
+                return xarray.Dataset()
 
         # Now open all the relevant output files for all runs
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
@@ -625,10 +628,13 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
                 cls.derived_time_name: (extrm_vals.dims, extrm_times.data),
                 'run': extrm_vals.run.data,
                 'nSCHISM_hgrid_node': extrm_vals.nSCHISM_hgrid_node.data,
-                'SCHISM_hgrid_node_x': full_ds.SCHISM_hgrid_node_x,
-                'SCHISM_hgrid_node_y': full_ds.SCHISM_hgrid_node_y,
             },
         )
+        if 'SCHISM_hgrid_node_x' in full_ds:
+            ds['SCHISM_hgrid_node_x'] = full_ds.SCHISM_hgrid_node_x
+        if 'SCHISM_hgrid_node_y' in full_ds:
+            ds['SCHISM_hgrid_node_y'] = full_ds.SCHISM_hgrid_node_y
+
         return ds
 
 
@@ -841,17 +847,17 @@ def parse_schism_outputs(
                 if output_class in output_tree:
                     continue
 
-                print('Read', basename, 'with', output_class)
                 dataset = output_class.read_directory(
                     directory, variables=output_class.variables, parallel=parallel,
                 )
-                skip_ds = False
-                for var in output_class.variables:
-                    if var in dataset.data_vars:
-                        continue
-                    skip_ds = True
-                if skip_ds:
-                    continue
+                # NOTE: The dataset variable might be derived variables
+                # skip_ds = False
+                # for var in output_class.variables:
+                #     if var in dataset.data_vars:
+                #         continue
+                #     skip_ds = True
+                # if skip_ds:
+                #     continue
 
                 output_tree[output_class] = dataset
 
