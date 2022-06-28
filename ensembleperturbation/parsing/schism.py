@@ -1104,6 +1104,10 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
     # TODO: Add sanity check for schism dataset
     # TODO: Handle quad to tria
 
+    # TODO: Questions:
+    # - Add h0?
+    # - Need x, y for velocity?
+
     coord_vars = ['time']
     if 'station_index' in schism_ds.data_vars:
         # Station data
@@ -1112,7 +1116,8 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
         )
     else:
         # Field data
-        coord_vars.extend(['x', 'y'])
+        if all(var in temp_ds.data_vars for var in ['x', 'y']):
+            coord_vars.extend(['x', 'y'])
         temp_ds = schism_ds.copy()
 
     temp_ds = temp_ds.rename(
@@ -1152,7 +1157,7 @@ def convert_schism_output_files_to_adcirc_like(
     )
 
     output_data = {}
-    for out_name, data in results:
+    for out_name, data in results.items():
         newkey = SCHISM_ADCIRC_OUT_MAPPING.get(out_name, None)
         if newkey is None:
             newkey = out_name
