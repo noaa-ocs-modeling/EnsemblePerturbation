@@ -850,6 +850,8 @@ def parse_schism_outputs(
                 dataset = output_class.read_directory(
                     directory, variables=output_class.variables, parallel=parallel,
                 )
+                if len(dataset) == 0:
+                    continue
                 # NOTE: The dataset variable might be derived variables
                 # skip_ds = False
                 # for var in output_class.variables:
@@ -1108,17 +1110,19 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
     # - Add h0?
     # - Need x, y for velocity?
 
-    coord_vars = ['time']
+    coord_vars = []
     if 'station_index' in schism_ds.data_vars:
         # Station data
         temp_ds = schism_ds.swap_dims({'station_index': 'station'}).reset_coords(
             'station_index'
         )
+        coord_vars.append('time')
     else:
         # Field data
         temp_ds = schism_ds.copy()
-        if all(var in temp_ds.data_vars for var in ['x', 'y']):
-            coord_vars.extend(['x', 'y'])
+        for var in ['time', 'x', 'y']:
+            if var in temp_ds.data_vars:
+                coord_vars.append(var)
 
     temp_ds = temp_ds.rename(
         **{k: v for k, v in SCHISM_ADCIRC_VAR_MAPPING.items() if k in schism_ds.data_vars}
