@@ -10,11 +10,13 @@ import fnmatch
 
 import dask
 import geopandas
+import f90nml
 from geopandas import GeoDataFrame
 import numpy
 import pandas
 from pandas import DataFrame
 from pyproj.transformer import Transformer
+from pyschism.mesh import Hgrid
 from scipy.spatial import KDTree
 from shapely.geometry import Point
 from stormevents.nhc import VortexTrack
@@ -505,6 +507,9 @@ class FieldOutput(SchismOutput, ABC):
                 continue
             dataset = dataset.assign({var: dataset[var].isel(run=0)})
 
+        # Add element table
+        dataset = cls._add_element_table(dataset, directory)
+
         # TODO: Used to be check for 'element' var in ADCIRC
 
         # TODO: Should the returned dataset drop x & y?
@@ -571,6 +576,28 @@ class FieldOutput(SchismOutput, ABC):
             subset = numpy.logical_and(subset, dataset['depth'] >= minimum_depth)
 
         return subset
+
+    @classmethod
+    def _add_element_table(cls, dataset: Dataset, directory: PathLike) -> Dataset:
+        # hgrid.gr3 or ll
+        gridfile_pattern = 'hgrid.*'
+        output_dict = find_run_dir_for_output([gridfile_pattern], directory)
+
+        file_collection = [
+            f
+            for run_dict in output_dict.values()
+            for patt_dict in run_dict['outputs'].values()
+            for f in patt_dict['files']
+        ]
+        # TODO: Check if all the found hgrid files are the same
+        gridfile = file_collection[0]
+
+        grid = Hgrid.open(gridfile, crs=4326)
+        dataset = dataset.assign(
+            element=xarray.DataArray(
+                data=grid.elements.triangulation.triangles, dims=('nele', 'nvertex')
+            )
+        )
 
 
 class ExtremumScalarFieldOutputCalculator(FieldOutput):
@@ -658,6 +685,43 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
     derived_name = 'max_elevation'
     derived_time_name = 'max_elevation_times'
 
+    @classmethod
+    def read(
+        cls, filenames: Union[PathLike, List[PathLike]], names: List[str] = None
+    ) -> Union[DataFrame, DataArray]:
+        dataset = super().read(filenames, names)
+        dataset.attrs['h0'] = 0.01  # Use default for now
+        return cls._set_dry_to_null(dataset)
+
+    @classmethod
+    def read_directory(
+        cls, directory: PathLike, variables: List[str] = None, parallel: bool = False
+    ) -> Dataset:
+
+        dataset = super().read_directory(directory, variables, parallel)
+        dataset = cls._set_h0(dataset, directory)
+        return cls._set_dry_to_null(dataset)
+
+    @classmethod
+    def _set_dry_to_null(cls, dataset: Dataset) -> Dataset:
+        for var in cls.variables:
+            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 0, numpy.nan)
+
+        return dataset
+
+    def _set_h0(cls, dataset: Dataset, directory: PathLike) -> Dataset:
+        paramfile_pattern = 'param.out.nml'
+        output_dict = find_run_dir_for_output([paramfile_pattern], directory)
+        # TODO: What if h0 is different for differnet runs? Can it be
+        for run_dir, run_tree in output_dict.items():
+            try:
+                params = f90nml.read(run_tree['outputs'][paramfile_pattern]['files'][0])
+                dataset.attrs['h0'] = params['opt']['h0']
+            except FileNotFoundError:
+                dataset.attrs['h0'] = 0.01
+
+        return dataset
+
 
 class MaximumVelocityOutput(MaximumScalarFieldOutputCalculator):
     """
@@ -666,7 +730,7 @@ class MaximumVelocityOutput(MaximumScalarFieldOutputCalculator):
     """
 
     out_filename = 'schism_max_velocity.nc'
-    file_patterns = ['horizontalVel?_*.nc']
+    file_patterns = ['horizontalVelX_*.nc', 'horizontalVelY_*.nc']
     variables = ['horizontalVelX', 'horizontalVelY']
     derived_name = 'max_velocity'
     derived_time_name = 'max_velocity_times'
@@ -713,6 +777,43 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
     variables = ['elevation']
 
     @classmethod
+    def read(
+        cls, filenames: Union[PathLike, List[PathLike]], names: List[str] = None
+    ) -> Union[DataFrame, DataArray]:
+        dataset = super().read(filenames, names)
+        dataset.attrs['h0'] = 0.01  # Use default for now
+        return cls._set_dry_to_null(dataset)
+
+    @classmethod
+    def read_directory(
+        cls, directory: PathLike, variables: List[str] = None, parallel: bool = False
+    ) -> Dataset:
+
+        dataset = super().read_directory(directory, variables, parallel)
+        dataset = cls._set_h0(dataset, directory)
+        return cls._set_dry_to_null(dataset)
+
+    @classmethod
+    def _set_dry_to_null(cls, dataset: Dataset) -> Dataset:
+        for var in cls.variables:
+            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 0, numpy.nan)
+
+        return dataset
+
+    def _set_h0(cls, dataset: Dataset, directory: PathLike) -> Dataset:
+        paramfile_pattern = 'param.out.nml'
+        output_dict = find_run_dir_for_output([paramfile_pattern], directory)
+        # TODO: What if h0 is different for differnet runs? Can it be
+        for run_dir, run_tree in output_dict.items():
+            try:
+                params = f90nml.read(run_tree['outputs'][paramfile_pattern]['files'][0])
+                dataset.attrs['h0'] = params['opt']['h0']
+            except FileNotFoundError:
+                dataset.attrs['h0'] = 0.01
+
+        return dataset
+
+    @classmethod
     def subset(
         cls,
         dataset: Union[Dataset, DataArray],
@@ -752,7 +853,7 @@ class VelocityTimeSeriesOutput(FieldTimeSeriesOutput):
     """
 
     out_filename = 'schism_velocity.nc'
-    file_patterns = ['horizontalVel?_*.nc']
+    file_patterns = ['horizontalVelX_*.nc', 'horizontalVelY_*.nc']
     variables = ['horizontalVelX', 'horizontalVelY']
 
 
@@ -840,6 +941,8 @@ def parse_schism_outputs(
         }
 
     output_tree = {}
+    node_info_keys = ['SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'depth', 'dryFlagNode']
+    node_info_data = xarray.Dataset()
     for basename, output_classes in file_outputs.items():
         for output_class in output_classes:
             try:
@@ -852,6 +955,9 @@ def parse_schism_outputs(
                 )
                 if len(dataset) == 0:
                     continue
+                if all(var in dataset.data_vars for var in node_info_keys):
+                    node_info_data = dataset[node_info_keys]
+
                 # NOTE: The dataset variable might be derived variables
                 # skip_ds = False
                 # for var in output_class.variables:
@@ -865,6 +971,14 @@ def parse_schism_outputs(
 
             except (ValueError, FileNotFoundError) as error:
                 LOGGER.warning(error)
+
+    if len(node_info_data) != 0:
+        for output_class, dataset in output_tree.items():
+            if 'nSCHISM_hgrid_node' not in dataset.dims:
+                continue
+            output_tree[output_class] = dataset.merge(node_info_data)
+    else:
+        LOGGER.warn('No dataset found with infomration about node locations and dry nodes!')
 
     return output_tree
 
@@ -1105,10 +1219,6 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
 
     # TODO: Add sanity check for schism dataset
     # TODO: Handle quad to tria
-
-    # TODO: Questions:
-    # - Add h0?
-    # - Need x, y for velocity?
 
     coord_vars = []
     if 'station_index' in schism_ds.data_vars:

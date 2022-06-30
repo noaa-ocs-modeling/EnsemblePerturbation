@@ -28,6 +28,7 @@ chaospy = '*'
 cmocean = { version = '*', optional = true }
 coupledmodeldriver = '>=1.5'
 dask = '*'
+f90nml = '*'
 fiona = '*'
 geopandas = '*'
 netcdf4 = '*'
