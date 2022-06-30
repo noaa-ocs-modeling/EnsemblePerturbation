@@ -581,16 +581,13 @@ class FieldOutput(SchismOutput, ABC):
     def _add_element_table(cls, dataset: Dataset, directory: PathLike) -> Dataset:
         # hgrid.gr3 or ll
         gridfile_pattern = 'hgrid.*'
-        output_dict = find_run_dir_for_output([gridfile_pattern], directory)
+        matches = list(directory.glob(f'**/{gridfile_pattern}'))
 
-        file_collection = [
-            f
-            for run_dict in output_dict.values()
-            for patt_dict in run_dict['outputs'].values()
-            for f in patt_dict['files']
-        ]
+        if len(matches) == 0:
+            return dataset
+
         # TODO: Check if all the found hgrid files are the same
-        gridfile = file_collection[0]
+        gridfile = matches[0]
 
         grid = Hgrid.open(gridfile, crs=4326)
         dataset = dataset.assign(
@@ -598,6 +595,8 @@ class FieldOutput(SchismOutput, ABC):
                 data=grid.elements.triangulation.triangles, dims=('nele', 'nvertex')
             )
         )
+
+        return dataset
 
 
 class ExtremumScalarFieldOutputCalculator(FieldOutput):
@@ -704,14 +703,18 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
 
     @classmethod
     def _set_dry_to_null(cls, dataset: Dataset) -> Dataset:
-        for var in cls.variables:
-            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 0, numpy.nan)
+        dataset[cls.derived_name] = dataset[cls.derived_name].where(dataset[cls.derived_name] < dataset.attrs['h0'], numpy.nan)
 
         return dataset
 
+    @classmethod
     def _set_h0(cls, dataset: Dataset, directory: PathLike) -> Dataset:
         paramfile_pattern = 'param.out.nml'
-        output_dict = find_run_dir_for_output([paramfile_pattern], directory)
+        try:
+            output_dict = find_run_dir_for_output([paramfile_pattern], directory)
+        except FileNotFoundError:
+            output_dict = {}
+            dataset.attrs['h0'] = 0.01
         # TODO: What if h0 is different for differnet runs? Can it be
         for run_dir, run_tree in output_dict.items():
             try:
@@ -800,9 +803,14 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
 
         return dataset
 
+    @classmethod
     def _set_h0(cls, dataset: Dataset, directory: PathLike) -> Dataset:
         paramfile_pattern = 'param.out.nml'
-        output_dict = find_run_dir_for_output([paramfile_pattern], directory)
+        try:
+            output_dict = find_run_dir_for_output([paramfile_pattern], directory)
+        except FileNotFoundError:
+            output_dict = {}
+            dataset.attrs['h0'] = 0.01
         # TODO: What if h0 is different for differnet runs? Can it be
         for run_dir, run_tree in output_dict.items():
             try:
@@ -1258,6 +1266,12 @@ def convert_schism_output_files_to_adcirc_like(
     output_directory: PathLike = None,
     parallel: bool = False,
 ) -> None:
+
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+        if not output_directory.exists():
+            output_directory.mkdir(parents=True, exist_ok=True)
 
     # NOTE: Don't pass the output_directory here
     results = combine_outputs(
