@@ -545,7 +545,7 @@ class FieldOutput(SchismOutput, ABC):
                 tracks = swath['OFCL']
             else:
                 raise ValueError(
-                    "Neither best or official track could be found for the specified storm"
+                    'Neither best or official track could be found for the specified storm'
                 )
 
             series = pandas.Series(tracks.keys())
