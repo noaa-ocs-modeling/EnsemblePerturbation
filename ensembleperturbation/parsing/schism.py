@@ -539,8 +539,19 @@ class FieldOutput(SchismOutput, ABC):
                     cyclone = VortexTrack.from_file(cyclone)
                 except FileNotFoundError:
                     cyclone = VortexTrack(cyclone)
-            swath = cyclone.wind_swaths(wind_speed=isotach)
-            polygon = GeoDataFrame(index=[0], geometry=[next(iter(swath.values()))])
+            if 'BEST' in swath:
+                tracks = swath['BEST']
+            elif 'OFCL' in swath:
+                tracks = swath['OFCL']
+            else:
+                raise ValueError(
+                    "Neither best or official track could be found for the specified storm"
+                )
+
+            series = pandas.Series(tracks.keys())
+            latest_track = tracks[series[pandas.to_datetime(series).argmax()]]
+
+            polygon = GeoDataFrame(index=[0], geometry=[latest_track])
             with dask.config.set(**{'array.slicing.split_large_chunks': True}):
                 geometry = geopandas.points_from_xy(
                     dataset['SCHISM_hgrid_node_x'].values,
