@@ -32,11 +32,11 @@ LOGGER = get_logger('parsing.schism')
 
 SCHISM_ADCIRC_DIM_MAPPING = {
     'nSCHISM_hgrid_node': 'node',
+    'SCHISM_hgrid_node_x': 'x',
+    'SCHISM_hgrid_node_y': 'y',
 }
 
 SCHISM_ADCIRC_VAR_MAPPING = {
-    'SCHISM_hgrid_node_x': 'x',
-    'SCHISM_hgrid_node_y': 'y',
     'elevation': 'zeta',
     'horizontalVelX': 'u-vel',
     'horizontalVelY': 'v-vel',
@@ -501,7 +501,10 @@ class FieldOutput(SchismOutput, ABC):
                 )
 
         # Drop run dimension for variables fixed across runs
-        fixed_vars = ['depth', 'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'dryFlagNode']
+        fixed_vars = [
+            'node', 'depth', 'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y',
+            'dryFlagNode'
+        ]
         for var in fixed_vars:
             if var not in dataset:
                 continue
@@ -510,12 +513,17 @@ class FieldOutput(SchismOutput, ABC):
         # Add element table
         dataset = cls._add_element_table(dataset, directory)
 
-        # TODO: Used to be check for 'element' var in ADCIRC
+        # TODO: Does it make sense to have all these as "coord" so that
+        # we can return a DataArray?!
+        coord_vars = [
+            'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'depth', 'element',
+            'node', 'dryFlagNode'
+        ]
+        for var in coord_vars:
+            if var in dataset:
+                dataset = dataset.assign_coords({var: dataset[var]})
 
-        # TODO: Should the returned dataset drop x & y?
-        # return dataset[variables]
-
-        return dataset
+        return dataset[variables]
 
     @classmethod
     def subset(
@@ -600,6 +608,7 @@ class FieldOutput(SchismOutput, ABC):
         # TODO: Check if all the found hgrid files are the same
         gridfile = matches[0]
 
+        # NOTE: All elements are treated as tria (quads are split)
         grid = Hgrid.open(gridfile, crs=4326)
         dataset = dataset.assign(
             element=xarray.DataArray(
@@ -667,9 +676,9 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
                 'nSCHISM_hgrid_node': extrm_vals.nSCHISM_hgrid_node.data,
             },
         )
-        if 'SCHISM_hgrid_node_x' in full_ds:
+        if 'SCHISM_hgrid_node_x' in full_ds.data_vars:
             ds['SCHISM_hgrid_node_x'] = full_ds.SCHISM_hgrid_node_x
-        if 'SCHISM_hgrid_node_y' in full_ds:
+        if 'SCHISM_hgrid_node_y' in full_ds.data_vars:
             ds['SCHISM_hgrid_node_y'] = full_ds.SCHISM_hgrid_node_y
 
         return ds
@@ -1239,7 +1248,6 @@ def extrapolate_water_elevation_to_dry_areas(
 def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
 
     # TODO: Add sanity check for schism dataset
-    # TODO: Handle quad to tria
 
     coord_vars = []
     if 'station_index' in schism_ds.data_vars:
@@ -1251,9 +1259,12 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
     else:
         # Field data
         temp_ds = schism_ds.copy()
-        for var in ['time', 'x', 'y']:
-            if var in temp_ds.data_vars:
-                coord_vars.append(var)
+        if 'time' in temp_ds.data_vars:
+            coord_vars.append('time')
+        if 'SCHISM_hgrid_node_x' in temp_ds.data_vars:
+            coord_vars.append('x')
+        if 'SCHISM_hgrid_node_y' in temp_ds.data_vars:
+            coord_vars.append('y')
 
     temp_ds = temp_ds.rename(
         **{k: v for k, v in SCHISM_ADCIRC_VAR_MAPPING.items() if k in schism_ds.data_vars}
@@ -1261,6 +1272,15 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
     temp_ds = temp_ds.rename_dims(
         **{k: v for k, v in SCHISM_ADCIRC_DIM_MAPPING.items() if k in schism_ds.dims}
     )
+
+    if 'depth' in temp_ds:
+        temp_ds = temp_ds.assign_coords({'depth': temp_ds['depth']})
+
+    if 'element' in temp_ds:
+        temp_ds = temp_ds.assign_coords({'element': temp_ds['element']})
+
+    if 'node' not in temp_ds:
+        temp_ds = temp_ds.assign_coords({'node': temp_ds['node']})
 
     if 'run' in temp_ds.coords:
         coord_vars.insert(0, 'run')
