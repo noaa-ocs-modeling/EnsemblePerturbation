@@ -554,6 +554,7 @@ class FieldOutput(SchismOutput, ABC):
                     cyclone = VortexTrack.from_file(cyclone)
                 except FileNotFoundError:
                     cyclone = VortexTrack(cyclone)
+            swath = cyclone.wind_swaths(wind_speed=isotach)
             if 'BEST' in swath:
                 tracks = swath['BEST']
             elif 'OFCL' in swath:
