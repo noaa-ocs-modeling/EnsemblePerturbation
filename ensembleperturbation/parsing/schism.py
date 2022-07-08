@@ -30,7 +30,7 @@ from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing.schism')
 
-SCHISM_ADCIRC_DIM_MAPPING = {
+SCHISM_ADCIRC_COORD_MAPPING = {
     'nSCHISM_hgrid_node': 'node',
     'SCHISM_hgrid_node_x': 'x',
     'SCHISM_hgrid_node_y': 'y',
@@ -502,8 +502,11 @@ class FieldOutput(SchismOutput, ABC):
 
         # Drop run dimension for variables fixed across runs
         fixed_vars = [
-            'node', 'depth', 'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y',
-            'dryFlagNode'
+            'node',
+            'depth',
+            'SCHISM_hgrid_node_x',
+            'SCHISM_hgrid_node_y',
+            'dryFlagNode',
         ]
         for var in fixed_vars:
             if var not in dataset:
@@ -516,8 +519,12 @@ class FieldOutput(SchismOutput, ABC):
         # TODO: Does it make sense to have all these as "coord" so that
         # we can return a DataArray?!
         coord_vars = [
-            'SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'depth', 'element',
-            'node', 'dryFlagNode'
+            'SCHISM_hgrid_node_x',
+            'SCHISM_hgrid_node_y',
+            'depth',
+            'element',
+            'node',
+            'dryFlagNode',
         ]
         for var in coord_vars:
             if var in dataset:
@@ -678,8 +685,12 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
         )
         if 'SCHISM_hgrid_node_x' in full_ds.data_vars:
             ds['SCHISM_hgrid_node_x'] = full_ds.SCHISM_hgrid_node_x
+        elif 'SCHISM_hgrid_node_x' in full_ds.coords:
+            ds = ds.assign_coords({'SCHISM_hgrid_node_x': full_ds.SCHISM_hgrid_node_x})
         if 'SCHISM_hgrid_node_y' in full_ds.data_vars:
             ds['SCHISM_hgrid_node_y'] = full_ds.SCHISM_hgrid_node_y
+        elif 'SCHISM_hgrid_node_y' in full_ds.coords:
+            ds = ds.assign_coords({'SCHISM_hgrid_node_y': full_ds.SCHISM_hgrid_node_y})
 
         return ds
 
@@ -1269,8 +1280,8 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
     temp_ds = temp_ds.rename(
         **{k: v for k, v in SCHISM_ADCIRC_VAR_MAPPING.items() if k in schism_ds.data_vars}
     )
-    temp_ds = temp_ds.rename_dims(
-        **{k: v for k, v in SCHISM_ADCIRC_DIM_MAPPING.items() if k in schism_ds.dims}
+    temp_ds = temp_ds.rename(
+        **{k: v for k, v in SCHISM_ADCIRC_COORD_MAPPING.items() if k in schism_ds.coords}
     )
 
     if 'depth' in temp_ds:
@@ -1279,7 +1290,7 @@ def convert_schism_output_dataset_to_adcirc_like(schism_ds: Dataset) -> Dataset:
     if 'element' in temp_ds:
         temp_ds = temp_ds.assign_coords({'element': temp_ds['element']})
 
-    if 'node' not in temp_ds:
+    if 'node' in temp_ds:
         temp_ds = temp_ds.assign_coords({'node': temp_ds['node']})
 
     if 'run' in temp_ds.coords:
