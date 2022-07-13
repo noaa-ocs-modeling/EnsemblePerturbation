@@ -530,7 +530,10 @@ class FieldOutput(SchismOutput, ABC):
             if var in dataset:
                 dataset = dataset.assign_coords({var: dataset[var]})
 
-        return dataset[variables]
+        ret_value = dataset[variables]
+        if 'element' in dataset and 'element' not in ret_value:
+            ret_value = ret_value.assign_coords({'element': dataset['element']})
+        return ret_value
 
     @classmethod
     def subset(
@@ -721,7 +724,7 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
         cls, filenames: Union[PathLike, List[PathLike]], names: List[str] = None
     ) -> Union[DataFrame, DataArray]:
         dataset = super().read(filenames, names)
-        dataset.attrs['h0'] = 0.01  # Use default for now
+        dataset.attrs['h0'] = dataset.minimum_depth
         return cls._set_dry_to_null(dataset)
 
     @classmethod
@@ -730,7 +733,7 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
     ) -> Dataset:
 
         dataset = super().read_directory(directory, variables, parallel)
-        dataset = cls._set_h0(dataset, directory)
+        dataset.attrs['h0'] = dataset.minimum_depth
         return cls._set_dry_to_null(dataset)
 
     @classmethod
@@ -738,24 +741,6 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
         dataset[cls.derived_name] = dataset[cls.derived_name].where(
             dataset[cls.derived_name] < dataset.attrs['h0'], numpy.nan
         )
-
-        return dataset
-
-    @classmethod
-    def _set_h0(cls, dataset: Dataset, directory: PathLike) -> Dataset:
-        paramfile_pattern = 'param.out.nml'
-        try:
-            output_dict = find_run_dir_for_output([paramfile_pattern], directory)
-        except FileNotFoundError:
-            output_dict = {}
-            dataset.attrs['h0'] = 0.01
-        # TODO: What if h0 is different for differnet runs? Can it be
-        for run_dir, run_tree in output_dict.items():
-            try:
-                params = f90nml.read(run_tree['outputs'][paramfile_pattern]['files'][0])
-                dataset.attrs['h0'] = params['opt']['h0']
-            except FileNotFoundError:
-                dataset.attrs['h0'] = 0.01
 
         return dataset
 
@@ -818,7 +803,7 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
         cls, filenames: Union[PathLike, List[PathLike]], names: List[str] = None
     ) -> Union[DataFrame, DataArray]:
         dataset = super().read(filenames, names)
-        dataset.attrs['h0'] = 0.01  # Use default for now
+        dataset.attrs['h0'] = dataset.minimum_depth
         return cls._set_dry_to_null(dataset)
 
     @classmethod
@@ -827,31 +812,13 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
     ) -> Dataset:
 
         dataset = super().read_directory(directory, variables, parallel)
-        dataset = cls._set_h0(dataset, directory)
+        dataset.attrs['h0'] = dataset.minimum_depth
         return cls._set_dry_to_null(dataset)
 
     @classmethod
     def _set_dry_to_null(cls, dataset: Dataset) -> Dataset:
         for var in cls.variables:
-            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 0, numpy.nan)
-
-        return dataset
-
-    @classmethod
-    def _set_h0(cls, dataset: Dataset, directory: PathLike) -> Dataset:
-        paramfile_pattern = 'param.out.nml'
-        try:
-            output_dict = find_run_dir_for_output([paramfile_pattern], directory)
-        except FileNotFoundError:
-            output_dict = {}
-            dataset.attrs['h0'] = 0.01
-        # TODO: What if h0 is different for differnet runs? Can it be
-        for run_dir, run_tree in output_dict.items():
-            try:
-                params = f90nml.read(run_tree['outputs'][paramfile_pattern]['files'][0])
-                dataset.attrs['h0'] = params['opt']['h0']
-            except FileNotFoundError:
-                dataset.attrs['h0'] = 0.01
+            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 1, numpy.nan)
 
         return dataset
 
@@ -870,7 +837,7 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
             if not isinstance(elevation_selection, ElevationSelection):
                 elevation_selection = convert_value(elevation_selection, ElevationSelection)
 
-            dry_subset = dataset['dryFlagNode'] == 0
+            dry_subset = dataset['dryFlagNode'] == 1
 
             if elevation_selection == ElevationSelection.wet:
                 elevation_subset = ~dry_subset.any('time')
