@@ -506,7 +506,6 @@ class FieldOutput(SchismOutput, ABC):
             'depth',
             'SCHISM_hgrid_node_x',
             'SCHISM_hgrid_node_y',
-            'dryFlagNode',
         ]
         for var in fixed_vars:
             if var not in dataset:
@@ -739,7 +738,7 @@ class MaximumElevationOutput(MaximumScalarFieldOutputCalculator):
     @classmethod
     def _set_dry_to_null(cls, dataset: Dataset) -> Dataset:
         dataset[cls.derived_name] = dataset[cls.derived_name].where(
-            dataset[cls.derived_name] < dataset.attrs['h0'], numpy.nan
+            dataset[cls.derived_name] > dataset.attrs['h0'], numpy.nan
         )
 
         return dataset
