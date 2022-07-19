@@ -421,6 +421,7 @@ class FieldOutput(SchismOutput, ABC):
 
         dataset = xarray.open_mfdataset(filenames, drop_variables=cls.drop_variables)
         data = dataset[names]
+        data = data.assign_attrs(**dataset.attrs)
 
         for filename in filenames:
             LOGGER.debug(f'finished reading "{"/".join(filename.parts[-2:])}"')
@@ -471,6 +472,7 @@ class FieldOutput(SchismOutput, ABC):
                     'SCHISM_hgrid_node_y',
                     'depth',
                     'dryFlagNode',
+                    'minimum_depth',
                 ]
             )
             if not all(var in sample_dataset.data_vars for var in variables):
@@ -515,6 +517,12 @@ class FieldOutput(SchismOutput, ABC):
         # Add element table
         dataset = cls._add_element_table(dataset, directory)
 
+        # TODO: What if it's different for different runs?
+        if 'minimum_depth' in dataset:
+            dataset = dataset.assign_attrs(
+                minimum_depth=dataset.minimum_depth.isel(one=0, run=0).values
+            )
+
         # TODO: Does it make sense to have all these as "coord" so that
         # we can return a DataArray?!
         coord_vars = [
@@ -532,6 +540,7 @@ class FieldOutput(SchismOutput, ABC):
         ret_value = dataset[variables]
         if 'element' in dataset and 'element' not in ret_value:
             ret_value = ret_value.assign_coords({'element': dataset['element']})
+        ret_value = ret_value.assign_attrs(**dataset.attrs)
         return ret_value
 
     @classmethod
@@ -686,6 +695,7 @@ class ExtremumScalarFieldOutputCalculator(FieldOutput):
                 'nSCHISM_hgrid_node': extrm_vals.nSCHISM_hgrid_node.data,
             },
         )
+        ds = ds.assign_attrs(**full_ds.attrs)
         if 'SCHISM_hgrid_node_x' in full_ds.data_vars:
             ds['SCHISM_hgrid_node_x'] = full_ds.SCHISM_hgrid_node_x
         elif 'SCHISM_hgrid_node_x' in full_ds.coords:
