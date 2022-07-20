@@ -959,7 +959,13 @@ def parse_schism_outputs(
         }
 
     output_tree = {}
-    node_info_keys = ['SCHISM_hgrid_node_x', 'SCHISM_hgrid_node_y', 'depth', 'dryFlagNode']
+    node_info_keys = [
+        'SCHISM_hgrid_node_x',
+        'SCHISM_hgrid_node_y',
+        'depth',
+        'dryFlagNode',
+        'element',
+    ]
     node_info_data = xarray.Dataset()
     for basename, output_classes in file_outputs.items():
         for output_class in output_classes:
@@ -973,7 +979,9 @@ def parse_schism_outputs(
                 )
                 if len(dataset) == 0:
                     continue
-                if all(var in dataset.data_vars for var in node_info_keys):
+                if all(
+                    var in dataset.data_vars or var in dataset.coords for var in node_info_keys
+                ):
                     node_info_data = dataset[node_info_keys]
 
                 # NOTE: The dataset variable might be derived variables
@@ -990,7 +998,7 @@ def parse_schism_outputs(
             except (ValueError, FileNotFoundError) as error:
                 LOGGER.warning(error)
 
-    if len(node_info_data) != 0:
+    if len(node_info_data.coords) != 0:
         for output_class, dataset in output_tree.items():
             if 'nSCHISM_hgrid_node' not in dataset.dims:
                 continue
