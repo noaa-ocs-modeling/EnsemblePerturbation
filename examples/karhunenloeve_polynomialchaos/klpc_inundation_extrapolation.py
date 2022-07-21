@@ -146,12 +146,12 @@ if __name__ == '__main__':
 
         if len(numpy.unique(perturbations['type'][:])) == 1:
             perturbations['type'][:] = numpy.random.choice(
-                ['training', 'validation'], size=len(perturbations.run), p=[0.7, 0.3])
+                ['training', 'validation'], size=len(perturbations.run), p=[0.7, 0.3]
+            )
             LOGGER.info('divinging 70/30% for training/testing the model')
 
         training_perturbations = perturbations.sel(run=perturbations['type'] == 'training')
         validation_perturbations = perturbations.sel(run=perturbations['type'] == 'validation')
-
 
         if make_perturbations_plot:
             plot_perturbations(
@@ -183,10 +183,9 @@ if __name__ == '__main__':
                 variable=variable_name,
                 maximum_depth=depth_bounds,
                 wind_swath=[storm_name, isotach],
-                node_status_selection= None if node_status_mask is None else {
-                    'mask': node_status_mask,
-                    'runs': training_perturbations['run'],
-                },
+                node_status_selection=None
+                if node_status_mask is None
+                else {'mask': node_status_mask, 'runs': training_perturbations['run'],},
                 point_spacing=point_spacing,
                 output_filename=subset_filename,
             )
