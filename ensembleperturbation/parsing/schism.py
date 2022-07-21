@@ -1147,7 +1147,9 @@ def subset_dataset(
                 ~ds[variable].sel(run=node_status_selection['runs']).isnull().any('run'),
             )
         else:
-            raise f'node_status_selection {node_status_selection["mask"]} unrecognized'
+            raise ValueError(
+                f'node_status_selection {node_status_selection["mask"]} unrecognized'
+            )
 
         node_subset_mask = (
             FieldOutput.subset(
