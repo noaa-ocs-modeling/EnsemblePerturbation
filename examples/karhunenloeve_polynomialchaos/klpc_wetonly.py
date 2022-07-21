@@ -135,6 +135,11 @@ if __name__ == '__main__':
         )
     )
 
+    if len(numpy.unique(perturbations['type'][:])) == 1:
+        perturbations['type'][:] = numpy.random.choice(
+            ['training', 'validation'], size=len(perturbations.run), p=[0.7, 0.3])
+        LOGGER.info('divinging 70/30% for training/testing the model')
+
     training_perturbations = perturbations.sel(run=perturbations['type'] == 'training')
     validation_perturbations = perturbations.sel(run=perturbations['type'] == 'validation')
 
