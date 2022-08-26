@@ -2,11 +2,15 @@ from argparse import ArgumentParser
 import logging
 from os import PathLike
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 from pandas import DataFrame
 
-from ensembleperturbation.parsing.adcirc import combine_outputs, ElevationSelection
+from ensembleperturbation.parsing.adcirc import combine_outputs as combine_outputs_adcirc
+from ensembleperturbation.parsing.adcirc import ElevationSelection as AdcircElevationSelection
+from ensembleperturbation.parsing.schism import combine_outputs as combine_outputs_schism
+from ensembleperturbation.parsing.schism import convert_schism_output_files_to_adcirc_like
+from ensembleperturbation.parsing.schism import ElevationSelection as SchismElevationSelection
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('parsing')
@@ -16,6 +20,10 @@ def parse_combine_results():
     cwd = Path.cwd()
 
     argument_parser = ArgumentParser()
+
+    argument_parser.add_argument('--adcirc', action='store_true')
+    argument_parser.add_argument('--schism', action='store_true')
+    argument_parser.add_argument('--adcirc-like-output', action='store_true')
     argument_parser.add_argument('output', nargs='?', default=cwd, help='output directory')
     argument_parser.add_argument(
         'directory',
@@ -24,7 +32,7 @@ def parse_combine_results():
         help='directory containing completed `runs` directory',
     )
     argument_parser.add_argument(
-        '--filenames', nargs='*', default=None, help='ADCIRC output files to parse',
+        '--filenames', nargs='*', default=None, help='Model output files to parse',
     )
     argument_parser.add_argument(
         '--bounds', help='bounding box in format `(minx,miny,maxx,maxy)`'
@@ -43,7 +51,9 @@ def parse_combine_results():
     arguments = argument_parser.parse_args()
 
     return {
+        'model': 'schism' if arguments.schism else 'adcirc',
         'output': arguments.output,
+        'adcirc_like': arguments.adcirc_like_output,
         'directory': arguments.directory,
         'filenames': arguments.filenames,
         'max_depth': float(arguments.max_depth) if arguments.max_depth is not None else None,
@@ -56,18 +66,30 @@ def parse_combine_results():
 
 def combine_results(
     output: PathLike,
+    model: str = 'adcirc',
+    adcirc_like: bool = False,
     directory: PathLike = None,
     filenames: List[str] = None,
     bounds: Tuple[float, float, float, float] = None,
     max_depth: float = None,
-    elevation_selection: ElevationSelection = None,
+    elevation_selection: Union[AdcircElevationSelection, SchismElevationSelection] = None,
     parallel: bool = False,
     verbose: bool = False,
 ) -> Dict[str, DataFrame]:
     if verbose:
         get_logger(LOGGER.name, console_level=logging.DEBUG)
 
-    parsed_data = combine_outputs(
+    combine_func = None
+    if model == 'adcirc':
+        combine_func = combine_outputs_adcirc
+    elif model == 'schism':
+        combine_func = combine_outputs_schism
+        if adcirc_like:
+            combine_func = convert_schism_output_files_to_adcirc_like
+    else:
+        raise ValueError(f'Invalid model specific: "{model}"')
+
+    parsed_data = combine_func(
         directory,
         file_data_variables=filenames,
         bounds=bounds,

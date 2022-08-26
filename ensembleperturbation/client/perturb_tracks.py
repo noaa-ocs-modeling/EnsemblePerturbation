@@ -1,8 +1,13 @@
 from pathlib import Path
+from argparse import ArgumentParser
 
 from coupledmodeldriver.client.initialize_adcirc import (
     initialize_adcirc,
     parse_initialize_adcirc_arguments,
+)
+from coupledmodeldriver.client.initialize_schism import (
+    initialize_schism,
+    parse_initialize_schism_arguments,
 )
 from coupledmodeldriver.configure import BestTrackForcingJSON
 
@@ -10,8 +15,33 @@ from ensembleperturbation.perturbation.atcf import perturb_tracks
 
 
 def main():
-    arguments = parse_initialize_adcirc_arguments(
+
+    # Using a preliminary parser to decide whether to create
+    # "adcirc" or "schism" parser below (args of this parser need
+    # to be passed as extra_arguments to the subsequent parser)
+    preliminary_parser = ArgumentParser(add_help=False)
+    preliminary_parser.add_argument(
+        '--adcirc', action='store_true',
+    )
+    preliminary_parser.add_argument(
+        '--schism', action='store_true',
+    )
+    prelim_args, _ = preliminary_parser.parse_known_args()
+
+    init_schism = prelim_args.schism
+    init_adcirc = prelim_args.adcirc or not init_schism
+
+    if init_adcirc:
+        parse_func = parse_initialize_adcirc_arguments
+        init_func = initialize_adcirc
+    elif init_schism:
+        parse_func = parse_initialize_schism_arguments
+        init_func = initialize_schism
+
+    arguments = parse_func(
         extra_arguments={
+            'adcirc': (bool, 'Initialize ADCIRC simulation ensemble (default)'),
+            'schism': (bool, 'Initialize SCHISM simulation ensemble'),
             'perturbations': (int, 'number of perturbations to create'),
             'variables': ([str], 'vortex variables to perturb'),
             'sample': (
@@ -25,6 +55,24 @@ def main():
             'quadrature': (bool, 'add additional perturbations along the quadrature'),
         }
     )
+
+    ocean_model_specific_args = {}
+    if init_adcirc:
+        ocean_model_specific_args = dict(
+            adcirc_executable=arguments['adcirc_executable'],
+            adcprep_executable=arguments['adcprep_executable'],
+            aswip_executable=arguments['aswip_executable'],
+            adcirc_processors=arguments['adcirc_processors'],
+        )
+
+    elif init_schism:
+        ocean_model_specific_args = dict(
+            schism_executable=arguments['schism_executable'],
+            schism_processors=arguments['schism_processors'],
+            schism_hotstart_combiner=arguments['schism_hotstart_combiner'],
+            schism_schout_combiner=arguments['schism_schout_combiner'],
+            schism_use_old_io=arguments['schism_use_old_io'],
+        )
 
     if arguments['perturbations'] is None:
         raise ValueError('number of perturbations not given')
@@ -76,7 +124,7 @@ def main():
         overwrite=arguments['overwrite'],
     )
 
-    initialize_adcirc(
+    init_func(
         platform=arguments['platform'],
         mesh_directory=arguments['mesh_directory'],
         modeled_start_time=arguments['modeled_start_time'],
@@ -90,15 +138,12 @@ def main():
         nems_interval=arguments['nems_interval'],
         modulefile=arguments['modulefile'],
         forcings=arguments['forcings'],
-        adcirc_executable=arguments['adcirc_executable'],
-        adcprep_executable=arguments['adcprep_executable'],
-        aswip_executable=arguments['aswip_executable'],
-        adcirc_processors=arguments['adcirc_processors'],
         job_duration=arguments['job_duration'],
         output_directory=arguments['output_directory'],
         absolute_paths=arguments['absolute_paths'],
         overwrite=arguments['overwrite'],
         verbose=arguments['verbose'],
+        **ocean_model_specific_args,
     )
 
 

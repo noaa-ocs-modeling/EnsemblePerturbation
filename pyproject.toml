@@ -26,8 +26,9 @@ beautifulsoup4 = '*'
 cartopy = { version = '*', optional = true }
 chaospy = '*'
 cmocean = { version = '*', optional = true }
-coupledmodeldriver = '>=1.4.11'
+coupledmodeldriver = '>=1.5'
 dask = '*'
+f90nml = '*'
 fiona = '*'
 geopandas = '*'
 netcdf4 = '*'
