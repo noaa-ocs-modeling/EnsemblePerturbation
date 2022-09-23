@@ -34,7 +34,7 @@ geopandas = '*'
 netcdf4 = '*'
 matplotlib = { version = '*', optional = true }
 numpy = '*'
-pandas = '*'
+pandas = '<1.5.0' # SettingWithCopyWarning issue
 pint-pandas = '*'
 pyproj = '>=2.6'
 tables = '*'
