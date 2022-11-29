@@ -35,6 +35,7 @@ netcdf4 = '*'
 matplotlib = { version = '*', optional = true }
 numpy = '*'
 pandas = '<1.5.0' # SettingWithCopyWarning issue
+pint = '<0.20' # Import error for quantity from `pint-pandas`
 pint-pandas = '*'
 pyproj = '>=2.6'
 tables = '*'
