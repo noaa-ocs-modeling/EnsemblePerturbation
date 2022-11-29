@@ -45,11 +45,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
         # due to coupledmodeldriver dependency python 3.10 cannot be supported
-        # macos python 3.7 results in segmentation error
-        python-version: [ '3.7', '3.8', '3.9' ]
-        exclude:
-          - os: macos-latest
-            python-version: '3.7'
+        python-version: [ '3.8', '3.9' ]
     steps:
       - name: clone repository
         uses: actions/checkout@v2
