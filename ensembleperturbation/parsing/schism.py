@@ -503,7 +503,7 @@ class FieldOutput(SchismOutput, ABC):
                 )
 
         # Drop run dimension for variables fixed across runs
-        # `SCHISM_hgrid_node_x` and `SCHISM_hgrid_node_y` are 
+        # `SCHISM_hgrid_node_x` and `SCHISM_hgrid_node_y` are
         # coordinates and are not expanded in `run` dimension
         fixed_vars = [
             'node',
