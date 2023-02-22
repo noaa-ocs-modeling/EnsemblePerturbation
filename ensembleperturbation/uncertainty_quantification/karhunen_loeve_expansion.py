@@ -3,7 +3,9 @@ from pathlib import Path
 import pickle
 from typing import Union
 
+import cartopy
 import geopandas
+import cmocean
 from matplotlib import pyplot
 import numpy as np
 from sklearn.decomposition import PCA
@@ -209,6 +211,7 @@ def karhunen_loeve_prediction(
         vmax = np.round_(actual_values.quantile(0.98), decimals=1)
         vmin = min(0.0, np.round_(actual_values.quantile(0.02), decimals=1))
         sources = {'actual': actual_values, 'reconstructed': kl_prediction}
+        map_crs = cartopy.crs.PlateCarree()
         for example in ensembles_to_plot:
             figure = pyplot.figure()
             figure.set_size_inches(10, 10 / 1.61803398875)
@@ -216,14 +219,20 @@ def karhunen_loeve_prediction(
             index = 0
             for source, value in sources.items():
                 index += 1
-                map_axis = figure.add_subplot(2, len(sources), index)
+                map_axis = figure.add_subplot(
+                    2, len(sources), index, projection=map_crs
+                )
                 map_axis.title.set_text(f'{source}')
                 countries = geopandas.read_file(
                     geopandas.datasets.get_path('naturalearth_lowres')
                 )
+                countries.plot(color='lightgrey', ax=map_axis)
+                coast = cartopy.feature.NaturalEarthFeature(
+                    category='physical', scale='50m', facecolor='none', name='coastline'
+                )
+                map_axis.add_feature(coast, edgecolor='grey', linewidth=0.5)
                 map_axis.set_xlim((bounds[0], bounds[2]))
                 map_axis.set_ylim((bounds[1], bounds[3]))
-                countries.plot(color='lightgrey', ax=map_axis)
 
                 if element_table is None:
                     im = plot_points(
@@ -247,6 +256,7 @@ def karhunen_loeve_prediction(
                         add_colorbar=False,
                         levels=np.linspace(vmin, vmax, 25 + 1),
                         extend='both',
+                        cmap=cmocean.tools.crop(cmocean.cm.diff_r,vmin,vmax,pivot=0),
                     )
 
             pyplot.subplots_adjust(wspace=0.02, right=0.96)

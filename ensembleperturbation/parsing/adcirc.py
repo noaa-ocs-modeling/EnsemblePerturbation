@@ -858,6 +858,7 @@ def extrapolate_water_elevation_to_dry_areas(
     mann_coef: float = 0.05,
     u_ref: float = 0.4,
     d_ref: float = 1.0,
+    min_depth: float = 0.0,
 ):
     # return a deep copy of original datarrary on output
     da_adjusted = da.copy(deep=True)
@@ -886,9 +887,13 @@ def extrapolate_water_elevation_to_dry_areas(
         null = numpy.isnan(da[run, :])
         tree = KDTree(projected_coordinates[~null])
         dd, nn = tree.query(projected_coordinates[null], k=k_neighbors)
+        max_allowable_values = da['depth'][null].values + min_depth - numpy.finfo(float).eps 
         if k_neighbors == 1:
             headloss = dd * friction_factor  # hydraulic friction loss
-            da_adjusted[run, null] = da[run, nodes[~null][nn]].values - headloss
+            da_adjusted[run, null] = numpy.fmin(
+                da[run, nodes[~null][nn]].values - headloss,
+                max_allowable_values 
+            )
         else:
             for kk in range(k_neighbors):
                 weights = dd[:, kk] ** (-idw_order)
@@ -900,6 +905,9 @@ def extrapolate_water_elevation_to_dry_areas(
                 else:
                     idw_sum += total_head * weights
                     weight_sum += weights
-            da_adjusted[run, null] = idw_sum / weight_sum
+            da_adjusted[run, null] = numpy.fmin(
+                idw_sum / weight_sum,
+                max_allowable_values
+            )
 
     return da_adjusted
