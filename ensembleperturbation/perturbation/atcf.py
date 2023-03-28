@@ -45,6 +45,8 @@ AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
 E1 = exp(1.0)  # e
 
+BLAdj = 0.9 # adjustment factor from 10-m height to top of boundary layer
+
 # Index of absolute errors (forecast times [hrs)]
 HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
 HISTORICAL_ERROR_HOURS_NO_60H = (
@@ -104,7 +106,7 @@ class VortexVariable(ABC):
 
 class CentralPressure(VortexVariable):
     name = 'central_pressure'
-
+    unit = units.millibar
 
 class BackgroundPressure(VortexVariable):
     name = 'background_pressure'
@@ -292,6 +294,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 
     name = 'max_sustained_wind_speed'
     perturbation_type = PerturbationType.GAUSSIAN
+    unit = units.knot
 
     # Reference - 2019_Psurge_Error_Update_FINAL.docx
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
@@ -1552,18 +1555,23 @@ class VortexPerturber:
     @property
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
-        dataframe = self.track.data
-        Vmax = dataframe[MaximumSustainedWindSpeed.name]
+        dataframe = self.track.data 
+        # get Vmax after subtracting speed and adjusting to boundary layer
+        Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
+        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
+        DelP = DelP.values * CentralPressure.unit
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
         return B
 
     def compute_pc_from_Vmax(self, dataframe: DataFrame) -> float:
         """ Compute central pressure from Vmax based on Holland B """
-        Vmax = dataframe[MaximumSustainedWindSpeed.name]
-        DelP = Vmax ** 2 * AIR_DENSITY * E1 / self.holland_B
-        pc = dataframe[BackgroundPressure.name] - DelP
-        return pc
+        # get Vmax after subtracting speed and adjusting to boundary layer height
+        Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
+        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
+        DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
+        pc = dataframe[BackgroundPressure.name].values * CentralPressure.unit - DelP
+        return pc.magnitude
 
 
 def distribution_from_variables(variables: List[VortexPerturbedVariable]) -> Distribution:
