@@ -258,22 +258,23 @@ class VortexPerturbedVariable(VortexVariable, ABC):
 
         return vortex_dataframe
 
-    def storm_errors(self, data_frame: DataFrame) -> DataFrame:
+    def storm_errors(self, data_frame: DataFrame, loc_index: int = 0) -> DataFrame:
         """
         Historical forecast errors of the given storm, based on initial intensity.
 
         :param data_frame: storm data frame
+        :param loc_index: index to classify the errors at (0 by default for initial)
         :return: errors based on intensity classification
         """
 
-        intial_intensity = data_frame[MaximumSustainedWindSpeed.name].iloc[0]
+        initial_intensity = data_frame[MaximumSustainedWindSpeed.name].iloc[loc_index]
 
-        if not isinstance(intial_intensity, Quantity):
-            intial_intensity *= units.knot
+        if not isinstance(initial_intensity, Quantity):
+            initial_intensity *= units.knot
 
-        if intial_intensity < 50 * units.knot:
+        if initial_intensity < 50 * units.knot:
             storm_classification = '<50kt'  # weak
-        elif intial_intensity <= 95 * units.knot:
+        elif initial_intensity <= 95 * units.knot:
             storm_classification = '50-95kt'  # medium
         else:
             storm_classification = '>95kt'  # strong
@@ -301,10 +302,12 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {'mean error [kt]': [1.45, 4.01, 6.17, 8.42, 10.46, 14.28, 18.26, 19.91]},
+                    dtype=PintType(units.knot),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
                     {'mean error [kt]': [2.26, 5.75, 8.54, 9.97, 11.28, 13.11, 13.46, 12.62]},
+                    dtype=PintType(units.knot),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
@@ -320,6 +323,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
                             13.55,
                         ]
                     },
+                    dtype=PintType(units.knot),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
@@ -540,15 +544,16 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
             unit=units.nautical_mile,
         )
 
-    def storm_errors(self, data_frame: DataFrame) -> DataFrame:
+    def storm_errors(self, data_frame: DataFrame, loc_index: int = 0) -> DataFrame:
         """
         Historical forecast errors of the given storm, based on initial size.
 
         :param data_frame: storm data frame
+        :param loc_index: index to classify the errors at (0 by default for initial)
         :return: errors based on size classification
         """
 
-        initial_radius = data_frame[self.name].iloc[0]
+        initial_radius = data_frame[self.name].iloc[loc_index]
 
         if not isinstance(initial_radius, Quantity):
             initial_radius *= units.nautical_mile
@@ -597,6 +602,7 @@ class CrossTrack(VortexPerturbedVariable):
                             119.67,
                         ]
                     },
+                    dtype=PintType(units.nautical_mile),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
@@ -612,6 +618,7 @@ class CrossTrack(VortexPerturbedVariable):
                             103.45,
                         ]
                     },
+                    dtype=PintType(units.nautical_mile),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
@@ -627,6 +634,7 @@ class CrossTrack(VortexPerturbedVariable):
                             79.98,
                         ]
                     },
+                    dtype=PintType(units.nautical_mile),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
@@ -764,6 +772,7 @@ class AlongTrack(VortexPerturbedVariable):
                             125.01,
                         ]
                     },
+                    dtype=PintType(units.nautical_mile),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '50-95kt': DataFrame(
@@ -779,6 +788,7 @@ class AlongTrack(VortexPerturbedVariable):
                             108.07,
                         ]
                     },
+                    dtype=PintType(units.nautical_mile),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
                 '>95kt': DataFrame(
@@ -794,6 +804,7 @@ class AlongTrack(VortexPerturbedVariable):
                             83.55,
                         ]
                     },
+                    dtype=PintType(units.nautical_mile),
                     index=HISTORICAL_ERROR_HOURS_NO_60H,
                 ),
             },
@@ -1417,24 +1428,36 @@ class VortexPerturber:
 
                 # Get the historical forecasting errors from initial storm state (intensity or size)
                 historical_forecast_errors = variable.storm_errors(self.track.data)
-                try:
-                    # need to dequantify dataframe from pint units to run `interp`, then requantify resulting dataframe
-                    historical_forecast_errors = historical_forecast_errors.pint.dequantify()
-                except:
-                    pass
+                # need to dequantify dataframe from pint units to run `interp`
+                historical_forecast_errors = historical_forecast_errors.pint.dequantify()
 
                 validation_hours = self.validation_times / timedelta(hours=1)
-                validation_time_errors = DataFrame(
-                    data={
-                        column: interp(
-                            x=validation_hours,
-                            xp=historical_forecast_errors.index,
-                            fp=historical_forecast_errors.loc[:, column],
-                        )
-                        for column in historical_forecast_errors.columns
-                    },
-                    index=validation_hours,
-                )
+
+                if self.file_deck.value == 'b':
+                    # hindcast errors based on the 0-hr historical averages
+                    validation_time_errors = DataFrame(
+                        data={
+                            column: ( # update the errors based on intensity at each time  
+                                variable.storm_errors(self.track.data,rdx).loc[0].values[cdx].magnitude
+                                for rdx, row in enumerate(validation_hours)
+                            )
+                            for cdx,column in enumerate(historical_forecast_errors.columns)
+                        },
+                        index=validation_hours,
+                    )
+                else:
+                    # forecast errors than grow with time based on initial intensity
+                    validation_time_errors = DataFrame(
+                        data={
+                            column: interp(
+                                x=validation_hours,
+                                xp=historical_forecast_errors.index,
+                                fp=historical_forecast_errors.loc[:, column],
+                            )
+                            for column in historical_forecast_errors.columns
+                        },
+                        index=validation_hours,
+                    )
 
                 # get the random perturbation sample
                 if variable.perturbation_type == PerturbationType.GAUSSIAN:
