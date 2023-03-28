@@ -341,6 +341,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
     perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
+        zero_hr_fac = 0.4 #error fraction of 12-hr at 0-hr
         super().__init__(
             lower_bound=5,
             upper_bound=200,
@@ -348,7 +349,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '<15sm': DataFrame(
                     {
                         '15th percentile error': [
-                            0.0,
+                            -13.82*zero_hr_fac,
                             -13.82,
                             -19.67,
                             -21.37,
@@ -359,7 +360,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -52.68,
                         ],
                         '50th percentile error': [
-                            0.0,
+                            -2.72*zero_hr_fac,
                             -2.72,
                             -6.74,
                             -9.59,
@@ -370,7 +371,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -24.07,
                         ],
                         '85th percentile error': [
-                            0.0,
+                            1.27*zero_hr_fac,
                             1.27,
                             0.22,
                             1.02,
@@ -387,7 +388,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '15-25sm': DataFrame(
                     {
                         '15th percentile error': [
-                            0.0,
+                            -10.47*zero_hr_fac,
                             -10.47,
                             -14.54,
                             -20.35,
@@ -398,7 +399,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -28.30,
                         ],
                         '50th percentile error': [
-                            0.0,
+                            -1.07*zero_hr_fac,
                             -1.07,
                             -2.48,
                             -4.25,
@@ -409,7 +410,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -4.44,
                         ],
                         '85th percentile error': [
-                            0.0,
+                            4.17*zero_hr_fac,
                             4.17,
                             6.70,
                             6.13,
@@ -426,7 +427,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '25-35sm': DataFrame(
                     {
                         '15th percentile error': [
-                            0.0,
+                            -8.57*zero_hr_fac,
                             -8.57,
                             -13.41,
                             -10.87,
@@ -437,7 +438,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -7.40,
                         ],
                         '50th percentile error': [
-                            0.0,
+                            0.39*zero_hr_fac,
                             0.39,
                             1.66,
                             2.49,
@@ -448,7 +449,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             6.96,
                         ],
                         '85th percentile error': [
-                            0.0,
+                            8.21*zero_hr_fac,
                             8.21,
                             10.62,
                             13.93,
@@ -465,7 +466,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '35-45sm': DataFrame(
                     {
                         '15th percentile error': [
-                            0.0,
+                            -10.66*zero_hr_fac,
                             -10.66,
                             -7.64,
                             -5.68,
@@ -476,7 +477,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             2.59,
                         ],
                         '50th percentile error': [
-                            0.0,
+                            3.22*zero_hr_fac,
                             3.22,
                             7.32,
                             12.67,
@@ -487,7 +488,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             14.01,
                         ],
                         '85th percentile error': [
-                            0.0,
+                            14.77*zero_hr_fac,
                             14.77,
                             17.85,
                             22.07,
@@ -504,7 +505,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '>45sm': DataFrame(
                     {
                         '15th percentile error': [
-                            0.0,
+                            -15.36*zero_hr_fac,
                             -15.36,
                             -10.37,
                             3.14,
@@ -515,7 +516,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             7.19,
                         ],
                         '50th percentile error': [
-                            0.0,
+                            8.11*zero_hr_fac,
                             8.11,
                             15.19,
                             17.21,
@@ -526,7 +527,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             20.51,
                         ],
                         '85th percentile error': [
-                            0.0,
+                            21.43*zero_hr_fac,
                             21.43,
                             29.96,
                             37.22,
