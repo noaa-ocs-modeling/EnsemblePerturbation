@@ -246,6 +246,8 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             or variable_values.units == variable_values.units._REGISTRY.dimensionless
         ):
             variable_values *= self.unit
+        if isinstance(variable_values, PintArray):
+            variable_values = variable_values.quantity
         if (
             not isinstance(values, Quantity)
             or values.units == values.units._REGISTRY.dimensionless
@@ -253,8 +255,10 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             values *= self.unit
 
         all_values = variable_values - values
+        # ensure that we don't change zero values
+        all_values[variable_values.magnitude < 1] = 0 * all_values.units
         vortex_dataframe[self.name] = [
-            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude if value.magnitude >= 1 else 0
             for value in all_values
         ] * self.unit
 
@@ -337,7 +341,8 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
     ``radius_of_maximum_winds`` (``Rmax``)
-    It is perturbed along a uniform distribution on [-1,1] between the 15th and 85th percentile CDFs of NHC historical forecast errors.
+    It is perturbed along a uniform distribution on [-1,1] between the 0th and 100th percentile CDFs of NHC historical forecast errors.
+    0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
     """
 
     name = 'radius_of_maximum_winds'
@@ -574,6 +579,67 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
 
         LOGGER.debug(f'storm classification: {storm_classification}')
         return self.historical_forecast_errors[storm_classification]
+
+# Rmax-dependent radius variables
+class IsotachRadiusSWQ(VortexPerturbedVariable):
+    """
+    ``isotach_radius_for_SWQ`
+    """
+    name = 'isotach_radius_for_SWQ'
+    perturbation_type = PerturbationType.UNIFORM
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=400,
+            historical_forecast_errors={},
+            unit=units.nautical_mile,
+        )
+
+class IsotachRadiusSEQ(VortexPerturbedVariable):
+    """
+    ``isotach_radius_for_SEQ`
+    """
+    name = 'isotach_radius_for_SEQ'
+    perturbation_type = PerturbationType.UNIFORM
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=400,
+            historical_forecast_errors={},
+            unit=units.nautical_mile,
+        )
+
+class IsotachRadiusNWQ(VortexPerturbedVariable):
+    """
+    ``isotach_radius_for_NWQ`
+    """
+    name = 'isotach_radius_for_NWQ'
+    perturbation_type = PerturbationType.UNIFORM
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=400,
+            historical_forecast_errors={},
+            unit=units.nautical_mile,
+        )
+
+class IsotachRadiusNEQ(VortexPerturbedVariable):
+    """
+    ``isotach_radius_for_NEQ`
+    """
+    name = 'isotach_radius_for_NEQ'
+    perturbation_type = PerturbationType.UNIFORM
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=400,
+            historical_forecast_errors={},
+            unit=units.nautical_mile,
+        )
 
 
 class CrossTrack(VortexPerturbedVariable):
@@ -1524,8 +1590,18 @@ class VortexPerturber:
                     )
 
                 if isinstance(variable, MaximumSustainedWindSpeed):
-                    # In case of Vmax need to change the central pressure incongruence with it (obeying Holland B relationship)
+                    # In case of Vmax need to change the central pressure in accordance with Holland B relationship
                     dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
+                elif isinstance(variable, RadiusOfMaximumWinds):
+                    # In case of Rmax need to change the r34/50,64 radii at all quadrants in the same way
+                    quadrants = [IsotachRadiusNEQ(), IsotachRadiusSEQ(), IsotachRadiusSWQ(), IsotachRadiusNWQ()]
+                    for quadrant in quadrants:
+                        dataframe = quadrant.perturb(
+                            vortex_dataframe=dataframe,
+                            values=perturbed_values,
+                            times=self.validation_times,
+                            inplace=True,
+                        )
 
         # remove units from data frame
         for column in dataframe:
