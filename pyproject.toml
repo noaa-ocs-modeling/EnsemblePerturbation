@@ -20,7 +20,7 @@ enable = true
 
 [tool.poetry.dependencies]
 python = '^3.8'
-adcircpy = '>=1.1.0'
+adcircpy = '>=1.2.3'
 appdirs = '*'
 beautifulsoup4 = '*'
 cartopy = { version = '*', optional = true }
@@ -44,7 +44,7 @@ python-dateutil = '*'
 requests = '*'
 shapely = '*'
 scikit-learn = '*'
-stormevents = '>=1.4.1'
+stormevents = '>=2.1.2'
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
 pytest = { version = '*', optional = true }
