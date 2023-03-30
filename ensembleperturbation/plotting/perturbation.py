@@ -249,11 +249,13 @@ def plot_track_perturbations(
 ):
 
     num_perturbations = len(perturbations)
+    perturbation_keys = list(perturbations.keys())
     perturbation_types = ['ensemble'] * num_perturbations
-    if 'original' in perturbations.keys():
+    if 'original' in perturbation_keys:
         num_perturbations = num_perturbations - 1
-        ind = list(perturbations.keys()).index('original')
-        perturbation_types[ind] = 'original'
+        perturbation_keys.remove('original')
+        perturbation_keys.append('original')
+        perturbation_types[-1] = 'original'
 
     figure = pyplot.figure()
     figure.set_size_inches(12, 12)
@@ -272,7 +274,7 @@ def plot_track_perturbations(
     colors = get_cmap('jet')(linear_normalization(encoded_perturbation_types))
 
     bounds = numpy.array([None, None, None, None])
-    for index, run in enumerate(perturbations):
+    for index, run in enumerate(perturbation_keys):
         pkey = list(perturbations[run].keys())
         storm = VortexTrack.from_file(perturbations[run][pkey[0]]['fort22_filename']).data
 
@@ -312,13 +314,13 @@ def plot_track_perturbations(
         # Vmax
         Vmax_axis.plot(
             storm['datetime'], storm['max_sustained_wind_speed'],
-            color=colors[index], linewidth=0.25,
+            color=colors[index], linewidth=0.75 if run == 'original' else 0.25,
         )
         
         # Rmax
         Rmax_axis.plot(
             storm['datetime'], storm['radius_of_maximum_winds'],
-            color=colors[index], linewidth=0.25,
+            color=colors[index], linewidth=0.75 if run == 'original' else 0.25,
         )
 
     unique_perturbation_type_colors = get_cmap('jet')(
