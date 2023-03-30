@@ -1497,21 +1497,21 @@ class VortexPerturber:
 
                 # Get the historical forecasting errors from initial storm state (intensity or size)
                 historical_forecast_errors = variable.storm_errors(self.track.data)
-                # need to dequantify dataframe from pint units to run `interp`
-                historical_forecast_errors = historical_forecast_errors.pint.dequantify()
 
                 validation_hours = self.validation_times / timedelta(hours=1)
 
                 if self.file_deck.value == 'b':
                     # hindcast errors based on the 0-hr historical averages
-                    validation_time_errors = DataFrame(
-                        data={
-                            column: ( # update the errors based on intensity at each time  
-                                variable.storm_errors(self.track.data,rdx).loc[0].values[cdx].magnitude
-                                for rdx, row in enumerate(validation_hours)
+                    data_dict = {}
+                    for column in historical_forecast_errors.columns:
+                        column_error = []
+                        for rdx, row in enumerate(validation_hours):
+                            column_error.append(
+                                variable.storm_errors(self.track.data,rdx).loc[0,column].magnitude
                             )
-                            for cdx,column in enumerate(historical_forecast_errors.columns)
-                        },
+                        data_dict[column] = column_error
+                    validation_time_errors = DataFrame(
+                        data= data_dict,
                         index=validation_hours,
                     )
                 else:
@@ -1521,7 +1521,7 @@ class VortexPerturber:
                             column: interp(
                                 x=validation_hours,
                                 xp=historical_forecast_errors.index,
-                                fp=historical_forecast_errors.loc[:, column],
+                                fp=historical_forecast_errors.loc[:, column].values.quantity.magnitude
                             )
                             for column in historical_forecast_errors.columns
                         },
@@ -1572,8 +1572,7 @@ class VortexPerturber:
                     perturbed_values = 0.5 * (
                         min_validation_time_errors * (1 - alpha)
                         + max_validation_time_errors * (1 + alpha)
-                    )
-                    perturbed_values = perturbed_values.iloc[:, 0].values
+                    ).values
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbed_values *= variable.unit
 
