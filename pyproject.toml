@@ -44,7 +44,7 @@ python-dateutil = '*'
 requests = '*'
 shapely = '*'
 scikit-learn = '*'
-stormevents = '>=2.1.2'
+stormevents = '>=2.1.3'
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
 pytest = { version = '*', optional = true }
