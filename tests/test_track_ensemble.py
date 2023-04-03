@@ -97,10 +97,15 @@ def test_spatial_perturbations():
             storm='florence2018',
             variables=[variable],
             file_deck='b',
+            sample_rule='random',
             sample_from_distribution=True,
             quadrature=False,
             overwrite=True,
         )
+
+    for i in range(4):
+        assert (output_directory / f'vortex_1_variable_random_{i+1}.json').is_file()
+        assert (output_directory / f'vortex_1_variable_random_{i+1}.22').is_file()
 
 
 def test_original_file():
