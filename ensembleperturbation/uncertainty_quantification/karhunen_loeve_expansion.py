@@ -219,9 +219,7 @@ def karhunen_loeve_prediction(
             index = 0
             for source, value in sources.items():
                 index += 1
-                map_axis = figure.add_subplot(
-                    2, len(sources), index, projection=map_crs
-                )
+                map_axis = figure.add_subplot(2, len(sources), index, projection=map_crs)
                 map_axis.title.set_text(f'{source}')
                 countries = geopandas.read_file(
                     geopandas.datasets.get_path('naturalearth_lowres')
@@ -256,7 +254,7 @@ def karhunen_loeve_prediction(
                         add_colorbar=False,
                         levels=np.linspace(vmin, vmax, 25 + 1),
                         extend='both',
-                        cmap=cmocean.tools.crop(cmocean.cm.diff_r,vmin,vmax,pivot=0),
+                        cmap=cmocean.tools.crop(cmocean.cm.diff_r, vmin, vmax, pivot=0),
                     )
 
             pyplot.subplots_adjust(wspace=0.02, right=0.96)
