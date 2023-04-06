@@ -219,8 +219,9 @@ def plot_node_map(
 
     countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
     countries.plot(color='lightgrey', ax=map_axis)
-    coast = cartopy.feature.NaturalEarthFeature(category='physical', scale='50m',
-        facecolor='none', name='coastline')
+    coast = cartopy.feature.NaturalEarthFeature(
+        category='physical', scale='50m', facecolor='none', name='coastline'
+    )
     map_axis.add_feature(coast, edgecolor='grey', linewidth=0.5)
 
     if storm is not None:

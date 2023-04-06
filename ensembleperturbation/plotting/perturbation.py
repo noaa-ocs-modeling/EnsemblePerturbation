@@ -265,7 +265,7 @@ def plot_track_perturbations(
     Vmax_axis = figure.add_subplot(2, 2, 3)
     Rmax_axis = figure.add_subplot(2, 2, 4)
     countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
-            
+
     unique_perturbation_types = numpy.unique(perturbation_types)
     encoded_perturbation_types = encode_categorical_values(
         perturbation_types, unique_values=unique_perturbation_types
@@ -284,20 +284,20 @@ def plot_track_perturbations(
         line_collection = LineCollection(
             segments,
             linewidths=numpy.concatenate(
-                [ [0],                           # maximum Rmax
-                  storm['radius_of_maximum_winds'] / 200 ,
-                ]
-            ) * 4, color=colors[index],
+                [[0], storm['radius_of_maximum_winds'] / 200,]  # maximum Rmax
+            )
+            * 4,
+            color=colors[index],
         )
         map_axis.add_collection(line_collection)
 
         track_bounds = numpy.array(
-             [
-                 points[:, :, 0].min(),
-                 points[:, :, 1].min(),
-                 points[:, :, 0].max(),
-                 points[:, :, 1].max(),
-             ]
+            [
+                points[:, :, 0].min(),
+                points[:, :, 1].min(),
+                points[:, :, 0].max(),
+                points[:, :, 1].max(),
+            ]
         )
         if bounds[0] is None or track_bounds[0] < bounds[0]:
             bounds[0] = track_bounds[0]
@@ -313,14 +313,18 @@ def plot_track_perturbations(
 
         # Vmax
         Vmax_axis.plot(
-            storm['datetime'], storm['max_sustained_wind_speed'],
-            color=colors[index], linewidth=0.75 if run == 'original' else 0.25,
+            storm['datetime'],
+            storm['max_sustained_wind_speed'],
+            color=colors[index],
+            linewidth=0.75 if run == 'original' else 0.25,
         )
-        
+
         # Rmax
         Rmax_axis.plot(
-            storm['datetime'], storm['radius_of_maximum_winds'],
-            color=colors[index], linewidth=0.75 if run == 'original' else 0.25,
+            storm['datetime'],
+            storm['radius_of_maximum_winds'],
+            color=colors[index],
+            linewidth=0.75 if run == 'original' else 0.25,
         )
 
     unique_perturbation_type_colors = get_cmap('jet')(
@@ -344,9 +348,9 @@ def plot_track_perturbations(
 
     Rmax_axis.set_ylabel('$R_{max}$ [n mi]')
     Vmax_axis.set_ylabel('$V_{max}$ [kt]')
-   
-    Rmax_axis.set_xticklabels(Rmax_axis.get_xticklabels(),rotation=45)
-    Vmax_axis.set_xticklabels(Vmax_axis.get_xticklabels(),rotation=45)
+
+    Rmax_axis.set_xticklabels(Rmax_axis.get_xticklabels(), rotation=45)
+    Vmax_axis.set_xticklabels(Vmax_axis.get_xticklabels(), rotation=45)
 
     Rmax_axis.set_title('Size')
     Vmax_axis.set_title('Intensity')

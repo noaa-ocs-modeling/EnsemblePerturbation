@@ -45,7 +45,7 @@ AIR_DENSITY = 1.15 * units.kilogram / units.meters ** 3
 
 E1 = exp(1.0)  # e
 
-BLAdj = 0.9 # adjustment factor from 10-m height to top of boundary layer
+BLAdj = 0.9  # adjustment factor from 10-m height to top of boundary layer
 
 # Index of absolute errors (forecast times [hrs)]
 HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
@@ -107,6 +107,7 @@ class VortexVariable(ABC):
 class CentralPressure(VortexVariable):
     name = 'central_pressure'
     unit = units.millibar
+
 
 class BackgroundPressure(VortexVariable):
     name = 'background_pressure'
@@ -258,7 +259,9 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         # ensure that we don't change zero values
         all_values[variable_values.magnitude < 1] = 0 * all_values.units
         vortex_dataframe[self.name] = [
-            min(self.upper_bound, max(value, self.lower_bound)).magnitude if value.magnitude >= 1 else 0
+            min(self.upper_bound, max(value, self.lower_bound)).magnitude
+            if value.magnitude >= 1
+            else 0
             for value in all_values
         ] * self.unit
 
@@ -356,7 +359,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '<15sm': DataFrame(
                     {
                         '15th percentile error': [
-                            2*-13.82--19.67,
+                            2 * -13.82 - -19.67,
                             -13.82,
                             -19.67,
                             -21.37,
@@ -367,7 +370,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -52.68,
                         ],
                         '50th percentile error': [
-                            2*-2.72--6.74,
+                            2 * -2.72 - -6.74,
                             -2.72,
                             -6.74,
                             -9.59,
@@ -378,7 +381,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -24.07,
                         ],
                         '85th percentile error': [
-                            2*1.27-0.22,
+                            2 * 1.27 - 0.22,
                             1.27,
                             0.22,
                             1.02,
@@ -395,7 +398,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '15-25sm': DataFrame(
                     {
                         '15th percentile error': [
-                            2*-10.47--14.54,
+                            2 * -10.47 - -14.54,
                             -10.47,
                             -14.54,
                             -20.35,
@@ -406,7 +409,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -28.30,
                         ],
                         '50th percentile error': [
-                            2*-1.07--2.48,
+                            2 * -1.07 - -2.48,
                             -1.07,
                             -2.48,
                             -4.25,
@@ -417,7 +420,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -4.44,
                         ],
                         '85th percentile error': [
-                            2*4.17-6.70,
+                            2 * 4.17 - 6.70,
                             4.17,
                             6.70,
                             6.13,
@@ -434,7 +437,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '25-35sm': DataFrame(
                     {
                         '15th percentile error': [
-                            2*-8.57--13.41,
+                            2 * -8.57 - -13.41,
                             -8.57,
                             -13.41,
                             -10.87,
@@ -445,7 +448,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             -7.40,
                         ],
                         '50th percentile error': [
-                            2*0.39-1.66,
+                            2 * 0.39 - 1.66,
                             0.39,
                             1.66,
                             2.49,
@@ -456,7 +459,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             6.96,
                         ],
                         '85th percentile error': [
-                            2*8.21-10.62,
+                            2 * 8.21 - 10.62,
                             8.21,
                             10.62,
                             13.93,
@@ -473,7 +476,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '35-45sm': DataFrame(
                     {
                         '15th percentile error': [
-                            2*-10.66--7.64,
+                            2 * -10.66 - -7.64,
                             -10.66,
                             -7.64,
                             -5.68,
@@ -484,7 +487,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             2.59,
                         ],
                         '50th percentile error': [
-                            2*3.22-7.32,
+                            2 * 3.22 - 7.32,
                             3.22,
                             7.32,
                             12.67,
@@ -495,7 +498,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             14.01,
                         ],
                         '85th percentile error': [
-                            2*14.77-17.85,
+                            2 * 14.77 - 17.85,
                             14.77,
                             17.85,
                             22.07,
@@ -512,7 +515,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                 '>45sm': DataFrame(
                     {
                         '15th percentile error': [
-                            2*-15.36--10.37,
+                            2 * -15.36 - -10.37,
                             -15.36,
                             -10.37,
                             3.14,
@@ -523,7 +526,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             7.19,
                         ],
                         '50th percentile error': [
-                            2*8.11-15.19,
+                            2 * 8.11 - 15.19,
                             8.11,
                             15.19,
                             17.21,
@@ -534,7 +537,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
                             20.51,
                         ],
                         '85th percentile error': [
-                            2*21.43-29.96,
+                            2 * 21.43 - 29.96,
                             21.43,
                             29.96,
                             37.22,
@@ -580,11 +583,13 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
         LOGGER.debug(f'storm classification: {storm_classification}')
         return self.historical_forecast_errors[storm_classification]
 
+
 # Rmax-dependent radius variables
 class IsotachRadiusSWQ(VortexPerturbedVariable):
     """
     ``isotach_radius_for_SWQ`
     """
+
     name = 'isotach_radius_for_SWQ'
     perturbation_type = PerturbationType.UNIFORM
 
@@ -596,10 +601,12 @@ class IsotachRadiusSWQ(VortexPerturbedVariable):
             unit=units.nautical_mile,
         )
 
+
 class IsotachRadiusSEQ(VortexPerturbedVariable):
     """
     ``isotach_radius_for_SEQ`
     """
+
     name = 'isotach_radius_for_SEQ'
     perturbation_type = PerturbationType.UNIFORM
 
@@ -611,10 +618,12 @@ class IsotachRadiusSEQ(VortexPerturbedVariable):
             unit=units.nautical_mile,
         )
 
+
 class IsotachRadiusNWQ(VortexPerturbedVariable):
     """
     ``isotach_radius_for_NWQ`
     """
+
     name = 'isotach_radius_for_NWQ'
     perturbation_type = PerturbationType.UNIFORM
 
@@ -626,10 +635,12 @@ class IsotachRadiusNWQ(VortexPerturbedVariable):
             unit=units.nautical_mile,
         )
 
+
 class IsotachRadiusNEQ(VortexPerturbedVariable):
     """
     ``isotach_radius_for_NEQ`
     """
+
     name = 'isotach_radius_for_NEQ'
     perturbation_type = PerturbationType.UNIFORM
 
@@ -1046,8 +1057,8 @@ class VortexPerturber:
         :param storm: NHC storm code, for instance `al062018`
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
-        :param file_deck: letter of file deck, one of `a`, `b`
-        :param advisories: record types (i.e. `BEST`, `OFCL`)
+        :param file_deck: ATCF file deck; one of `a`, `b`, `f`
+        :param advisories: ATCF advisory type; one of ``BEST``, ``OFCL``, ``OFCP``, ``HMON``, ``CARQ``, ``HWRF``
         """
 
         self.__start_date = None
@@ -1066,7 +1077,12 @@ class VortexPerturber:
 
     @classmethod
     def from_file(
-        cls, filename: PathLike, start_date: datetime = None, end_date: datetime = None
+        cls,
+        filename: PathLike,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        file_deck: ATCF_FileDeck = None,
+        advisories: List[str] = None,
     ) -> 'VortexPerturber':
         """
         build storm perturber from an existing `fort.22` or ATCF file
@@ -1074,9 +1090,17 @@ class VortexPerturber:
         :param filename: file path to `fort.22` / ATCF file
         :param start_date: start time of ensemble
         :param end_date: end time of ensemble
+        :param file_deck: ATCF file deck; one of `a`, `b`, `f`
+        :param advisories: ATCF advisory type; one of ``BEST``, ``OFCL``, ``OFCP``, ``HMON``, ``CARQ``, ``HWRF``
         """
 
-        track = VortexTrack.from_file(filename, start_date=start_date, end_date=end_date)
+        track = VortexTrack.from_file(
+            filename,
+            start_date=start_date,
+            end_date=end_date,
+            file_deck=file_deck,
+            advisories=advisories,
+        )
         instance = VortexPerturber.from_track(track)
         instance.__filename = filename
         return instance
@@ -1507,13 +1531,12 @@ class VortexPerturber:
                         column_error = []
                         for rdx, row in enumerate(validation_hours):
                             column_error.append(
-                                variable.storm_errors(self.track.data,rdx).loc[0,column].magnitude
+                                variable.storm_errors(self.track.data, rdx)
+                                .loc[0, column]
+                                .magnitude
                             )
                         data_dict[column] = column_error
-                    validation_time_errors = DataFrame(
-                        data= data_dict,
-                        index=validation_hours,
-                    )
+                    validation_time_errors = DataFrame(data=data_dict, index=validation_hours,)
                 else:
                     # forecast errors than grow with time based on initial intensity
                     validation_time_errors = DataFrame(
@@ -1521,7 +1544,9 @@ class VortexPerturber:
                             column: interp(
                                 x=validation_hours,
                                 xp=historical_forecast_errors.index,
-                                fp=historical_forecast_errors.loc[:, column].values.quantity.magnitude
+                                fp=historical_forecast_errors.loc[
+                                    :, column
+                                ].values.quantity.magnitude,
                             )
                             for column in historical_forecast_errors.columns
                         },
@@ -1569,10 +1594,13 @@ class VortexPerturber:
                     ## if just choose 15th/85th percentile...
                     # min_validation_time_errors = validation_time_errors.loc[:, '15th percentile error']
                     # max_validation_time_errors = validation_time_errors.loc[:, '85th percentile error']
-                    perturbed_values = 0.5 * (
-                        min_validation_time_errors * (1 - alpha)
-                        + max_validation_time_errors * (1 + alpha)
-                    ).values
+                    perturbed_values = (
+                        0.5
+                        * (
+                            min_validation_time_errors * (1 - alpha)
+                            + max_validation_time_errors * (1 + alpha)
+                        ).values
+                    )
                     if variable.unit is not None and variable.unit != units.dimensionless:
                         perturbed_values *= variable.unit
 
@@ -1593,7 +1621,12 @@ class VortexPerturber:
                     dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
                 elif isinstance(variable, RadiusOfMaximumWinds):
                     # In case of Rmax need to change the r34/50,64 radii at all quadrants in the same way
-                    quadrants = [IsotachRadiusNEQ(), IsotachRadiusSEQ(), IsotachRadiusSWQ(), IsotachRadiusNWQ()]
+                    quadrants = [
+                        IsotachRadiusNEQ(),
+                        IsotachRadiusSEQ(),
+                        IsotachRadiusSWQ(),
+                        IsotachRadiusNWQ(),
+                    ]
                     for quadrant in quadrants:
                         dataframe = quadrant.perturb(
                             vortex_dataframe=dataframe,
@@ -1629,7 +1662,7 @@ class VortexPerturber:
     @property
     def holland_B(self) -> float:
         """ Compute Holland B at each time snap """
-        dataframe = self.track.data 
+        dataframe = self.track.data
         # get Vmax after subtracting speed and adjusting to boundary layer
         Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
         Vmax = Vmax.values * MaximumSustainedWindSpeed.unit

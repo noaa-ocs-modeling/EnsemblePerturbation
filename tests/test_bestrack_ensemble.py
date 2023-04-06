@@ -1,5 +1,5 @@
 import os
-
+from datetime import datetime
 import pandas.testing
 from stormevents.nhc import VortexTrack
 from stormevents.nhc.atcf import ATCF_FIELDS
@@ -23,7 +23,7 @@ def test_monovariate_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', end_date=None, file_deck='b',
+        storm='al062018', start_date=datetime(2018, 9, 11), end_date=None, file_deck='b',
     )
 
     for filename in output_directory.iterdir():
@@ -52,7 +52,7 @@ def test_multivariate_besttrack_ensemble():
         output_directory.mkdir(parents=True, exist_ok=True)
 
     perturber = VortexPerturber(
-        storm='al062018', start_date='20180911', end_date=None, file_deck='b',
+        storm='al062018', start_date=datetime(2018, 9, 11), end_date=None, file_deck='b',
     )
 
     # list of variables to perturb
@@ -116,14 +116,16 @@ def test_original_file():
     if not output_directory.exists():
         output_directory.mkdir(parents=True, exist_ok=True)
 
-    original_track_0 = VortexTrack('al062018', start_date='20180911', file_deck='b')
+    original_track_0 = VortexTrack(
+        storm='al062018', start_date=datetime(2018, 9, 11), end_date=None, file_deck='b',
+    )
     original_track_0.to_file(output_directory / 'original.22')
 
     gauss_variables = [MaximumSustainedWindSpeed, CrossTrack]
     range_variables = [RadiusOfMaximumWinds]
 
     perturber = VortexPerturber.from_file(
-        output_directory / 'original.22', start_date='20180911'
+        output_directory / 'original.22', start_date=datetime(2018, 9, 11), file_deck='b',
     )
 
     perturber.write(
