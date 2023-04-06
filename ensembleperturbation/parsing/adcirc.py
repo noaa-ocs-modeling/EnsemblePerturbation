@@ -887,12 +887,11 @@ def extrapolate_water_elevation_to_dry_areas(
         null = numpy.isnan(da[run, :])
         tree = KDTree(projected_coordinates[~null])
         dd, nn = tree.query(projected_coordinates[null], k=k_neighbors)
-        max_allowable_values = da['depth'][null].values + min_depth - numpy.finfo(float).eps 
+        max_allowable_values = da['depth'][null].values + min_depth - numpy.finfo(float).eps
         if k_neighbors == 1:
             headloss = dd * friction_factor  # hydraulic friction loss
             da_adjusted[run, null] = numpy.fmin(
-                da[run, nodes[~null][nn]].values - headloss,
-                max_allowable_values 
+                da[run, nodes[~null][nn]].values - headloss, max_allowable_values
             )
         else:
             for kk in range(k_neighbors):
@@ -905,9 +904,6 @@ def extrapolate_water_elevation_to_dry_areas(
                 else:
                     idw_sum += total_head * weights
                     weight_sum += weights
-            da_adjusted[run, null] = numpy.fmin(
-                idw_sum / weight_sum,
-                max_allowable_values
-            )
+            da_adjusted[run, null] = numpy.fmin(idw_sum / weight_sum, max_allowable_values)
 
     return da_adjusted
