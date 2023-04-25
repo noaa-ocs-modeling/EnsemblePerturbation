@@ -1298,9 +1298,15 @@ class VortexPerturber:
                 perturbations_array.append(perturbation)
             perturbations = numpy.array(perturbations_array)
 
+        if sample_from_distribution:
+            filetype_string = f'{sample_rule}'
+        else:
+            filetype_string = 'perturbation'
         if continue_numbering:
             # TODO: figure out how to continue perturbations by-variable (i.e. keep track of multiple series with different variables but the same total number of variables)
-            existing_filenames = glob(str(directory / f'vortex_*_variable_{sample_rule}_*.22'))
+            existing_filenames = glob(
+                str(directory / f'vortex_{len(variables)}_variable_{filetype_string}_*.22')
+            )
             if len(existing_filenames) > 0:
                 existing_filenames = sorted(existing_filenames)
                 last_index = int(existing_filenames[-1][-4])
@@ -1310,7 +1316,7 @@ class VortexPerturber:
             last_index = 0
 
         run_names = [
-            f'vortex_{len(variables)}_variable_{sample_rule}_{index + 1}'
+            f'vortex_{len(variables)}_variable_{filetype_string}_{index + 1}'
             for index in range(last_index, last_index + num_perturbations)
         ]
 
