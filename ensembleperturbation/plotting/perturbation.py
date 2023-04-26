@@ -242,3 +242,121 @@ def plot_perturbations(
                 figure.savefig(
                     output_directory / 'storm_tracks.png', dpi=200, bbox_inches='tight',
                 )
+
+
+def plot_track_perturbations(
+    perturbations: dict, storm_name: str = None, output_directory: PathLike = None,
+):
+
+    num_perturbations = len(perturbations)
+    perturbation_keys = list(perturbations.keys())
+    perturbation_types = ['ensemble'] * num_perturbations
+    if 'original' in perturbation_keys:
+        num_perturbations = num_perturbations - 1
+        perturbation_keys.remove('original')
+        perturbation_keys.append('original')
+        perturbation_types[-1] = 'original'
+
+    figure = pyplot.figure()
+    figure.set_size_inches(12, 12)
+    figure.suptitle(f'{num_perturbations} perturbations of {storm_name}')
+
+    map_axis = figure.add_subplot(2, 1, 1)
+    Vmax_axis = figure.add_subplot(2, 2, 3)
+    Rmax_axis = figure.add_subplot(2, 2, 4)
+    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+    unique_perturbation_types = numpy.unique(perturbation_types)
+    encoded_perturbation_types = encode_categorical_values(
+        perturbation_types, unique_values=unique_perturbation_types
+    )
+    linear_normalization = Normalize()
+    colors = get_cmap('jet')(linear_normalization(encoded_perturbation_types))
+
+    bounds = numpy.array([None, None, None, None])
+    for index, run in enumerate(perturbation_keys):
+        pkey = list(perturbations[run].keys())
+        storm = VortexTrack.from_file(perturbations[run][pkey[0]]['fort22_filename']).data
+
+        # Track
+        points = storm.loc[:, ['longitude', 'latitude']].values.reshape(-1, 1, 2)
+        segments = numpy.concatenate([points[:-1], points[1:]], axis=1)
+        line_collection = LineCollection(
+            segments,
+            linewidths=numpy.concatenate(
+                [[0], storm['radius_of_maximum_winds'] / 200,]  # maximum Rmax
+            )
+            * 4,
+            color=colors[index],
+        )
+        map_axis.add_collection(line_collection)
+
+        track_bounds = numpy.array(
+            [
+                points[:, :, 0].min(),
+                points[:, :, 1].min(),
+                points[:, :, 0].max(),
+                points[:, :, 1].max(),
+            ]
+        )
+        if bounds[0] is None or track_bounds[0] < bounds[0]:
+            bounds[0] = track_bounds[0]
+        if bounds[1] is None or track_bounds[1] < bounds[1]:
+            bounds[1] = track_bounds[1]
+        if bounds[2] is None or track_bounds[2] > bounds[2]:
+            bounds[2] = track_bounds[2]
+        if bounds[3] is None or track_bounds[3] > bounds[3]:
+            bounds[3] = track_bounds[3]
+
+        map_axis.set_xlim((bounds[0], bounds[2]))
+        map_axis.set_ylim((bounds[1], bounds[3]))
+
+        # Vmax
+        Vmax_axis.plot(
+            storm['datetime'],
+            storm['max_sustained_wind_speed'],
+            color=colors[index],
+            linewidth=0.75 if run == 'original' else 0.25,
+        )
+
+        # Rmax
+        Rmax_axis.plot(
+            storm['datetime'],
+            storm['radius_of_maximum_winds'],
+            color=colors[index],
+            linewidth=0.75 if run == 'original' else 0.25,
+        )
+
+    unique_perturbation_type_colors = get_cmap('jet')(
+        linear_normalization(numpy.unique(encoded_perturbation_types))
+    )
+    map_axis.legend(
+        [Patch(facecolor=color) for color in unique_perturbation_type_colors],
+        unique_perturbation_types,
+    )
+
+    xlim = map_axis.get_xlim()
+    ylim = map_axis.get_ylim()
+
+    countries.plot(color='lightgrey', ax=map_axis)
+
+    map_axis.set_xlim(xlim)
+    map_axis.set_ylim(ylim)
+
+    Rmax_axis.grid()
+    Vmax_axis.grid()
+
+    Rmax_axis.set_ylabel('$R_{max}$ [n mi]')
+    Vmax_axis.set_ylabel('$V_{max}$ [kt]')
+
+    Rmax_axis.set_xticklabels(Rmax_axis.get_xticklabels(), rotation=45)
+    Vmax_axis.set_xticklabels(Vmax_axis.get_xticklabels(), rotation=45)
+
+    Rmax_axis.set_title('Size')
+    Vmax_axis.set_title('Intensity')
+    map_axis.set_title('Trajectory')
+
+    if output_directory is not None:
+        figure.savefig(
+            output_directory / f'{storm_name}_perturbations.png', dpi=200, bbox_inches='tight',
+        )
