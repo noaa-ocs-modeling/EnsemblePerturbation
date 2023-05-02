@@ -1775,7 +1775,11 @@ def perturb_tracks(
     try:
         if Path(storm).exists():
             perturber = VortexPerturber.from_file(
-                storm, start_date=start_date, end_date=end_date,
+                storm,
+                start_date=start_date,
+                end_date=end_date,
+                file_deck=file_deck,
+                advisories=advisories,
             )
         else:
             raise FileNotFoundError
