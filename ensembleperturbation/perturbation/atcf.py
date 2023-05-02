@@ -260,7 +260,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         all_values[variable_values.magnitude < 1] = 0 * all_values.units
         vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
-            if value.magnitude >= 1
+            if value.magnitude != 0
             else 0
             for value in all_values
         ] * self.unit
