@@ -260,7 +260,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         all_values[variable_values.magnitude < 1] = 0 * all_values.units
         vortex_dataframe[self.name] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
-            if value.magnitude >= 1
+            if value.magnitude != 0
             else 0
             for value in all_values
         ] * self.unit
@@ -1920,7 +1920,11 @@ def perturb_tracks(
     try:
         if Path(storm).exists():
             perturber = VortexPerturber.from_file(
-                storm, start_date=start_date, end_date=end_date,
+                storm,
+                start_date=start_date,
+                end_date=end_date,
+                file_deck=file_deck,
+                advisories=advisories,
             )
         else:
             raise FileNotFoundError
