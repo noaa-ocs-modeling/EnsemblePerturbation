@@ -64,9 +64,7 @@ def test_track_perturber_forecast_time_fromtrack():
         forecast_time=datetime(2018, 9, 12),
     )
 
-    perturber = VortexPerturber.from_track(
-        original_track,
-    )
+    perturber = VortexPerturber.from_track(original_track,)
     assert perturber.forecast_time == datetime(2018, 9, 12)
 
     dates = perturber.track.data.track_start_time.unique()
@@ -76,10 +74,7 @@ def test_track_perturber_forecast_time_fromtrack():
 
 def test_track_perturber_forecast_time_set():
     perturber = VortexPerturber(
-        storm='al062018',
-        start_date=datetime(2018, 9, 11),
-        end_date=None,
-        file_deck='a',
+        storm='al062018', start_date=datetime(2018, 9, 11), end_date=None, file_deck='a',
     )
     dates = perturber.track.data.track_start_time.unique()
     assert len(dates) > 1

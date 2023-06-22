@@ -1125,7 +1125,7 @@ class VortexPerturber:
             file_deck=track.file_deck,
             advisories=track.advisories,
             forecast_time=track.forecast_time,
-            )
+        )
         instance.track = track
         instance.__previous_configuration = {
             'storm': track.nhc_code,
@@ -1185,7 +1185,7 @@ class VortexPerturber:
             'end_date': self.end_date,
             'file_deck': self.file_deck,
             'advisories': self.advisories,
-            'forecast_time': self.forecast_time
+            'forecast_time': self.forecast_time,
         }
 
         is_equal = False
@@ -1945,7 +1945,7 @@ def perturb_tracks(
                 end_date=end_date,
                 file_deck=file_deck,
                 advisories=advisories,
-                forecast_time=forecast_time
+                forecast_time=forecast_time,
             )
         else:
             raise FileNotFoundError
