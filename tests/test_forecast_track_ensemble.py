@@ -27,6 +27,12 @@ def test_track_perturber_forecast_time_init():
     assert pd.to_datetime(dates.item()) == datetime(2018, 9, 12)
 
 
+def test_track_perturber_forecast_time_no_startdate():
+    perturber = VortexPerturber(storm='al062018', end_date=None, file_deck='a',)
+    dates = perturber.track.data.track_start_time.unique()
+    assert len(dates) == 1
+
+
 def test_track_perturber_forecast_time_fromfile():
     original_track = VortexTrack(
         storm='al062018',
