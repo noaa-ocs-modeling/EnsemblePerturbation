@@ -20,11 +20,7 @@ from tests import check_reference_directory, DATA_DIRECTORY
 
 def test_track_perturber_forecast_time_init():
     perturber = VortexPerturber(
-        storm='al062018',
-        start_date=datetime(2018, 9, 11),
-        end_date=None,
-        file_deck='a',
-        forecast_time=datetime(2018, 9, 12),
+        storm='al062018', start_date=datetime(2018, 9, 12), end_date=None, file_deck='a',
     )
     dates = perturber.track.data.track_start_time.unique()
     assert len(dates) == 1
@@ -44,10 +40,7 @@ def test_track_perturber_forecast_time_fromfile():
         original_track.to_file(fo.name, overwrite=True)
 
         perturber = VortexPerturber.from_file(
-            Path(fo.name),
-            start_date=datetime(2018, 9, 11),
-            file_deck='a',
-            forecast_time=datetime(2018, 9, 12),
+            Path(fo.name), start_date=datetime(2018, 9, 12), file_deck='a',
         )
 
     dates = perturber.track.data.track_start_time.unique()
@@ -65,41 +58,11 @@ def test_track_perturber_forecast_time_fromtrack():
     )
 
     perturber = VortexPerturber.from_track(original_track,)
-    assert perturber.forecast_time == datetime(2018, 9, 12)
+    assert perturber.start_date == datetime(2018, 9, 12)
 
     dates = perturber.track.data.track_start_time.unique()
     assert len(dates) == 1
     assert pd.to_datetime(dates.item()) == datetime(2018, 9, 12)
-
-
-def test_track_perturber_forecast_time_set():
-    perturber = VortexPerturber(
-        storm='al062018', start_date=datetime(2018, 9, 11), end_date=None, file_deck='a',
-    )
-    dates = perturber.track.data.track_start_time.unique()
-    assert len(dates) > 1
-
-    perturber.forecast_time = datetime(2018, 9, 12)
-    dates = perturber.track.data.track_start_time.unique()
-    assert len(dates) == 1
-    assert pd.to_datetime(dates.item()) == datetime(2018, 9, 12)
-
-
-def test_track_perturber_forecast_time_unset():
-    perturber = VortexPerturber(
-        storm='al062018',
-        start_date=datetime(2018, 9, 11),
-        end_date=None,
-        file_deck='a',
-        forecast_time=datetime(2018, 9, 12),
-    )
-    dates = perturber.track.data.track_start_time.unique()
-    assert len(dates) == 1
-    assert pd.to_datetime(dates.item()) == datetime(2018, 9, 12)
-
-    perturber.forecast_time = None
-    dates = perturber.track.data.track_start_time.unique()
-    assert len(dates) > 1
 
 
 def test_perturb_tracks_func_forecast_time():
@@ -124,7 +87,7 @@ def test_perturb_tracks_func_forecast_time():
             sample_from_distribution=True,
             quadrature=False,
             overwrite=True,
-            forecast_time=datetime(2018, 9, 12),
+            start_date=datetime(2018, 9, 12),
         )
 
     for i in range(5):

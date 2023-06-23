@@ -1052,7 +1052,6 @@ class VortexPerturber:
         end_date: datetime = None,
         file_deck: ATCF_FileDeck = None,
         advisories: List[str] = None,
-        forecast_time: datetime = None,
     ):
         """
         :param storm: NHC storm code, for instance `al062018`
@@ -1064,7 +1063,6 @@ class VortexPerturber:
 
         self.__start_date = None
         self.__end_date = None
-        self.__forecast_time = None
         self.__file_deck = None
         self.__track = None
         self.__previous_configuration = None
@@ -1074,7 +1072,6 @@ class VortexPerturber:
         self.end_date = end_date
         self.file_deck = file_deck
         self.advisories = advisories
-        self.forecast_time = forecast_time
 
         self.__filename = None
 
@@ -1086,7 +1083,6 @@ class VortexPerturber:
         end_date: datetime = None,
         file_deck: ATCF_FileDeck = None,
         advisories: List[str] = None,
-        forecast_time: datetime = None,
     ) -> 'VortexPerturber':
         """
         build storm perturber from an existing `fort.22` or ATCF file
@@ -1098,13 +1094,14 @@ class VortexPerturber:
         :param advisories: ATCF advisory type; one of ``BEST``, ``OFCL``, ``OFCP``, ``HMON``, ``CARQ``, ``HWRF``
         """
 
+        is_deck_a = file_deck in ['a', ATCF_FileDeck('a')]
         track = VortexTrack.from_file(
             filename,
             start_date=start_date,
             end_date=end_date,
             file_deck=file_deck,
             advisories=advisories,
-            forecast_time=forecast_time,
+            forecast_time=start_date if is_deck_a else None,
         )
         instance = VortexPerturber.from_track(track)
         instance.__filename = filename
@@ -1118,22 +1115,23 @@ class VortexPerturber:
         :param track: `VortexTrack` object
         """
 
+        start_date = track.start_date
+        if track.forecast_time is not None:
+            start_date = track.forecast_time
         instance = cls(
             track.nhc_code,
-            start_date=track.start_date,
+            start_date=start_date,
             end_date=track.end_date,
             file_deck=track.file_deck,
             advisories=track.advisories,
-            forecast_time=track.forecast_time,
         )
         instance.track = track
         instance.__previous_configuration = {
             'storm': track.nhc_code,
-            'start_date': track.start_date,
+            'start_date': start_date,
             'end_date': track.end_date,
             'file_deck': track.file_deck,
             'advisories': track.advisories,
-            'forecast_time': track.forecast_time,
         }
         return instance
 
@@ -1158,16 +1156,6 @@ class VortexPerturber:
         self.__end_date = end_date
 
     @property
-    def forecast_time(self) -> datetime:
-        return self.__forecast_time
-
-    @forecast_time.setter
-    def forecast_time(self, forecast_time: datetime):
-        if forecast_time is not None and not isinstance(forecast_time, datetime):
-            forecast_time = parse_date(forecast_time)
-        self.__forecast_time = forecast_time
-
-    @property
     def file_deck(self) -> ATCF_FileDeck:
         return self.__file_deck
 
@@ -1185,7 +1173,6 @@ class VortexPerturber:
             'end_date': self.end_date,
             'file_deck': self.file_deck,
             'advisories': self.advisories,
-            'forecast_time': self.forecast_time,
         }
 
         is_equal = False
@@ -1206,15 +1193,20 @@ class VortexPerturber:
                 is_equal = True
 
         if not is_equal:
+            forecast_time = configuration['start_date']
+            if configuration['file_deck'] not in ['a', ATCF_FileDeck('a')]:
+                forecast_time = None
             if self.__filename is not None and self.__filename.exists():
                 self.__track = VortexTrack.from_file(
                     self.__filename,
+                    file_deck=configuration['file_deck'],
+                    advisories=configuration['advisories'],
                     start_date=configuration['start_date'],
                     end_date=configuration['end_date'],
-                    forecast_time=configuration['forecast_time'],
+                    forecast_time=forecast_time,
                 )
             else:
-                self.__track = VortexTrack(**configuration)
+                self.__track = VortexTrack(forecast_time=forecast_time, **configuration)
             self.__previous_configuration = configuration
 
         if self.__track.nhc_code is not None:
@@ -1902,7 +1894,6 @@ def perturb_tracks(
     advisories: List[str] = None,
     overwrite: bool = False,
     parallel: bool = True,
-    forecast_time: datetime = None,
 ):
     """
     write a set of perturbed storm tracks
@@ -1945,7 +1936,6 @@ def perturb_tracks(
                 end_date=end_date,
                 file_deck=file_deck,
                 advisories=advisories,
-                forecast_time=forecast_time,
             )
         else:
             raise FileNotFoundError
@@ -1959,7 +1949,6 @@ def perturb_tracks(
             end_date=end_date,
             file_deck=file_deck,
             advisories=advisories,
-            forecast_time=forecast_time,
         )
 
     filenames = [directory / 'original.22']
