@@ -10,6 +10,7 @@ from matplotlib.colors import LogNorm, Normalize
 from matplotlib.patches import Patch
 import numpy
 from stormevents.nhc import VortexTrack
+from stormevents.nhc.atcf import ATCF_FileDeck
 import xarray
 
 from ensembleperturbation.plotting.surrogate import comparison_plot_grid
@@ -245,7 +246,11 @@ def plot_perturbations(
 
 
 def plot_track_perturbations(
-    perturbations: dict, storm_name: str = None, output_directory: PathLike = None,
+    perturbations: dict,
+    storm_name: str = None,
+    output_directory: PathLike = None,
+    file_deck: ATCF_FileDeck = None,
+    advisories: List[str] = None,
 ):
 
     num_perturbations = len(perturbations)
@@ -276,7 +281,11 @@ def plot_track_perturbations(
     bounds = numpy.array([None, None, None, None])
     for index, run in enumerate(perturbation_keys):
         pkey = list(perturbations[run].keys())
-        storm = VortexTrack.from_file(perturbations[run][pkey[0]]['fort22_filename']).data
+        storm = VortexTrack.from_file(
+            perturbations[run][pkey[0]]['fort22_filename'],
+            file_deck=file_deck,
+            advisories=advisories,
+        ).data
 
         # Track
         points = storm.loc[:, ['longitude', 'latitude']].values.reshape(-1, 1, 2)
