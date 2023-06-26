@@ -1101,6 +1101,10 @@ class VortexPerturber:
             file_deck=file_deck,
             advisories=advisories,
         )
+        if file_deck in ['a', ATCF_FileDeck('a')]:
+            track.forecast_time = (
+                track.data.track_start_time.min() if start_date is None else start_date
+            )
         instance = VortexPerturber.from_track(track)
         instance.__filename = filename
         return instance
@@ -1113,9 +1117,12 @@ class VortexPerturber:
         :param track: `VortexTrack` object
         """
 
+        start_date = track.start_date
+        if track.forecast_time is not None:
+            start_date = track.forecast_time
         instance = cls(
             track.nhc_code,
-            start_date=track.start_date,
+            start_date=start_date,
             end_date=track.end_date,
             file_deck=track.file_deck,
             advisories=track.advisories,
@@ -1123,7 +1130,7 @@ class VortexPerturber:
         instance.track = track
         instance.__previous_configuration = {
             'storm': track.nhc_code,
-            'start_date': track.start_date,
+            'start_date': start_date,
             'end_date': track.end_date,
             'file_deck': track.file_deck,
             'advisories': track.advisories,
@@ -1191,11 +1198,19 @@ class VortexPerturber:
             if self.__filename is not None and self.__filename.exists():
                 self.__track = VortexTrack.from_file(
                     self.__filename,
+                    file_deck=configuration['file_deck'],
+                    advisories=configuration['advisories'],
                     start_date=configuration['start_date'],
                     end_date=configuration['end_date'],
                 )
             else:
                 self.__track = VortexTrack(**configuration)
+            if configuration['file_deck'] in ['a', ATCF_FileDeck('a')]:
+                self.__track.forecast_time = (
+                    self.__track.data.track_start_time.min()
+                    if configuration['start_date'] is None
+                    else configuration['start_date']
+                )
             self.__previous_configuration = configuration
 
         if self.__track.nhc_code is not None:

@@ -44,7 +44,7 @@ python-dateutil = '*'
 requests = '*'
 shapely = '*'
 scikit-learn = '*'
-stormevents = '>=2.1.4'
+stormevents = '>=2.2.1' # Forecast time
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
 pytest = { version = '*', optional = true }
