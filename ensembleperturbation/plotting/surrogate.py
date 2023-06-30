@@ -292,9 +292,7 @@ def plot_sensitivities(
 
     for order_index, order in enumerate(sensitivities['order']):
         for variable_index, variable in enumerate(sensitivities['variable']):
-            axis = figure.add_subplot(
-                grid[order_index, variable_index]
-            )  # , projection=map_crs)
+            axis = figure.add_subplot(grid[order_index, variable_index], projection=map_crs)
             order_variable_sensitivities = sensitivities.sel(order=order, variable=variable)
 
             plot_node_map(
