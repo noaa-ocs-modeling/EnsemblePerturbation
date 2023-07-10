@@ -19,7 +19,7 @@ from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
 from pandas import DataFrame
-from pandas.core.common import SettingWithCopyWarning
+from pandas.errors import SettingWithCopyWarning
 import pint
 from pint import Quantity, UnitStrippedWarning
 from pint_pandas import PintArray, PintType
