@@ -85,6 +85,7 @@ def check_reference_directory(
 
                 cwd = Path.cwd()
                 diff = context_diff(test_lines, reference_lines, lineterm='')
-                assert '\n'.join(test_lines) == '\n'.join(
-                    reference_lines
-                ), f'"{os.path.relpath(test_filename, cwd)}" != "{os.path.relpath(reference_filename, cwd)}"\n\n' + '\n'.join(diff)
+                assert '\n'.join(test_lines) == '\n'.join(reference_lines), (
+                    f'"{os.path.relpath(test_filename, cwd)}" != "{os.path.relpath(reference_filename, cwd)}"\n\n'
+                    + '\n'.join(diff)
+                )
