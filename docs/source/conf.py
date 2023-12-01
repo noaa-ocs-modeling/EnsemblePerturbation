@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 from dunamai import Version
-from setuptools import config
+from importlib.metadata import metadata
 
 
 def repository_root(path: PathLike = None) -> Path:
@@ -42,11 +42,11 @@ subprocess.run(
 )
 
 # -- Project information -----------------------------------------------------
-metadata = config.read_configuration('../../setup.cfg')['metadata']
+md = metadata('ensembleperturbation')
 
-project = metadata['name']
-author = metadata['author']
-copyright = f'2021, {author}'
+project = md['Name']
+author = md['Author']
+copyright = f'2023, {author}'
 
 # The full version, including alpha/beta/rc tags
 try:
