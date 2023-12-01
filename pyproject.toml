@@ -61,7 +61,7 @@ sphinxcontrib-programoutput = { version = '*', optional = true }
 plotting = ['cartopy', 'cmocean', 'matplotlib']
 testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'wget']
 development = ['isort', 'oitnb']
-documentation = ['m2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex']
+documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex']
 
 [tool.poetry.scripts]
 make_storm_ensemble = 'ensembleperturbation.client.make_storm_ensemble:main'
