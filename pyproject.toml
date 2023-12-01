@@ -2,7 +2,7 @@
 name = 'ensembleperturbation'
 version = '0.0.0'
 description = 'perturbation of coupled model input over a space of input variables'
-authors = ['Zach Burnett <zachary.burnett@noaa.gov>']
+authors = ['Zach Burnett', 'Soroosh Mani <Soroosh.Mani@noaa.gov>']
 license = 'CC0-1.0'
 readme = 'README.md'
 repository = 'https://github.com/noaa-ocs-modeling/EnsemblePerturbation.git'
@@ -28,6 +28,7 @@ chaospy = '*'
 cmocean = { version = '*', optional = true }
 coupledmodeldriver = '>=1.5'
 dask = '*'
+dunamai = { version = '*', optional = true }
 f90nml = '*'
 fiona = '*'
 geopandas = '*'
