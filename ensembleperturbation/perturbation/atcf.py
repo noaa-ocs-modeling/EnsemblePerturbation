@@ -809,7 +809,7 @@ class CrossTrack(VortexPerturbedVariable):
                 alpha = 0
 
             # compute the next point and retrieve back the lat-lon geographic coordinate
-            new_point = current_point - abs(alpha) * normal_offset
+            new_point = current_point - alpha * normal_offset
             new_coordinates.append(
                 transformer.transform(
                     new_point[0].magnitude,
