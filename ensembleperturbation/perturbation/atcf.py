@@ -802,7 +802,7 @@ class CrossTrack(VortexPerturbedVariable):
             next_offset = get_offset(current_point, next_point, cross_track_error)
 
             # get the perpendicular offset based on the average of the forward and backward piecewise track lines adjusted so that the distance matches the actual cross_error
-            normal_offset = numpy.mean([previous_offset, next_offset])
+            normal_offset = numpy.mean([previous_offset, next_offset], axis=0)
             alpha = abs(cross_track_error) / numpy.sqrt(numpy.sum(normal_offset ** 2))
 
             if numpy.isinf(alpha):
@@ -1796,9 +1796,9 @@ def get_offset(
         #   z**2 / (1 + pslope**2) = x**2
         #   z / (1 + pslope**2)**0.5 = x
 
-        points = numpy.concatenate([point_1, point_2], axis=0)
+        points = numpy.vstack([point_1, point_2])
 
-        difference = numpy.diff(points, axis=0)
+        difference = numpy.diff(points, axis=0).ravel()
 
         # tangential slope approximation
         slope = difference[1] / difference[0]
