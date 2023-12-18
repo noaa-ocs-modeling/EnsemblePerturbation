@@ -608,62 +608,8 @@ def compute_surrogate_percentiles(
     return out
 
 
-def compute_surrogate_probability_field(
-    poly: numpoly.ndpoly,
-    levels: List[float],
-    dist: chaospy.Distribution,
-    sample: int = 10000,
-    minimum_allowable_value: float = None,
-    convert_from_log_scale: Union[bool, float] = False,
-    convert_from_depths: Union[bool, float] = False,
-    **kws,
-):
-
-    poly = chaospy.aspolynomial(poly)
-    shape = poly.shape
-    poly = poly.ravel()
-
-    levels = numpy.asarray(levels).ravel()
-    dim = len(dist)
-
-    # Interior
-    Z = dist.sample(sample, **kws).reshape(len(dist), sample)
-    poly1 = poly(*Z)
-
-    # Min/max
-    ext = numpy.mgrid[(slice(0, 2, 1),) * dim].reshape(dim, 2 ** dim).T
-    ext = numpy.where(ext, dist.lower, dist.upper).T
-    poly2 = poly(*ext)
-    poly2 = numpy.array([_ for _ in poly2.T if not numpy.any(numpy.isnan(_))]).T
-
-    # Finish
-    if poly2.shape:
-        poly1 = numpy.concatenate([poly1, poly2], -1)
-    if isinstance(convert_from_log_scale, float):
-        poly1 = convert_from_log_scale ** poly1
-    elif convert_from_log_scale:
-        poly1 = numpy.exp(poly1)
-    samples = poly1.shape[1]
-
-    # Adjustments and elev corrections
-    if isinstance(convert_from_depths, (float, numpy.ndarray)):
-        poly1 -= convert_from_depths
-    if minimum_allowable_value is not None:
-        too_small = poly1 < minimum_allowable_value
-        poly1[too_small] = numpy.nan
-    if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
-        #        poly1 -= training_set['depth']
-        poly1 -= training_set['depth'].values[:, None]
-
-    out = (poly1[:, :, None] > (levels[None, None, :])).sum(axis=1).T / samples
-
-    out = out.reshape(levels.shape + shape)
-
-    return out
-
-
 def probability_field_from_samples(
-    samples: xarray.DataArray,
+    samples: xarray.Dataset,
     levels: List[float],
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
@@ -681,6 +627,7 @@ def probability_field_from_samples(
         minimum_allowable_value=minimum_allowable_value,
         convert_from_log_scale=convert_from_log_scale,
         convert_from_depths=convert_from_depths,
+        depths=samples['depth'],
     )
 
     surrogate_prob_field = xarray.DataArray(
@@ -726,15 +673,13 @@ def probability_field_from_surrogate(
         )
 
         # before evaluating prob. field for model set null water elevation to the ground elevation
-        training_set = numpy.fmax(training_set, -training_set['depth'])
         if minimum_allowable_value is not None:
             too_small = (training_set + training_set['depth']).values < minimum_allowable_value
             training_set.values[too_small] = numpy.nan
+        training_set = numpy.fmax(training_set, -training_set['depth'])
 
         ds1, ds2 = xarray.broadcast(training_set, surrogate_prob_field['level'])
         modeled_prob_field = (ds1 >= ds2).sum(dim='run') / len(training_set.run)
-
-        #        modeled_prob_field.coords['level'] = surrogate_prob_field['level']
 
         node_prob_field = xarray.combine_nested(
             [surrogate_prob_field, modeled_prob_field], concat_dim='source'
@@ -757,3 +702,58 @@ def probability_field_from_surrogate(
         node_prob_field = xarray.open_dataset(filename)
 
     return node_prob_field
+
+
+def compute_surrogate_probability_field(
+    poly: numpoly.ndpoly,
+    levels: List[float],
+    dist: chaospy.Distribution,
+    sample: int = 10000,
+    minimum_allowable_value: float = None,
+    convert_from_log_scale: Union[bool, float] = False,
+    convert_from_depths: Union[bool, float] = False,
+    depths: xarray.DataArray = None,
+    **kws,
+):
+
+    poly = chaospy.aspolynomial(poly)
+    shape = poly.shape
+    poly = poly.ravel()
+
+    levels = numpy.asarray(levels).ravel()
+    dim = len(dist)
+
+    # Interior
+    Z = dist.sample(sample, **kws).reshape(len(dist), sample)
+    poly1 = poly(*Z)
+
+    # Min/max
+    ext = numpy.mgrid[(slice(0, 2, 1),) * dim].reshape(dim, 2 ** dim).T
+    ext = numpy.where(ext, dist.lower, dist.upper).T
+    poly2 = poly(*ext)
+    poly2 = numpy.array([_ for _ in poly2.T if not numpy.any(numpy.isnan(_))]).T
+
+    # Finish
+    if poly2.shape:
+        poly1 = numpy.concatenate([poly1, poly2], -1)
+    if isinstance(convert_from_log_scale, float):
+        poly1 = convert_from_log_scale ** poly1
+    elif convert_from_log_scale:
+        poly1 = numpy.exp(poly1)
+    samples = poly1.shape[1]
+
+    # adjustments and elev corrections
+    if isinstance(convert_from_depths, (float, numpy.ndarray)):
+        poly1 -= convert_from_depths
+    if minimum_allowable_value is not None:
+        too_small = poly1 < minimum_allowable_value
+        poly1[too_small] = numpy.nan
+    if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
+        # TODO: Sanity check for depth vs poly shapes
+        poly1 -= depths.values[:, None]
+
+    out = (poly1[:, :, None] > (levels[None, None, :])).sum(axis=1).T / samples
+
+    out = out.reshape(levels.shape + shape)
+
+    return out
