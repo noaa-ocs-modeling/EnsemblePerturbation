@@ -564,3 +564,76 @@ def plot_kl_surrogate_fit(
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
+
+def plot_selected_probability_fields(
+    node_prob_field: xarray.Dataset, level_list: list, output_directory: PathLike
+):
+    levels = node_prob_field.levels
+
+    sources = node_prob_field['source'].values
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
+    bounds = numpy.array(
+        [
+            node_prob_field['x'].min(),
+            node_prob_field['y'].min(),
+            node_prob_field['x'].max(),
+            node_prob_field['y'].max(),
+        ]
+    )
+    vmax = numpy.round_(levels.sel(source='model').quantile(0.98), decimals=1)
+    vmin = 0.0
+    for lvl in level_list:
+        figure = pyplot.figure()
+        figure.set_size_inches(10, 10 / 1.61803398875)
+        figure.suptitle(f'comparison of probability fields at level: {lvl}')
+        for index, source in enumerate(sources):
+            map_axis = figure.add_subplot(2, len(sources), index + 1)
+            map_axis.title.set_text(f'{source}')
+            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+            map_axis.set_xlim((bounds[0], bounds[2]))
+            map_axis.set_ylim((bounds[1], bounds[3]))
+
+            xlim = map_axis.get_xlim()
+            ylim = map_axis.get_ylim()
+
+            countries.plot(color='lightgrey', ax=map_axis)
+
+            points = numpy.vstack(
+                (
+                    node_prob_field['x'],
+                    node_prob_field['y'],
+                    levels.sel(level=lvl, source=source),
+                )
+            ).T
+            if 'element' not in node_prob_field:
+                im = plot_points(
+                    points=points, axis=map_axis, add_colorbar=False, vmax=vmax, vmin=vmin,
+                )
+            else:
+                im = plot_surface(
+                    points=points,
+                    element_table=node_prob_field['element'].values,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    levels=numpy.linspace(vmin, vmax, 25 + 1),
+                    extend='both',
+                )
+
+            map_axis.set_xlim(xlim)
+            map_axis.set_ylim(ylim)
+
+        pyplot.subplots_adjust(wspace=0.02, right=0.96)
+        cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
+        cbar = figure.colorbar(im, extend='both', cax=cax)
+
+        if output_directory is not None:
+            figure.savefig(
+                output_directory / f'probability_exceeding_{lvl}m.png',
+                dpi=200,
+                bbox_inches='tight',
+            )
