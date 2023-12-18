@@ -827,7 +827,7 @@ class ElevationTimeSeriesOutput(FieldTimeSeriesOutput):
     @classmethod
     def _set_dry_to_null(cls, dataset: Dataset) -> Dataset:
         for var in cls.variables:
-            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 1, numpy.nan)
+            dataset[var] = dataset[var].where(dataset['dryFlagNode'] == 0, numpy.nan)
 
         return dataset
 
