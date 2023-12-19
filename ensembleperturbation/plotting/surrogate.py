@@ -589,7 +589,7 @@ def plot_selected_probability_fields(
     for lvl in level_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
-        figure.suptitle(f'comparison of probability fields at level: {lvl}')
+        figure.suptitle(f'Probability of water level exceeding {lvl}-m')
         for index, source in enumerate(sources):
             map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
