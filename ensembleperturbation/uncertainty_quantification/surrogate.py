@@ -673,7 +673,7 @@ def probability_field_from_surrogate(
         )
 
         # before evaluating prob. field for model set null water elevation to the ground elevation
-        #training_set = numpy.fmax(training_set, -training_set['depth'])
+        # training_set = numpy.fmax(training_set, -training_set['depth'])
         if minimum_allowable_value is not None:
             too_small = (training_set + training_set['depth']).values < minimum_allowable_value
             training_set.values[too_small] = numpy.nan
