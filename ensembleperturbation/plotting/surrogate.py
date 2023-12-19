@@ -584,7 +584,7 @@ def plot_selected_probability_fields(
             node_prob_field['y'].max(),
         ]
     )
-    vmax = numpy.round_(levels.sel(source='model').quantile(0.98), decimals=1)
+    vmax = 1.0
     vmin = 0.0
     for lvl in level_list:
         figure = pyplot.figure()
@@ -621,7 +621,7 @@ def plot_selected_probability_fields(
                     axis=map_axis,
                     add_colorbar=False,
                     levels=numpy.linspace(vmin, vmax, 25 + 1),
-                    extend='both',
+                    extend='neither',
                 )
 
             map_axis.set_xlim(xlim)
@@ -629,7 +629,7 @@ def plot_selected_probability_fields(
 
         pyplot.subplots_adjust(wspace=0.02, right=0.96)
         cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
-        cbar = figure.colorbar(im, extend='both', cax=cax)
+        cbar = figure.colorbar(im, extend='neither', cax=cax)
 
         if output_directory is not None:
             figure.savefig(
