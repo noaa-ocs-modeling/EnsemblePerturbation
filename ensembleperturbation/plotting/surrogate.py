@@ -569,7 +569,7 @@ def plot_kl_surrogate_fit(
 def plot_selected_probability_fields(
     node_prob_field: xarray.Dataset, level_list: list, output_directory: PathLike
 ):
-    levels = node_prob_field.levels
+    probabilities = node_prob_field.probabilities
 
     sources = node_prob_field['source'].values
     if output_directory is not None:
@@ -584,8 +584,8 @@ def plot_selected_probability_fields(
             node_prob_field['y'].max(),
         ]
     )
-    vmax = 1.0
-    vmin = 0.0
+    vmax = 1
+    vmin = 0
     for lvl in level_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
@@ -607,7 +607,7 @@ def plot_selected_probability_fields(
                 (
                     node_prob_field['x'],
                     node_prob_field['y'],
-                    levels.sel(level=lvl, source=source),
+                    probabilities.sel(level=lvl, source=source),
                 )
             ).T
             if 'element' not in node_prob_field:
@@ -620,7 +620,7 @@ def plot_selected_probability_fields(
                     element_table=node_prob_field['element'].values,
                     axis=map_axis,
                     add_colorbar=False,
-                    levels=numpy.linspace(vmin, vmax, 25 + 1),
+                    levels=numpy.linspace(vmin, vmax, 25),
                     extend='neither',
                 )
 

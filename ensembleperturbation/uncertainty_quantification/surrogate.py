@@ -685,7 +685,7 @@ def probability_field_from_surrogate(
             [surrogate_prob_field, modeled_prob_field], concat_dim='source'
         ).assign_coords(source=['surrogate', 'model'])
 
-        node_prob_field = node_prob_field.to_dataset(name='levels')
+        node_prob_field = node_prob_field.to_dataset(name='probabilities')
 
         node_prob_field = node_prob_field.assign(
             differences=numpy.fabs(surrogate_prob_field - modeled_prob_field)
