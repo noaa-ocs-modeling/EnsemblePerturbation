@@ -584,7 +584,7 @@ def plot_selected_probability_fields(
             node_prob_field['y'].max(),
         ]
     )
-    vmax = 1
+    vmax = 1 + numpy.finfo(float).eps
     vmin = 0
     for lvl in level_list:
         figure = pyplot.figure()
