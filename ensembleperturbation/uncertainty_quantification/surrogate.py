@@ -606,3 +606,154 @@ def compute_surrogate_percentiles(
     out = out.reshape(q.shape + shape)
 
     return out
+
+
+def probability_field_from_samples(
+    samples: xarray.Dataset,
+    levels: List[float],
+    surrogate_model: numpoly.ndpoly,
+    distribution: chaospy.Distribution,
+    minimum_allowable_value: float = None,
+    convert_from_log_scale: Union[bool, float] = False,
+    convert_from_depths: Union[bool, float] = False,
+) -> xarray.DataArray:
+
+    LOGGER.info(f'calculating {len(levels)} probability field(s): {levels}')
+
+    surrogate_prob_field = compute_surrogate_probability_field(
+        poly=surrogate_model,
+        levels=levels,
+        dist=distribution,
+        minimum_allowable_value=minimum_allowable_value,
+        convert_from_log_scale=convert_from_log_scale,
+        convert_from_depths=convert_from_depths,
+        depths=samples['depth'],
+    )
+
+    surrogate_prob_field = xarray.DataArray(
+        surrogate_prob_field,
+        coords={
+            'level': levels,
+            **{
+                coord: values
+                for coord, values in samples.coords.items()
+                if coord not in ['run', 'type']
+            },
+        },
+        dims=('level', *(dim for dim in samples.dims if dim not in ['run', 'type'])),
+    )
+
+    return surrogate_prob_field
+
+
+def probability_field_from_surrogate(
+    levels: List[float],
+    surrogate_model: numpoly.ndpoly,
+    distribution: chaospy.Distribution,
+    training_set: xarray.Dataset,
+    minimum_allowable_value: float = None,
+    convert_from_log_scale: Union[bool, float] = False,
+    convert_from_depths: Union[bool, float] = False,
+    element_table: xarray.DataArray = None,
+    filename: PathLike = None,
+) -> xarray.Dataset:
+
+    if filename is not None and not isinstance(filename, Path):
+        filename = Path(filename)
+
+    if filename is None or not filename.exists():
+        surrogate_prob_field = probability_field_from_samples(
+            samples=training_set,
+            levels=levels,
+            surrogate_model=surrogate_model,
+            distribution=distribution,
+            minimum_allowable_value=minimum_allowable_value,
+            convert_from_log_scale=convert_from_log_scale,
+            convert_from_depths=convert_from_depths,
+        )
+
+        # before evaluating prob. field for model set null water elevation to the ground elevation
+        # training_set = numpy.fmax(training_set, -training_set['depth'])
+        if minimum_allowable_value is not None:
+            too_small = (training_set + training_set['depth']).values < minimum_allowable_value
+            training_set.values[too_small] = numpy.nan
+
+        ds1, ds2 = xarray.broadcast(training_set, surrogate_prob_field['level'])
+        modeled_prob_field = (ds1 >= ds2).sum(dim='run') / len(training_set.run)
+
+        node_prob_field = xarray.combine_nested(
+            [surrogate_prob_field, modeled_prob_field], concat_dim='source'
+        ).assign_coords(source=['surrogate', 'model'])
+
+        node_prob_field = node_prob_field.to_dataset(name='probabilities')
+
+        node_prob_field = node_prob_field.assign(
+            differences=numpy.fabs(surrogate_prob_field - modeled_prob_field)
+        )
+
+        if element_table is not None:
+            node_prob_field = node_prob_field.assign_coords({'element': element_table})
+
+        if filename is not None:
+            LOGGER.info(f'saving prob_field to "{filename}"')
+            node_prob_field.to_netcdf(filename)
+    else:
+        LOGGER.info(f'loading prob_field from "{filename}"')
+        node_prob_field = xarray.open_dataset(filename)
+
+    return node_prob_field
+
+
+def compute_surrogate_probability_field(
+    poly: numpoly.ndpoly,
+    levels: List[float],
+    dist: chaospy.Distribution,
+    sample: int = 10000,
+    minimum_allowable_value: float = None,
+    convert_from_log_scale: Union[bool, float] = False,
+    convert_from_depths: Union[bool, float] = False,
+    depths: xarray.DataArray = None,
+    **kws,
+):
+
+    poly = chaospy.aspolynomial(poly)
+    shape = poly.shape
+    poly = poly.ravel()
+
+    levels = numpy.asarray(levels).ravel()
+    dim = len(dist)
+
+    # Interior
+    Z = dist.sample(sample, **kws).reshape(len(dist), sample)
+    poly1 = poly(*Z)
+
+    # Min/max
+    ext = numpy.mgrid[(slice(0, 2, 1),) * dim].reshape(dim, 2 ** dim).T
+    ext = numpy.where(ext, dist.lower, dist.upper).T
+    poly2 = poly(*ext)
+    poly2 = numpy.array([_ for _ in poly2.T if not numpy.any(numpy.isnan(_))]).T
+
+    # Finish
+    if poly2.shape:
+        poly1 = numpy.concatenate([poly1, poly2], -1)
+    if isinstance(convert_from_log_scale, float):
+        poly1 = convert_from_log_scale ** poly1
+    elif convert_from_log_scale:
+        poly1 = numpy.exp(poly1)
+    samples = poly1.shape[1]
+
+    # adjustments and elev corrections
+    if isinstance(convert_from_depths, (float, numpy.ndarray)):
+        poly1 -= convert_from_depths
+    if minimum_allowable_value is not None:
+        too_small = poly1 < minimum_allowable_value
+        poly1[too_small] = numpy.nan
+    if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
+        # TODO: Sanity check for depth vs poly shapes
+        poly1 -= depths.values[:, None]
+
+    out = (poly1[:, :, None] > (levels[None, None, :])).sum(axis=1).T / samples
+
+    out = out.reshape(levels.shape + shape)
+
+    return out
