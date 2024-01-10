@@ -567,7 +567,11 @@ def plot_kl_surrogate_fit(
 
 
 def plot_selected_probability_fields(
-    node_prob_field: xarray.Dataset, level_list: list, output_directory: PathLike
+    node_prob_field: xarray.Dataset,
+    level_list: list,
+    output_directory: PathLike,
+    label_unit_convert_factor: float = 1,
+    label_unit_name: str = 'm',
 ):
     probabilities = node_prob_field.probabilities
 
@@ -589,7 +593,9 @@ def plot_selected_probability_fields(
     for lvl in level_list:
         figure = pyplot.figure()
         figure.set_size_inches(10, 10 / 1.61803398875)
-        figure.suptitle(f'Probability of water level exceeding {lvl}-m')
+        figure.suptitle(
+            f'Probability of water level exceeding {round(lvl*label_unit_convert_factor)}-{label_unit_name}'
+        )
         for index, source in enumerate(sources):
             map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
@@ -633,7 +639,8 @@ def plot_selected_probability_fields(
 
         if output_directory is not None:
             figure.savefig(
-                output_directory / f'probability_exceeding_{lvl}m.png',
+                output_directory
+                / f'probability_exceeding_{round(lvl*label_unit_convert_factor)}_{label_unit_name}.png',
                 dpi=200,
                 bbox_inches='tight',
             )
