@@ -569,7 +569,7 @@ def plot_kl_surrogate_fit(
 def plot_selected_probability_fields(
     node_prob_field: xarray.Dataset, 
     level_list: list, 
-    output_directory: PathLike
+    output_directory: PathLike,
     label_unit_convert_factor: float = 1,
     label_unit_name: str = 'm',
 ):
