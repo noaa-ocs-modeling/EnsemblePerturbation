@@ -2,7 +2,7 @@
 name = 'ensembleperturbation'
 version = '0.0.0'
 description = 'perturbation of coupled model input over a space of input variables'
-authors = ['Zach Burnett <zachary.burnett@noaa.gov>']
+authors = ['Zach Burnett', 'Soroosh Mani <Soroosh.Mani@noaa.gov>']
 license = 'CC0-1.0'
 readme = 'README.md'
 repository = 'https://github.com/noaa-ocs-modeling/EnsemblePerturbation.git'
@@ -28,15 +28,16 @@ chaospy = '*'
 cmocean = { version = '*', optional = true }
 coupledmodeldriver = '>=1.5'
 dask = '*'
+dunamai = { version = '*', optional = true }
 f90nml = '*'
 fiona = '*'
 geopandas = '*'
 netcdf4 = '*'
 matplotlib = { version = '*', optional = true }
 numpy = '*'
-pandas = '<1.5.0' # SettingWithCopyWarning issue
-pint = '<0.20' # Import error for quantity from `pint-pandas`
-pint-pandas = '*'
+pandas = '>=1.5'
+pint = '<0.21' # ito() issue #105
+pint-pandas = '<0.4' # ito() issue #105
 pyproj = '>=2.6'
 tables = '*'
 typepigeon = '*'
@@ -61,7 +62,7 @@ sphinxcontrib-programoutput = { version = '*', optional = true }
 plotting = ['cartopy', 'cmocean', 'matplotlib']
 testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'wget']
 development = ['isort', 'oitnb']
-documentation = ['m2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex']
+documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex', 'cartopy', 'cmocean', 'matplotlib']
 
 [tool.poetry.scripts]
 make_storm_ensemble = 'ensembleperturbation.client.make_storm_ensemble:main'

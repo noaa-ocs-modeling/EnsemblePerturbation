@@ -292,9 +292,7 @@ def plot_sensitivities(
 
     for order_index, order in enumerate(sensitivities['order']):
         for variable_index, variable in enumerate(sensitivities['variable']):
-            axis = figure.add_subplot(
-                grid[order_index, variable_index]
-            )  # , projection=map_crs)
+            axis = figure.add_subplot(grid[order_index, variable_index], projection=map_crs)
             order_variable_sensitivities = sensitivities.sel(order=order, variable=variable)
 
             plot_node_map(
@@ -566,3 +564,83 @@ def plot_kl_surrogate_fit(
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+
+
+def plot_selected_probability_fields(
+    node_prob_field: xarray.Dataset,
+    level_list: list,
+    output_directory: PathLike,
+    label_unit_convert_factor: float = 1,
+    label_unit_name: str = 'm',
+):
+    probabilities = node_prob_field.probabilities
+
+    sources = node_prob_field['source'].values
+    if output_directory is not None:
+        if not isinstance(output_directory, Path):
+            output_directory = Path(output_directory)
+
+    bounds = numpy.array(
+        [
+            node_prob_field['x'].min(),
+            node_prob_field['y'].min(),
+            node_prob_field['x'].max(),
+            node_prob_field['y'].max(),
+        ]
+    )
+    vmax = 1 + numpy.finfo(float).eps
+    vmin = 0
+    for lvl in level_list:
+        figure = pyplot.figure()
+        figure.set_size_inches(10, 10 / 1.61803398875)
+        figure.suptitle(
+            f'Probability of water level exceeding {round(lvl*label_unit_convert_factor)}-{label_unit_name}'
+        )
+        for index, source in enumerate(sources):
+            map_axis = figure.add_subplot(2, len(sources), index + 1)
+            map_axis.title.set_text(f'{source}')
+            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+
+            map_axis.set_xlim((bounds[0], bounds[2]))
+            map_axis.set_ylim((bounds[1], bounds[3]))
+
+            xlim = map_axis.get_xlim()
+            ylim = map_axis.get_ylim()
+
+            countries.plot(color='lightgrey', ax=map_axis)
+
+            points = numpy.vstack(
+                (
+                    node_prob_field['x'],
+                    node_prob_field['y'],
+                    probabilities.sel(level=lvl, source=source),
+                )
+            ).T
+            if 'element' not in node_prob_field:
+                im = plot_points(
+                    points=points, axis=map_axis, add_colorbar=False, vmax=vmax, vmin=vmin,
+                )
+            else:
+                im = plot_surface(
+                    points=points,
+                    element_table=node_prob_field['element'].values,
+                    axis=map_axis,
+                    add_colorbar=False,
+                    levels=numpy.linspace(vmin, vmax, 25),
+                    extend='neither',
+                )
+
+            map_axis.set_xlim(xlim)
+            map_axis.set_ylim(ylim)
+
+        pyplot.subplots_adjust(wspace=0.02, right=0.96)
+        cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
+        cbar = figure.colorbar(im, extend='neither', cax=cax)
+
+        if output_directory is not None:
+            figure.savefig(
+                output_directory
+                / f'probability_exceeding_{round(lvl*label_unit_convert_factor)}_{label_unit_name}.png',
+                dpi=200,
+                bbox_inches='tight',
+            )
