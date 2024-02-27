@@ -1662,7 +1662,7 @@ class VortexPerturber:
                 dataframe[column] = dataframe[column].pint.magnitude
 
         # write out the modified `fort.22`
-        VortexTrack(storm=dataframe).to_file(filename, overwrite=True)
+        VortexTrack(storm=dataframe).to_file(filename, overwrite=True, advisory=self.advisories[0] if isinstance(self.advisories,list) else self.advisories)
 
         if weight is not None:
             perturbation['weight'] = weight
