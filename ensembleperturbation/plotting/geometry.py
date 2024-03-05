@@ -126,10 +126,14 @@ def plot_points(
     :param title: whether to add a title to the plot
     """
 
-    if isinstance(points, Iterable):
-        if not isinstance(points, MultiPoint):
-            points = MultiPoint(points)
-        points = numpy.squeeze(numpy.stack((point._get_coords() for point in points), axis=0))
+    if isinstance(points, MultiPoint):
+        points = numpy.squeeze(
+                numpy.stack(
+                    [list(point.coords)[0][:3] for point in points.geoms],
+                    axis=0))
+
+    if not isinstance(points, numpy.ndarray):
+        points = numpy.array(points)
 
     if axis is None:
         axis = pyplot.gca()
