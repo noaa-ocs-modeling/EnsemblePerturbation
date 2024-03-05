@@ -128,9 +128,8 @@ def plot_points(
 
     if isinstance(points, MultiPoint):
         points = numpy.squeeze(
-                numpy.stack(
-                    [list(point.coords)[0][:3] for point in points.geoms],
-                    axis=0))
+            numpy.stack([list(point.coords)[0][:3] for point in points.geoms], axis=0)
+        )
 
     if not isinstance(points, numpy.ndarray):
         points = numpy.array(points)
