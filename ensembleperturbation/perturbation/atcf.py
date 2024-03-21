@@ -343,12 +343,90 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
-    ``radius_of_maximum_winds`` (``Rmax``)
-    It is perturbed along a uniform distribution on [-1,1] between the 0th and 100th percentile CDFs of NHC historical forecast errors.
-    0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
+    ``radius_of_maximum_winds`` (``Rmax``) represents the distance from the storm center to the maximum wind speed sustained by the storm.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors based on the forecasted Rmax regression in Penny et al. (2023). https://doi.org/10.1175/WAF-D-22-0209.1
     """
 
     name = 'radius_of_maximum_winds'
+    perturbation_type = PerturbationType.GAUSSIAN
+    unit = units.nautical_mile
+
+    # Reference - Computed MAE from the CDF of 10-yrs of RMW forecast errors as described in Penny et al. (2023), and provided by Andrew Penny.
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=120,
+            historical_forecast_errors={
+                '<50kt': DataFrame(
+                    {
+                        'mean error [nmi]': [
+                            3.38,
+                            11.81,
+                            15.04,
+                            17.44,
+                            17.78,
+                            17.78,
+                            18.84,
+                            19.34,
+                            21.15,
+                            23.19,
+                            24.77,
+                        ]
+                    },
+                    dtype=PintType(units.nautical_mile),
+                    index=HISTORICAL_ERROR_HOURS,
+                ),
+                '50-95kt': DataFrame(
+                    {
+                        'mean error [nmi]': [
+                            3.38,
+                            6.67,
+                            9.51,
+                            10.70,
+                            11.37,
+                            12.27,
+                            12.67,
+                            13.32,
+                            13.97,
+                            14.45,
+                            15.79,
+                        ]
+                    },
+                    dtype=PintType(units.nautical_mile),
+                    index=HISTORICAL_ERROR_HOURS,
+                ),
+                '>95kt': DataFrame(
+                    {
+                        'mean error [nmi]': [
+                            3.38,
+                            3.66,
+                            4.98,
+                            6.26,
+                            7.25,
+                            8.57,
+                            9.22,
+                            10.69,
+                            11.35,
+                            11.57,
+                            11.38,
+                        ]
+                    },
+                    dtype=PintType(units.nautical_mile),
+                    index=HISTORICAL_ERROR_HOURS,
+                ),
+            },
+            unit=units.nautical_mile,
+        )
+
+
+class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
+    """
+    ``radius_of_maximum_winds_persistent`` (``Rmax``)
+    It is perturbed along a uniform distribution on [-1,1] between the 0th and 100th percentile CDFs of NHC historical forecast errors based on persistence forecasting of Rmax (0-hr Rmax is propagated for every validation time of storm).
+    0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
+    """
+
+    name = 'radius_of_maximum_winds_persistent'
     perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
@@ -1640,7 +1718,7 @@ class VortexPerturber:
                 if isinstance(variable, MaximumSustainedWindSpeed):
                     # In case of Vmax need to change the central pressure in accordance with Holland B relationship
                     dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
-                elif isinstance(variable, RadiusOfMaximumWinds):
+                elif isinstance(variable, RadiusOfMaximumWinds) or isinstance(variable, RadiusOfMaximumWindsPersistent): 
                     # In case of Rmax need to change the r34/50,64 radii at all quadrants in the same way
                     quadrants = [
                         IsotachRadiusNEQ(),
