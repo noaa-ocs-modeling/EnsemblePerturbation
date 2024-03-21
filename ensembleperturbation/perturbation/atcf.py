@@ -669,7 +669,7 @@ class IsotachRadiusSWQ(VortexPerturbedVariable):
     """
 
     name = 'isotach_radius_for_SWQ'
-    perturbation_type = PerturbationType.UNIFORM
+    perturbation_type = None
 
     def __init__(self):
         super().__init__(
@@ -686,7 +686,7 @@ class IsotachRadiusSEQ(VortexPerturbedVariable):
     """
 
     name = 'isotach_radius_for_SEQ'
-    perturbation_type = PerturbationType.UNIFORM
+    perturbation_type = None
 
     def __init__(self):
         super().__init__(
@@ -703,7 +703,7 @@ class IsotachRadiusNWQ(VortexPerturbedVariable):
     """
 
     name = 'isotach_radius_for_NWQ'
-    perturbation_type = PerturbationType.UNIFORM
+    perturbation_type = None
 
     def __init__(self):
         super().__init__(
@@ -720,7 +720,7 @@ class IsotachRadiusNEQ(VortexPerturbedVariable):
     """
 
     name = 'isotach_radius_for_NEQ'
-    perturbation_type = PerturbationType.UNIFORM
+    perturbation_type = None
 
     def __init__(self):
         super().__init__(
@@ -1718,7 +1718,9 @@ class VortexPerturber:
                 if isinstance(variable, MaximumSustainedWindSpeed):
                     # In case of Vmax need to change the central pressure in accordance with Holland B relationship
                     dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
-                elif isinstance(variable, RadiusOfMaximumWinds) or isinstance(variable, RadiusOfMaximumWindsPersistent): 
+                elif isinstance(
+                    variable, (RadiusOfMaximumWinds, RadiusOfMaximumWindsPersistent)
+                ):
                     # In case of Rmax need to change the r34/50,64 radii at all quadrants in the same way
                     quadrants = [
                         IsotachRadiusNEQ(),
