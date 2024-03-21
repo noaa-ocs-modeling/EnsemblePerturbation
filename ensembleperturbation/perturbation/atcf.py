@@ -439,7 +439,7 @@ class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
     0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
     """
 
-    name = 'radius_of_maximum_winds_persistent'
+    name = 'radius_of_maximum_winds'
     perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
