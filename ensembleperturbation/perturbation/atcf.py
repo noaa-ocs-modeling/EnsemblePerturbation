@@ -1,6 +1,7 @@
 from abc import ABC
 import concurrent.futures
 from copy import copy
+from difflib import get_close_matches
 from datetime import datetime, timedelta
 from enum import Enum
 from glob import glob
@@ -254,7 +255,11 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
-        variable_values = vortex_dataframe[self.name].values
+        if self.name in vortex_dataframe.columns:
+            varname = self.name
+        else:
+            varname = get_close_matches(self.name, vortex_dataframe.columns)[0]
+        variable_values = vortex_dataframe[varname].values
         if (
             not isinstance(variable_values, PintArray)
             or variable_values.units == variable_values.units._REGISTRY.dimensionless
@@ -271,7 +276,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         all_values = variable_values - values
         # ensure that we don't change zero values
         all_values[variable_values.magnitude < 1] = 0 * all_values.units
-        vortex_dataframe[self.name] = [
+        vortex_dataframe[varname] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             if value.magnitude != 0
             else 0
@@ -439,7 +444,7 @@ class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
     0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
     """
 
-    name = 'radius_of_maximum_winds'
+    name = 'radius_of_maximum_winds_persistent'
     perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
@@ -655,7 +660,7 @@ class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
         :return: errors based on size classification
         """
 
-        initial_radius = data_frame[self.name].iloc[loc_index]
+        initial_radius = data_frame['radius_of_maximum_winds'].iloc[loc_index]
 
         if not isinstance(initial_radius, Quantity):
             initial_radius *= units.nautical_mile
@@ -1543,7 +1548,7 @@ class VortexPerturber:
                 write_kwargs = {
                     'filename': output_filename,
                     'perturbation': perturbation_values,
-                    'variables': copy(variables),
+                    'variables': copy(variable_names),
                     'weight': float(perturbation['weights'].values),
                 }
 
