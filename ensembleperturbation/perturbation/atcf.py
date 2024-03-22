@@ -373,7 +373,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
     def __init__(self):
         super().__init__(
             lower_bound=5,
-            upper_bound=120,
+            upper_bound=200,
             historical_forecast_errors={
                 '<50kt': DataFrame(
                     {
