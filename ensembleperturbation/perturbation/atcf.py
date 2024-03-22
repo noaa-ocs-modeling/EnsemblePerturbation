@@ -1543,7 +1543,7 @@ class VortexPerturber:
                 write_kwargs = {
                     'filename': output_filename,
                     'perturbation': perturbation_values,
-                    'variables': copy(variable_names),
+                    'variables': copy(variables),
                     'weight': float(perturbation['weights'].values),
                 }
 
