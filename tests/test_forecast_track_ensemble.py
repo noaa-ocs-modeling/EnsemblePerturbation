@@ -11,9 +11,7 @@ from stormevents.nhc.atcf import ATCF_FIELDS
 from ensembleperturbation.perturbation.atcf import (
     AlongTrack,
     CrossTrack,
-    MaximumSustainedWindSpeed,
     perturb_tracks,
-    RadiusOfMaximumWinds,
     VortexPerturber,
 )
 from tests import check_reference_directory, DATA_DIRECTORY
