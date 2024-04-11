@@ -26,8 +26,10 @@ def get_validation_statistics(O, P, decimals):
         OD2 = ((O - MO) ** 2).sum()
         PDOD = ((P - MP) * (O - MO)).sum()
         corr = PDOD / (PD2 * OD2) ** 0.5
-        if numpy.isnan(corr.values):
+        if (PDOD == 0) & (PD2 == 0) & (OD2 == 0):
             corr.values = 1.0  # 0/0: perfect correlation
+        elif (PD2 == 0) or (OD2 == 0):
+            corr.values = 0.0  # No./0: no-correlation
         return corr
 
     # correlation coefficient
