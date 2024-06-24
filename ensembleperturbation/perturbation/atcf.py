@@ -48,6 +48,8 @@ E1 = exp(1.0)  # e
 
 BLAdj = 0.9  # adjustment factor from 10-m height to top of boundary layer
 
+omega = 7.2921159 * 1e-5 / units.seconds  # angular velocity of the earth
+
 # Index of absolute errors (forecast times [hrs)]
 HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
 HISTORICAL_ERROR_HOURS_EXT = [
@@ -680,73 +682,156 @@ class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
         return self.historical_forecast_errors[storm_classification]
 
 
-# Rmax-dependent radius variables
-class IsotachRadiusSWQ(VortexPerturbedVariable):
+# IsotachRadius parent class for isotach radii dependent
+# on the changes to Rmax, Vmax and track
+class IsotachRadius(VortexPerturbedVariable):
+
+    name = 'isotach_radius'
+    perturbation_type = None
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=400,
+            historical_forecast_errors={},
+            unit=units.nautical_mile,
+        )
+
+    def get_isotach_properties(self, dataframe: DataFrame) -> float:
+        """ Compute new istoach radius from perturbed Rmax based on Holland profile """
+        # get Vmax after subtracting speed and adjusting to boundary layer height
+        Vmax = (
+            dataframe[
+                MaximumSustainedWindSpeed.name
+            ]  # LC12: 0.66 factor and 20-deg CCW rotation
+            - 0.66 * dataframe['speed'] * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+        ) / BLAdj
+        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
+        # get Vr for the X-kt isotach in this quadrant
+        Vr = (
+            dataframe['isotach_radius']  # LC12: 0.55 factor and 20-deg CCW rotation
+            - 0.55 * dataframe['speed'] * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+        ) / BLAdj
+        Vr = Vr.values * MaximumSustainedWindSpeed.unit
+        # get Rmax with units
+        Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
+        # get Coriolis and compute Rossby number (inverse of)
+        f = 2 * omega * numpy.sin(numpy.deg2rad(dataframe['latitude'].values))
+        Ro_inv = Rmax * f / Vmax
+        # get central pessure and compute standard Holland B parameter
+        DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
+        DelP = DelP.values * CentralPressure.unit
+        B = Vmax.to('m/s') ** 2 * AIR_DENSITY * E1 / DelP.to('Pa')
+        # find initial Bg and phi for GAHM model iteratively
+        Bg = B
+        Bm = 1e6
+        while any(abs(Bm - Bg) > 1e-3):
+            Bm = Bg
+            phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
+            Bg = B * (1 + Ro_inv) * numpy.exp(phi - 1) / phi
+        # now found the Bg and phi (and subsequent B) that actually fits
+        # through both the isotach and the Rmax value
+        isotach_rad = dataframe[self.name].values * RadiusOfMaximumWinds.unit
+        isotach_rad[isotach_rad == 0] = numpy.NaN
+        Rrat = Rmax / isotach_rad  # [nmi/nmi] = []
+        Rrat2 = 2 * Vr / (Vr + Vmax)  # adjustment for large Rrat
+        Rrat[Rrat > Rrat2] = Rrat2[Rrat > Rrat2]
+        Vrat = Vr / Vmax  # [kt/kt] = []
+        alpha = Rrat ** Bg
+        rfo2 = 0.5 * isotach_rad * f
+        Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
+        while any(abs(Vr_test - Vr).magnitude > 1e-2):
+            alpha = Rrat ** Bg
+            Vr_test = (
+                numpy.sqrt(
+                    Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
+                )
+                - rfo2
+            )
+            alpha *= (Vr / Vr_test) ** 2
+            Bg = numpy.log(alpha) / numpy.log(Rrat)
+            phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
+            phi[phi < 1] = 1
+        B = Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))
+        return Vmax, Vr, Rmax, Ro_inv, B
+
+    def perturb(
+        self, vortex_dataframe: DataFrame, original_dataframe, inplace: bool = False,
+    ) -> DataFrame:
+        """ Compute new isotach radius based on Holland profile using perturbed Rmax/Vmax/speed values"""
+        # retrieve the Vmax, Vr(isotach) at the top of the boundary layer, and Rmax
+        # in the original and perturbed dataframe
+        Vmax_old, Vr_old, Rmax_old, _, B = self.get_isotach_properties(
+            dataframe=original_dataframe
+        )
+        Vmax_new, Vr_new, Rmax_new, Ro_inv, _ = self.get_isotach_properties(
+            dataframe=vortex_dataframe
+        )
+        # preserving B_old, find new Bg and phi
+        # Bg = B
+        # Bm = 1e6
+        # while any(abs(Bm - Bg) > 1e-3):
+        #    Bm = Bg
+        #    phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
+        #    Bg = B * (1 + Ro_inv) * numpy.exp(phi - 1) / phi
+        # find the new isotach radii with the found B value
+        isotach_rad = original_dataframe[self.name].values * RadiusOfMaximumWinds.unit
+        isotach_rad[isotach_rad == 0] = numpy.nan
+        Rrat_new = Rmax_new / isotach_rad  # first guess
+        Rrat_new[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
+        Rrat_new[Rrat_new > 0.999] = 0.999
+        Rratm = 1e6
+        RHS = numpy.log((Vr_new / Vmax_new) ** 2) - 1
+        while any(abs(Rrat_new - Rratm) > 1e-3):
+            Rratm = Rrat_new
+            Rrat_new = numpy.exp((Rrat_new ** B + RHS) / B)
+            Rrat_new[Rrat_new > 0.999] = 0.999
+        # set the new isotach radii based on new Rrat and return
+        isotach_rad_new = (Rmax_new / Rrat_new).magnitude
+        isotach_rad_new[numpy.isnan(isotach_rad_new)] = 0
+        vortex_dataframe[self.name] = isotach_rad_new
+        return vortex_dataframe
+
+
+# IsotachRadius subclass for each quadrant
+class IsotachRadiusSWQ(IsotachRadius):
     """
     ``isotach_radius_for_SWQ`
     """
 
     name = 'isotach_radius_for_SWQ'
     perturbation_type = None
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    quadrant_angle = 225  # degrees
 
 
-class IsotachRadiusSEQ(VortexPerturbedVariable):
+class IsotachRadiusSEQ(IsotachRadius):
     """
     ``isotach_radius_for_SEQ`
     """
 
     name = 'isotach_radius_for_SEQ'
     perturbation_type = None
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    quadrant_angle = 135  # degrees
 
 
-class IsotachRadiusNWQ(VortexPerturbedVariable):
+class IsotachRadiusNWQ(IsotachRadius):
     """
     ``isotach_radius_for_NWQ`
     """
 
     name = 'isotach_radius_for_NWQ'
     perturbation_type = None
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    quadrant_angle = 315  # degrees
 
 
-class IsotachRadiusNEQ(VortexPerturbedVariable):
+class IsotachRadiusNEQ(IsotachRadius):
     """
     ``isotach_radius_for_NEQ`
     """
 
     name = 'isotach_radius_for_NEQ'
     perturbation_type = None
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    quadrant_angle = 45  # degrees
 
 
 class CrossTrack(VortexPerturbedVariable):
@@ -1747,10 +1832,11 @@ class VortexPerturber:
                         IsotachRadiusNWQ(),
                     ]
                     for quadrant in quadrants:
+                        print(quadrant.name)
+                        # breakpoint()
                         dataframe = quadrant.perturb(
                             vortex_dataframe=dataframe,
-                            values=perturbed_values,
-                            times=self.validation_times,
+                            original_dataframe=self.track.data,
                             inplace=True,
                         )
 
