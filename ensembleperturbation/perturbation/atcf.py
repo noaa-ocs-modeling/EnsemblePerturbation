@@ -767,11 +767,11 @@ class IsotachRadius(VortexPerturbedVariable):
         else:
             return Rmax / Rrat  # isotach_rad
 
-    def get_isotach_properties(self, dataframe: DataFrame, return_B=False) -> float:
+    def get_isotach_properties(self, dataframe: DataFrame) -> float:
         """ 
         Return properties of storm and isotach after adjusting for quadrant angle and boundary layer height.
-        Optionally return the Holland B parameter that fits through Vmax and Vr
-        using the GAHM profile based on these storm properties
+        LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
+        J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
         """
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax = (
@@ -798,17 +798,7 @@ class IsotachRadius(VortexPerturbedVariable):
         B = Vmax.to('m/s') ** 2 * AIR_DENSITY * E1 / DelP.to('Pa')
         # now found the Bg and phi (and subsequent B) that actually fits
         # through both the isotach and the Rmax value
-        isotach_rad = dataframe[self.name].values * RadiusOfMaximumWinds.unit
-        isotach_rad[isotach_rad == 0] = numpy.NaN
-        Rrat = Rmax / isotach_rad  # [nmi/nmi] = []
-        Rrat2 = 2 * Vr / (Vr + Vmax)  # adjustment for large Rrat
-        Rrat[Rrat > Rrat2] = Rrat2[Rrat > Rrat2]
-        if return_B:
-            return self.find_parameter_from_GAHM_profile(
-                Vr, Vmax, f, Ro_inv, B=B, isotach_rad=isotach_rad, Rrat=Rrat
-            )
-        else:
-            return Vmax, Vr, Rmax, Ro_inv, f
+        return Vmax, Vr, Rmax, Ro_inv, f, B
 
     def perturb(
         self, vortex_dataframe: DataFrame, original_dataframe, inplace: bool = False,
@@ -816,21 +806,31 @@ class IsotachRadius(VortexPerturbedVariable):
         """ Compute new isotach radius based on Holland profile using perturbed Rmax/Vmax/speed values"""
         # retrieve the Vmax, Vr(isotach) at the top of the boundary layer, and Rmax
         # in the original and perturbed dataframe
-        B = self.get_isotach_properties(dataframe=original_dataframe, return_B=True)
-        Vmax_new, Vr_new, Rmax_new, Ro_inv, f = self.get_isotach_properties(
+        Vmax_old, Vr_old, Rmax_old, Roinv_old, f_old, B = self.get_isotach_properties(
+            dataframe=original_dataframe
+        )
+        Vmax_new, Vr_new, Rmax_new, Roinv_new, f_new, _ = self.get_isotach_properties(
             dataframe=vortex_dataframe
         )
-        # preserving B_old, find new Bg and phi
-        Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
         # determine original isotach_rad and Rrat
         isotach_rad = original_dataframe[self.name].values * RadiusOfMaximumWinds.unit
         isotach_rad[isotach_rad == 0] = numpy.nan
-        Rrat_new = Rmax_new / isotach_rad  # first guess
-        Rrat_new[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
-        Rrat_new[Rrat_new > 0.999] = 0.999
+        Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
+        Rrat2 = 2 * Vr_old / (Vr_old + Vmax_old)  # as a multiple of Vr/Vmax
+        Rrat[Rrat > Rrat2] = Rrat2[Rrat > Rrat2]  # adjustment for large Rrat
+        # find B from original velocity profile using GAHM (traditional Holland B as first guess)
+        B = self.find_parameter_from_GAHM_profile(
+            Vr_old, Vmax_old, f_old, Roinv_old, B=B, isotach_rad=isotach_rad, Rrat=Rrat
+        )
+        # preserving B, find new GAHM Bg and phi using new Ro_inv
+        Bg, phi = self.find_GAHM_parameters(B, Roinv_new)
+        # determine guess of new Rrat
+        Rrat = Rmax_new / isotach_rad
+        Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
+        Rrat[Rrat > 0.999] = 0.999  # limit to just below 1
         # now use GAHM root finding algorithm to get the new isotach_rad
         isotach_rad_new = self.find_parameter_from_GAHM_profile(
-            Vr_new, Vmax_new, f, Ro_inv, Bg=Bg, phi=phi, Rmax=Rmax_new, Rrat=Rrat_new,
+            Vr_new, Vmax_new, f_new, Roinv_new, Bg=Bg, phi=phi, Rmax=Rmax_new, Rrat=Rrat,
         )
         isotach_rad_new = isotach_rad_new.magnitude
         isotach_rad_new[numpy.isnan(isotach_rad_new)] = 0
