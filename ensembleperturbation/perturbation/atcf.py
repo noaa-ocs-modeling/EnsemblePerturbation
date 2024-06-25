@@ -34,7 +34,12 @@ import typepigeon
 import xarray
 from xarray import Dataset
 
-from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
+from ensembleperturbation.utilities import (
+    get_logger,
+    ProcessPoolExecutorStackTraced,
+    units,
+    move_to_end,
+)
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -1751,7 +1756,12 @@ class VortexPerturber:
             copy=False,
         )
 
-        for variable in variables:
+        # make sure Rmax is last in order due to dependence on other
+        # variables for the isotach radii computation
+        variables2 = move_to_end(
+            variables, (RadiusOfMaximumWinds, RadiusOfMaximumWindsPersistent)
+        )
+        for variable in variables2:
             if variable.name in perturbation:
                 alpha = perturbation[variable.name]
             else:
@@ -1864,7 +1874,7 @@ class VortexPerturber:
                 elif isinstance(
                     variable, (RadiusOfMaximumWinds, RadiusOfMaximumWindsPersistent)
                 ):
-                    # In case of Rmax need to change the r34/50,64 radii at all quadrants in the same way
+                    # In case of Rmax need to change the r34/50,64 radii at all quadrants in accordance with the GAHM profile
                     quadrants = [
                         IsotachRadiusNEQ(),
                         IsotachRadiusSEQ(),
@@ -1872,8 +1882,6 @@ class VortexPerturber:
                         IsotachRadiusNWQ(),
                     ]
                     for quadrant in quadrants:
-                        print(quadrant.name)
-                        # breakpoint()
                         dataframe = quadrant.perturb(
                             vortex_dataframe=dataframe,
                             original_dataframe=self.track.data,
