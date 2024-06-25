@@ -697,8 +697,9 @@ class IsotachRadius(VortexPerturbedVariable):
             unit=units.nautical_mile,
         )
 
-    def find_GAHM_parameters(self, B, Ro_inv):
+    def find_GAHM_parameters(self, B, Ro_inv) -> float:
         # find Bg and phi for GAHM model iteratively
+        # with given B and Rossby number (inverse)
         Bg = B
         Bm = 1e6
         while any(abs(Bm - Bg) > 1e-3):
@@ -707,7 +708,33 @@ class IsotachRadius(VortexPerturbedVariable):
             Bg = B * (1 + Ro_inv) * numpy.exp(phi - 1) / phi
         return Bg, phi
 
-    def get_isotach_properties(self, dataframe: DataFrame) -> float:
+    def find_parameter_from_GAHM_profile(
+        self, Vr, Vmax, f, Ro_inv, B=None, isotach_rad=None, Rrat=None
+    ) -> float:
+        Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
+        # initial guess
+        if B is not None:
+            Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
+        rfo2 = 0.5 * isotach_rad * f
+        while any(abs(Vr_test - Vr).magnitude > 1e-2):
+            alpha = Rrat ** Bg
+            Vr_test = (
+                numpy.sqrt(
+                    Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
+                )
+                - rfo2
+            )  # bi-section method
+            alpha *= 0.5 * (1 + (Vr / Vr_test) ** 2)
+            Bg = numpy.log(alpha) / numpy.log(Rrat)
+            phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
+            phi[phi < 1] = 1
+        if B is not None:
+            B = Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))
+            return B
+        else:
+            return None
+
+    def get_isotach_properties(self, dataframe: DataFrame, return_B=False) -> float:
         """ Compute new istoach radius from perturbed Rmax based on Holland profile """
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax = (
@@ -728,12 +755,10 @@ class IsotachRadius(VortexPerturbedVariable):
         # get Coriolis and compute Rossby number (inverse of)
         f = 2 * omega * numpy.sin(numpy.deg2rad(dataframe['latitude'].values))
         Ro_inv = Rmax * f / Vmax
-        # get central pessure and compute standard Holland B parameter
+        # get central pessure and compute standard Holland B parameter as initial guess
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
         B = Vmax.to('m/s') ** 2 * AIR_DENSITY * E1 / DelP.to('Pa')
-        # find initial Bg and phi for GAHM model
-        Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
         # now found the Bg and phi (and subsequent B) that actually fits
         # through both the isotach and the Rmax value
         isotach_rad = dataframe[self.name].values * RadiusOfMaximumWinds.unit
@@ -741,24 +766,12 @@ class IsotachRadius(VortexPerturbedVariable):
         Rrat = Rmax / isotach_rad  # [nmi/nmi] = []
         Rrat2 = 2 * Vr / (Vr + Vmax)  # adjustment for large Rrat
         Rrat[Rrat > Rrat2] = Rrat2[Rrat > Rrat2]
-        Vrat = Vr / Vmax  # [kt/kt] = []
-        alpha = Rrat ** Bg
-        rfo2 = 0.5 * isotach_rad * f
-        Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
-        while any(abs(Vr_test - Vr).magnitude > 1e-2):
-            alpha = Rrat ** Bg
-            Vr_test = (
-                numpy.sqrt(
-                    Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
-                )
-                - rfo2
-            )  # bi-section method
-            alpha *= 0.5 * (1 + (Vr / Vr_test) ** 2)
-            Bg = numpy.log(alpha) / numpy.log(Rrat)
-            phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
-            phi[phi < 1] = 1
-        B = Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))
-        return Vmax, Vr, Rmax, Ro_inv, f, B
+        if return_B:
+            return self.find_parameter_from_GAHM_profile(
+                Vr, Vmax, f, Ro_inv, B=B, isotach_rad=isotach_rad, Rrat=Rrat
+            )
+        else:
+            return Vmax, Vr, Rmax, Ro_inv, f
 
     def perturb(
         self, vortex_dataframe: DataFrame, original_dataframe, inplace: bool = False,
@@ -766,10 +779,8 @@ class IsotachRadius(VortexPerturbedVariable):
         """ Compute new isotach radius based on Holland profile using perturbed Rmax/Vmax/speed values"""
         # retrieve the Vmax, Vr(isotach) at the top of the boundary layer, and Rmax
         # in the original and perturbed dataframe
-        Vmax_old, Vr_old, Rmax_old, _, _, B = self.get_isotach_properties(
-            dataframe=original_dataframe
-        )
-        Vmax_new, Vr_new, Rmax_new, Ro_inv, f, _ = self.get_isotach_properties(
+        B = self.get_isotach_properties(dataframe=original_dataframe, return_B=True)
+        Vmax_new, Vr_new, Rmax_new, Ro_inv, f = self.get_isotach_properties(
             dataframe=vortex_dataframe
         )
         # preserving B_old, find new Bg and phi
