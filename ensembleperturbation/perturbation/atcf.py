@@ -702,7 +702,7 @@ class IsotachRadius(VortexPerturbedVariable):
             unit=units.nautical_mile,
         )
 
-    def find_GAHM_parameters(self, B, Ro_inv) -> float:
+    def find_GAHM_parameters(self, B, Ro_inv) -> Quantity:
         """ 
         find Bg and phi for GAHM model iteratively
         with given B and Rossby number (inverse)
@@ -727,7 +727,7 @@ class IsotachRadius(VortexPerturbedVariable):
         Rmax=None,
         isotach_rad=None,
         Rrat=None,
-    ) -> float:
+    ) -> Quantity:
         """ 
         Use root finding algorithm to return a desired parameter 
         based on the GAHM profile of velocity that matches the input Vr
@@ -767,7 +767,7 @@ class IsotachRadius(VortexPerturbedVariable):
         else:
             return Rmax / Rrat  # isotach_rad
 
-    def get_isotach_properties(self, dataframe: DataFrame) -> float:
+    def get_isotach_properties(self, dataframe: DataFrame) -> Quantity:
         """ 
         Return properties of storm and isotach after adjusting for quadrant angle and boundary layer height.
         LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
@@ -791,7 +791,7 @@ class IsotachRadius(VortexPerturbedVariable):
         Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
         # get Coriolis and compute Rossby number (inverse of)
         f = 2 * omega * numpy.sin(numpy.deg2rad(dataframe['latitude'].values))
-        Ro_inv = Rmax * f / Vmax
+        Ro_inv = (Rmax * f / Vmax).to('dimensionless')
         # get central pessure and compute standard Holland B parameter as initial guess
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
