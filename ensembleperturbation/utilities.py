@@ -146,3 +146,9 @@ def encode_categorical_values(values: list, unique_values: list = None) -> list:
         for row in values:
             rows.append(encode_categorical_values(row, unique_values=unique_values))
         return numpy.stack(rows, axis=0)
+
+
+def move_to_end(lst, elem):
+    # moving elem to end of list
+    lst = [x for x in lst if not isinstance(x, elem)] + [x for x in lst if isinstance(x, elem)]
+    return lst
