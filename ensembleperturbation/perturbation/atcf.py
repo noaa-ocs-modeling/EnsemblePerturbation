@@ -752,8 +752,8 @@ class IsotachRadius(VortexPerturbedVariable):
                     Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
                 )
                 - rfo2
-            )
-            alpha *= (Vr / Vr_test) ** 2
+            )  # bi-section method
+            alpha *= 0.5 * (1 + (Vr / Vr_test) ** 2)
             Bg = numpy.log(alpha) / numpy.log(Rrat)
             phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
             phi[phi < 1] = 1
@@ -794,8 +794,8 @@ class IsotachRadius(VortexPerturbedVariable):
                     + rfo2 ** 2
                 )
                 - rfo2
-            )
-            alpha *= (Vr_new / Vr_test) ** 2
+            )  # bi-section method
+            alpha *= 0.5 * (1 + (Vr_new / Vr_test) ** 2)
         isotach_rad_new = isotach_rad_new.magnitude
         isotach_rad_new[numpy.isnan(isotach_rad_new)] = 0
         vortex_dataframe[self.name] = isotach_rad_new
