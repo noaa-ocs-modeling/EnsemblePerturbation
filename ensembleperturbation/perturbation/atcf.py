@@ -1895,6 +1895,13 @@ class VortexPerturber:
                             original_dataframe=self.track.data,
                             inplace=True,
                         )
+                    # remove any rows that now have all 0 isotach radii
+                    # for the 50-kt or 64-kt isotach
+                    quadrant_names = [q.name for q in quadrants]
+                    drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
+                        dataframe['isotach_radius'].isin([50, 64])
+                    )
+                    dataframe.drop(index=dataframe.index[drop_row], inplace=True)
 
         # remove units from data frame
         for column in dataframe:
