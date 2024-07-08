@@ -773,20 +773,28 @@ class IsotachRadius(VortexPerturbedVariable):
         LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
         J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
         """
+        # keep original translation speed for the 0-hr forecast which has been computed
+        # using info from track info prior to the forecast time (in m/s!)
+        initial_translation_speed = dataframe['speed'].loc[
+            dataframe['forecast_hours'] == 0
+        ].values * units('m/s')
+        # re-compute the translation speed
+        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
+            'speed'
+        ].values * units('m/s')
+        translation_speed[dataframe['forecast_hours'] == 0] = initial_translation_speed
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax = (
-            dataframe[
-                MaximumSustainedWindSpeed.name
-            ]  # LC12: 0.66 factor and 20-deg CCW rotation
-            - 0.66 * dataframe['speed'] * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+            dataframe[MaximumSustainedWindSpeed.name].values
+            * MaximumSustainedWindSpeed.unit  # LC12: 0.66 factor and 20-deg CCW rotation
+            - 0.66 * translation_speed * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
         ) / BLAdj
-        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
         # get Vr for the X-kt isotach in this quadrant
         Vr = (
-            dataframe['isotach_radius']  # LC12: 0.55 factor and 20-deg CCW rotation
-            - 0.55 * dataframe['speed'] * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+            dataframe['isotach_radius'].values
+            * MaximumSustainedWindSpeed.unit  # LC12: 0.55 factor and 20-deg CCW rotation
+            - 0.55 * translation_speed * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
         ) / BLAdj
-        Vr = Vr.values * MaximumSustainedWindSpeed.unit
         # get Rmax with units
         Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
         # get Coriolis and compute Rossby number (inverse of)
