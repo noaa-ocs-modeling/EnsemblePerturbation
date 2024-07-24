@@ -266,6 +266,7 @@ def karhunen_loeve_prediction(
             pyplot.subplots_adjust(wspace=0.02, right=0.96)
             cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
             cbar = figure.colorbar(im, extend='both', cax=cax)
+            cbar.ax.set_title('[m]')   
 
             figure.savefig(
                 plot_directory / f'KL_ensemble{example}.png', dpi=200, bbox_inches='tight',
