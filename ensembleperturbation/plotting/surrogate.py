@@ -10,6 +10,7 @@ from matplotlib.axis import Axis
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 import numpy
+from stormevents.nhc import VortexTrack
 import xarray
 
 from ensembleperturbation.plotting.geometry import plot_points, plot_surface
@@ -455,7 +456,10 @@ def plot_selected_validations(
 
 
 def plot_selected_percentiles(
-    node_percentiles: xarray.Dataset, perc_list: list, output_directory: PathLike
+    node_percentiles: xarray.Dataset,
+    perc_list: list,
+    output_directory: PathLike,
+    storm: str = None,
 ):
     percentiles = node_percentiles.quantiles
 
@@ -514,6 +518,20 @@ def plot_selected_percentiles(
 
             map_axis.set_xlim(xlim)
             map_axis.set_ylim(ylim)
+
+            if storm is not None:
+                if not isinstance(storm, VortexTrack):
+                    try:
+                        storm = VortexTrack.from_file(storm)
+                    except FileNotFoundError:
+                        storm = VortexTrack(storm)
+
+                map_axis.plot(
+                    storm.data['longitude'], storm.data['latitude'], 'k--', label=storm.name,
+                )
+
+                if storm.name is not None:
+                    map_axis.legend(fontsize=6)
 
         pyplot.subplots_adjust(wspace=0.02, right=0.96)
         cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
