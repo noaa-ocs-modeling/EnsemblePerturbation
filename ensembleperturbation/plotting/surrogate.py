@@ -446,7 +446,7 @@ def plot_selected_validations(
         pyplot.subplots_adjust(wspace=0.02, right=0.96)
         cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
         cbar = figure.colorbar(im, extend='both', cax=cax)
-        cbar.ax.set_title('[m]')  
+        cbar.ax.set_title('[m]')
 
         if output_directory is not None:
             figure.savefig(
