@@ -162,6 +162,7 @@ def karhunen_loeve_prediction(
     actual_values=None,
     ensembles_to_plot=None,
     element_table=None,
+    reference_line: bool = True,
     plot_directory: PathLike = None,
 ):
     """
@@ -194,6 +195,9 @@ def karhunen_loeve_prediction(
         ylim = axis.get_ylim()
         axis.set_xlim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
         axis.set_ylim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
+
+        if reference_line:
+            axis.plot([xlim[0],ylim[0]],[xlim[1],ylim[1]], '--k', alpha=0.3)
 
         figure.savefig(
             plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
