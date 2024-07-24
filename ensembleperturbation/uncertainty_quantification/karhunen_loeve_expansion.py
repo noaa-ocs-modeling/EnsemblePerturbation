@@ -193,11 +193,13 @@ def karhunen_loeve_prediction(
 
         xlim = axis.get_xlim()
         ylim = axis.get_ylim()
-        axis.set_xlim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
-        axis.set_ylim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
-
+        bb_min = min(xlim[0], ylim[0])
+        bb_max = max(xlim[1], ylim[1])
+        axis.set_xlim(bb_min, bb_max)
+        axis.set_ylim(bb_min, bb_max)         
+          
         if reference_line:
-            axis.plot([xlim[0],ylim[0]],[xlim[1],ylim[1]], '--k', alpha=0.3)
+            axis.plot([bb_min,bb_max],[bb_min,bb_max], '--k', alpha=0.3, zorder=-50)
 
         figure.savefig(
             plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
