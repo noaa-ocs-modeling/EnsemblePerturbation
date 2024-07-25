@@ -75,6 +75,7 @@ jobs:
         run: pip install ".[testing]"
       - name: rebuild netcdf from source
         run: python -m pip install --upgrade --force-reinstall --no-deps --no-cache-dir netcdf4 --no-binary netcdf4
+        if: runner.os == 'Linux'
       - name: run tests
         run: pytest --numprocesses auto
   test_with_coverage:
@@ -110,6 +111,7 @@ jobs:
         run: pip install ".[testing]"
       - name: rebuild netcdf from source
         run: python -m pip install --upgrade --force-reinstall --no-deps --no-cache-dir netcdf4 --no-binary netcdf4
+        if: runner.os == 'Linux'
       - name: run tests with coverage
         run: pytest --numprocesses auto --cov . --cov-report xml:coverage.xml
       - name: show coverage report
