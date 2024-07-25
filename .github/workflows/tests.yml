@@ -64,8 +64,6 @@ jobs:
         run: |
           brew install hdf5
           brew install netcdf
-          brew install c-blosc
-          brew install lzo
         if: runner.os == 'macOS'
       - name: load cached Python installation
         id: cache
@@ -102,8 +100,6 @@ jobs:
         run: |
           brew install hdf5
           brew install netcdf
-          brew install c-blosc
-          brew install lzo
         if: runner.os == 'macOS'
       - name: load cached Python installation
         id: cache
