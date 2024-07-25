@@ -36,8 +36,8 @@ netcdf4 = '*'
 matplotlib = { version = '*', optional = true }
 numpy = '*'
 pandas = '>=1.5'
-pint = '<0.21' # ito() issue #105
-pint-pandas = '<0.4' # ito() issue #105
+pint = '*'
+pint-pandas = '*'
 pyproj = '>=2.6'
 tables = '*'
 typepigeon = '*'

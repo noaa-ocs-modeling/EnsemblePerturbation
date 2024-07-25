@@ -186,7 +186,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         isinstance(dataframe[column].dtype, PintType)
                         and dataframe[column].dtype != pint_type
                     ):
-                        dataframe[column].pint.ito(self.unit)
+                        dataframe[column] = dataframe[column].pint.to(self.unit)
                     dataframe[column].astype(pint_type, copy=False)
         return self.__historical_forecast_errors
 
@@ -203,7 +203,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         isinstance(dataframe[column].dtype, PintType)
                         and dataframe[column].dtype != pint_type
                     ):
-                        dataframe[column].pint.ito(self.unit)
+                        dataframe[column] = dataframe[column].pint.to(self.unit)
                     dataframe[column].astype(pint_type, copy=False)
         self.__historical_forecast_errors = historical_forecast_errors
 
