@@ -214,8 +214,8 @@ def karhunen_loeve_prediction(
                 actual_values['y'].max(),
             ]
         )
-        vmax = np.round_(actual_values.quantile(0.98), decimals=1)
-        vmin = min(0.0, np.round_(actual_values.quantile(0.02), decimals=1))
+        vmax = np.round(actual_values.quantile(0.98), decimals=1)
+        vmin = min(0.0, np.round(actual_values.quantile(0.02), decimals=1))
         sources = {'actual': actual_values, 'reconstructed': kl_prediction}
         map_crs = cartopy.crs.PlateCarree()
         for example in ensembles_to_plot:
