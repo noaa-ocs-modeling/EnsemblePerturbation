@@ -19,7 +19,7 @@ build-backend = 'poetry.core.masonry.api'
 enable = true
 
 [tool.poetry.dependencies]
-python = '^3.8'
+python = '^3.9'
 adcircpy = '>=1.2.3'
 appdirs = '*'
 beautifulsoup4 = '*'
