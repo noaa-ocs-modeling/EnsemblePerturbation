@@ -1934,7 +1934,7 @@ class VortexPerturber:
         # get Vmax after subtracting speed and adjusting to boundary layer
         Vmax = (
             dataframe[MaximumSustainedWindSpeed.name].values * MaximumSustainedWindSpeed.unit
-            - 0.66 * dataframe['speed'].values * units('m/s') # LC12: 0.66 factor
+            - 0.66 * dataframe['speed'].values * units('m/s')  # LC12: 0.66 factor
         ) / BLAdj
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
@@ -1958,7 +1958,7 @@ class VortexPerturber:
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax = (
             dataframe[MaximumSustainedWindSpeed.name].values * MaximumSustainedWindSpeed.unit
-            - 0.66 * translation_speed # LC12: 0.66 factor
+            - 0.66 * translation_speed  # LC12: 0.66 factor
         ) / BLAdj
         DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name].values * CentralPressure.unit - DelP
