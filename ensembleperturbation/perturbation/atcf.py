@@ -365,6 +365,29 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
             unit=units.knot,
         )
 
+    def radial_Vmax_at_BL(self, dataframe: DataFrame) -> Quantity:
+        # keep original translation speed for the 0-hr forecast which has been computed
+        # using info from track info prior to the forecast time (in m/s!)
+        initial_translation_speed = dataframe['speed'].loc[
+            dataframe['datetime'] == dataframe['datetime'].min()
+        ].values * units('m/s')
+        # re-compute the translation speed
+        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
+            'speed'
+        ].values * units('m/s')
+        # overwrite the first hour with the initial
+        translation_speed[
+            dataframe['datetime'] == dataframe['datetime'].min()
+        ] = initial_translation_speed
+        # get the radial Vmax at the boundary layer height
+        Vmax = (
+            dataframe[self.name].values * self.unit
+            - 0.66 * translation_speed  # LC12: 0.66 factor
+        ) / BLAdj
+        # limit Vmax to the lower bound
+        Vmax[Vmax < self.lower_bound] = self.lower_bound
+        return Vmax
+
 
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
@@ -787,8 +810,11 @@ class IsotachRadius(VortexPerturbedVariable):
         Vmax = (
             dataframe[MaximumSustainedWindSpeed.name].values
             * MaximumSustainedWindSpeed.unit  # LC12: 0.66 factor and 20-deg CCW rotation
-            - 0.66 * translation_speed * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+            - 0.66 * translation_speed
         ) / BLAdj
+        Vmax[
+            Vmax < MaximumSustainedWindSpeed().lower_bound
+        ] = MaximumSustainedWindSpeed().lower_bound
         # get Vr for the X-kt isotach in this quadrant
         Vr = (
             dataframe['isotach_radius'].values
@@ -1928,14 +1954,11 @@ class VortexPerturber:
         return self.track.data['datetime'] - self.track.start_date
 
     @property
-    def holland_B(self) -> float:
+    def holland_B(self) -> Quantity:
         """ Compute Holland B at each time snap """
         dataframe = self.track.data
         # get Vmax after subtracting speed and adjusting to boundary layer
-        Vmax = (
-            dataframe[MaximumSustainedWindSpeed.name].values * MaximumSustainedWindSpeed.unit
-            - 0.66 * dataframe['speed'].values * units('m/s')  # LC12: 0.66 factor
-        ) / BLAdj
+        Vmax = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
@@ -1943,23 +1966,8 @@ class VortexPerturber:
 
     def compute_pc_from_Vmax(self, dataframe: DataFrame) -> float:
         """ Compute central pressure from Vmax based on Holland B """
-        # keep original translation speed for the 0-hr forecast which has been computed
-        # using info from track info prior to the forecast time (in m/s!)
-        initial_translation_speed = dataframe['speed'].loc[
-            dataframe['datetime'] == dataframe['datetime'].min()
-        ].values * units('m/s')
-        # re-compute the translation speed
-        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
-            'speed'
-        ].values * units('m/s')
-        translation_speed[
-            dataframe['datetime'] == dataframe['datetime'].min()
-        ] = initial_translation_speed
         # get Vmax after subtracting speed and adjusting to boundary layer height
-        Vmax = (
-            dataframe[MaximumSustainedWindSpeed.name].values * MaximumSustainedWindSpeed.unit
-            - 0.66 * translation_speed  # LC12: 0.66 factor
-        ) / BLAdj
+        Vmax = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name].values * CentralPressure.unit - DelP
         return pc.magnitude
