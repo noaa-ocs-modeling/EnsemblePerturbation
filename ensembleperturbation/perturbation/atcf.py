@@ -1932,8 +1932,10 @@ class VortexPerturber:
         """ Compute Holland B at each time snap """
         dataframe = self.track.data
         # get Vmax after subtracting speed and adjusting to boundary layer
-        Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
-        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
+        Vmax = (
+            dataframe[MaximumSustainedWindSpeed.name].values * MaximumSustainedWindSpeed.unit
+            - 0.66 * dataframe['speed'].values * units('m/s') # LC12: 0.66 factor
+        ) / BLAdj
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
@@ -1941,9 +1943,23 @@ class VortexPerturber:
 
     def compute_pc_from_Vmax(self, dataframe: DataFrame) -> float:
         """ Compute central pressure from Vmax based on Holland B """
+        # keep original translation speed for the 0-hr forecast which has been computed
+        # using info from track info prior to the forecast time (in m/s!)
+        initial_translation_speed = dataframe['speed'].loc[
+            dataframe['datetime'] == dataframe['datetime'].min()
+        ].values * units('m/s')
+        # re-compute the translation speed
+        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
+            'speed'
+        ].values * units('m/s')
+        translation_speed[
+            dataframe['datetime'] == dataframe['datetime'].min()
+        ] = initial_translation_speed
         # get Vmax after subtracting speed and adjusting to boundary layer height
-        Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
-        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
+        Vmax = (
+            dataframe[MaximumSustainedWindSpeed.name].values * MaximumSustainedWindSpeed.unit
+            - 0.66 * translation_speed # LC12: 0.66 factor
+        ) / BLAdj
         DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name].values * CentralPressure.unit - DelP
         return pc.magnitude
