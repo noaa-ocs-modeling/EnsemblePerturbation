@@ -1773,12 +1773,7 @@ class VortexPerturber:
             copy=False,
         )
 
-        # make sure Rmax is last in order due to dependence on other
-        # variables for the isotach radii computation
-        variables2 = move_to_end(
-            variables, (RadiusOfMaximumWinds, RadiusOfMaximumWindsPersistent)
-        )
-        for variable in variables2:
+        for variable in variables:
             if variable.name in perturbation:
                 alpha = perturbation[variable.name]
             else:
@@ -1885,37 +1880,31 @@ class VortexPerturber:
                         f'perturbation type "{variable.perturbation_type}" is not recognized'
                     )
 
-                if isinstance(variable, MaximumSustainedWindSpeed):
-                    # In case of Vmax need to change the central pressure in accordance with Holland B relationship
-                    dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
-                elif isinstance(
-                    variable, (RadiusOfMaximumWinds, RadiusOfMaximumWindsPersistent)
-                ):
-                    # In case of Rmax need to change the r34/50,64 radii at all quadrants in accordance with the GAHM profile
-                    quadrants = [
-                        IsotachRadiusNEQ(),
-                        IsotachRadiusSEQ(),
-                        IsotachRadiusSWQ(),
-                        IsotachRadiusNWQ(),
-                    ]
-                    for quadrant in quadrants:
-                        dataframe = quadrant.perturb(
-                            vortex_dataframe=dataframe,
-                            original_dataframe=self.track.data,
-                            inplace=True,
-                        )
-                    # remove any rows that now have all 0 isotach radii
-                    # for the 50-kt or 64-kt isotach
-                    quadrant_names = [q.name for q in quadrants]
-                    drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
-                        dataframe['isotach_radius'].isin([50, 64])
-                    )
-                    dataframe.drop(index=dataframe.index[drop_row], inplace=True)
-
         # remove units from data frame
         for column in dataframe:
             if isinstance(dataframe[column].dtype, PintType):
                 dataframe[column] = dataframe[column].pint.magnitude
+
+        # Compute potential changes in the central pressure in accordance with Holland B relationship
+        dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
+
+        # Compute potential changes to r34/50,64 radii at all quadrants in accordance with the GAHM profile
+        quadrants = [
+            IsotachRadiusNEQ(),
+            IsotachRadiusSEQ(),
+            IsotachRadiusSWQ(),
+            IsotachRadiusNWQ(),
+        ]
+        for quadrant in quadrants:
+            dataframe = quadrant.perturb(
+                vortex_dataframe=dataframe, original_dataframe=self.track.data, inplace=True,
+            )
+        # remove any rows that now have all 0 isotach radii for the 50-kt or 64-kt isotach
+        quadrant_names = [q.name for q in quadrants]
+        drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
+            dataframe['isotach_radius'].isin([50, 64])
+        )
+        dataframe.drop(index=dataframe.index[drop_row], inplace=True)
 
         # write out the modified `fort.22`
         VortexTrack(storm=dataframe).to_file(filename, overwrite=True)
