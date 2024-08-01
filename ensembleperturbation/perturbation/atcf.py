@@ -386,7 +386,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         ) / BLAdj
         # limit Vmax to the lower bound
         Vmax[Vmax < self.lower_bound] = self.lower_bound
-        return Vmax
+        return Vmax, translation_speed
 
 
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
@@ -796,25 +796,8 @@ class IsotachRadius(VortexPerturbedVariable):
         LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
         J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
         """
-        # keep original translation speed for the 0-hr forecast which has been computed
-        # using info from track info prior to the forecast time (in m/s!)
-        initial_translation_speed = dataframe['speed'].loc[
-            dataframe['forecast_hours'] == 0
-        ].values * units('m/s')
-        # re-compute the translation speed
-        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
-            'speed'
-        ].values * units('m/s')
-        translation_speed[dataframe['forecast_hours'] == 0] = initial_translation_speed
         # get Vmax after subtracting speed and adjusting to boundary layer height
-        Vmax = (
-            dataframe[MaximumSustainedWindSpeed.name].values
-            * MaximumSustainedWindSpeed.unit  # LC12: 0.66 factor and 20-deg CCW rotation
-            - 0.66 * translation_speed
-        ) / BLAdj
-        Vmax[
-            Vmax < MaximumSustainedWindSpeed().lower_bound
-        ] = MaximumSustainedWindSpeed().lower_bound
+        Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
         Vr = (
             dataframe['isotach_radius'].values
@@ -1958,7 +1941,7 @@ class VortexPerturber:
         """ Compute Holland B at each time snap """
         dataframe = self.track.data
         # get Vmax after subtracting speed and adjusting to boundary layer
-        Vmax = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
+        Vmax, _ = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
@@ -1967,7 +1950,7 @@ class VortexPerturber:
     def compute_pc_from_Vmax(self, dataframe: DataFrame) -> float:
         """ Compute central pressure from Vmax based on Holland B """
         # get Vmax after subtracting speed and adjusting to boundary layer height
-        Vmax = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
+        Vmax, _ = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name].values * CentralPressure.unit - DelP
         return pc.magnitude
