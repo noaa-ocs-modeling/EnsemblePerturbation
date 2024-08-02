@@ -800,13 +800,27 @@ class IsotachRadius(VortexPerturbedVariable):
         LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
         J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
         """
+
+        def ts_factor(isotach_rad, Rmax):
+            # factors based on LC12 Figure 2
+            rRm = isotach_rad / Rmax
+            factor = 0.66 + (0.6 - 0.66) * rRm / 2
+            factor[rRm > 2] = 0.6 + (0.55 - 0.6) * (rRm[rRm > 2] - 2) / 4
+            factor[rRm > 6] = 0.55
+            factor[rRm < 1] = 0.3 + (0.66 - 0.3) * rRm[rRm < 1]
+            return factor
+
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
         Vr = (
             dataframe['isotach_radius'].values
-            * MaximumSustainedWindSpeed.unit  # LC12: 0.55 factor and 20-deg CCW rotation
-            - 0.55 * translation_speed * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+            * MaximumSustainedWindSpeed.unit  # LC12 factor and 20-deg CCW rotation
+            - ts_factor(
+                dataframe['isotach_radius'].values, dataframe[RadiusOfMaximumWinds.name].values
+            )
+            * translation_speed
+            * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
         ) / BLAdj
         # get Rmax with units
         Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
