@@ -379,6 +379,8 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         translation_speed[
             dataframe['datetime'] == dataframe['datetime'].min()
         ] = initial_translation_speed
+        # make sure put this back into the dataframe to preserve
+        dataframe['speed'] = translation_speed.magnitude
         # get the radial Vmax at the boundary layer height
         Vmax = (
             dataframe[self.name].values * self.unit
@@ -774,8 +776,11 @@ class IsotachRadius(VortexPerturbedVariable):
                     Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
                 )
                 - rfo2
-            )  # bi-section method
-            alpha *= 0.5 * (1 + (Vr / Vr_test) ** 2)
+            )
+            Vr_test[Vr_test < 0] = numpy.nan  # no solution
+            # bi-section method
+            alpha[Rrat <= 1] *= 0.5 * (1 + (Vr / Vr_test)[Rrat <= 1] ** 2)
+            alpha[Rrat > 1] *= 0.5 * (1 + (Vr_test / Vr)[Rrat > 1] ** 2)
             if B is not None:
                 # update to and Bg, phi
                 Bg = numpy.log(alpha) / numpy.log(Rrat)
@@ -784,7 +789,6 @@ class IsotachRadius(VortexPerturbedVariable):
             else:
                 # update to Rrat
                 Rrat = numpy.exp(numpy.log(alpha) / Bg)
-                Rrat[Rrat > 0.999] = 0.999
         if B is not None:
             return Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))  # B
         else:
@@ -833,8 +837,7 @@ class IsotachRadius(VortexPerturbedVariable):
         isotach_rad = original_dataframe[self.name].values * RadiusOfMaximumWinds.unit
         isotach_rad[isotach_rad == 0] = numpy.nan
         Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
-        Rrat2 = 2 * Vr_old / (Vr_old + Vmax_old)  # as a multiple of Vr/Vmax
-        Rrat[Rrat > Rrat2] = Rrat2[Rrat > Rrat2]  # adjustment for large Rrat
+        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
         # find B from original velocity profile using GAHM (traditional Holland B as first guess)
         B = self.find_parameter_from_GAHM_profile(
             Vr_old, Vmax_old, f_old, Roinv_old, B=B, isotach_rad=isotach_rad, Rrat=Rrat
@@ -843,8 +846,8 @@ class IsotachRadius(VortexPerturbedVariable):
         Bg, phi = self.find_GAHM_parameters(B, Roinv_new)
         # determine guess of new Rrat
         Rrat = Rmax_new / isotach_rad
+        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
         Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
-        Rrat[Rrat > 0.999] = 0.999  # limit to just below 1
         # now use GAHM root finding algorithm to get the new isotach_rad
         isotach_rad_new = self.find_parameter_from_GAHM_profile(
             Vr_new, Vmax_new, f_new, Roinv_new, Bg=Bg, phi=phi, Rmax=Rmax_new, Rrat=Rrat,
