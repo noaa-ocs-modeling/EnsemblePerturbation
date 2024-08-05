@@ -1,4 +1,4 @@
 {
-  "max_sustained_wind_speed": 0.0,
+  "max_sustained_wind_speed": NaN,
   "weight": 1.0
 }
