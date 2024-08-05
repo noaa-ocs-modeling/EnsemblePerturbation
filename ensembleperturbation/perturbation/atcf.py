@@ -1657,7 +1657,7 @@ class VortexPerturber:
 
         perturbations.append(
             xarray.DataArray(
-                numpy.full((1, len(variables)), fill_value=0),
+                numpy.full((1, len(variables)), fill_value=numpy.nan),
                 coords={'run': ['original'], 'variable': variable_names},
                 dims=('run', 'variable'),
             )
@@ -1791,7 +1791,6 @@ class VortexPerturber:
             copy=False,
         )
 
-        perturbed = False
         for variable in variables:
             if variable.name in perturbation:
                 alpha = perturbation[variable.name]
@@ -1799,7 +1798,6 @@ class VortexPerturber:
                 alpha = 0
 
             if alpha is None or abs(alpha) > 1.0e-3:
-                perturbed = True
                 # Make the random pertubations based on the historical forecast errors
                 # Interpolate from the given VT to the storm_VT
 
@@ -1905,7 +1903,8 @@ class VortexPerturber:
             if isinstance(dataframe[column].dtype, PintType):
                 dataframe[column] = dataframe[column].pint.magnitude
 
-        if perturbed:
+        # enter if it is not the original unperturbed file
+        if any(~numpy.isnan(list(perturbation.values()))):
             # Compute potential changes in the central pressure in accordance with Holland B relationship
             dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
