@@ -765,7 +765,8 @@ class IsotachRadius(VortexPerturbedVariable):
             rfo2 = 0.5 * isotach_rad * f
             alpha = Rrat ** Bg
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
-        while any(abs(Vr_test - Vr).magnitude > 1e-2):
+        tol = 1e-2 * MaximumSustainedWindSpeed.unit
+        while any(abs(Vr_test - Vr) > tol):
             if B is None:
                 # updates for when trying to find isotach_rad
                 isotach_rad = Rmax / Rrat
@@ -777,7 +778,7 @@ class IsotachRadius(VortexPerturbedVariable):
                 )
                 - rfo2
             )
-            Vr_test[Vr_test < 0] = numpy.nan  # no solution
+            Vr_test[Vr_test < tol] = numpy.nan  # no solution
             # bi-section method
             alpha[Rrat <= 1] *= 0.5 * (1 + (Vr / Vr_test)[Rrat <= 1] ** 2)
             alpha[Rrat > 1] *= 0.5 * (1 + (Vr_test / Vr)[Rrat > 1] ** 2)
