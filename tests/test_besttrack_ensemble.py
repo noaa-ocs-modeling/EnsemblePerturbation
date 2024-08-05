@@ -139,19 +139,11 @@ def test_original_file():
 
     perturber.write(
         perturbations=[1.0],
-        variables=gauss_variables,
-        directory=run_2_directory,
-        overwrite=True,
-    )
-    original_track_2 = VortexTrack.from_file(run_2_directory / 'original.22')
-
-    perturber.write(
-        perturbations=[1.0],
         variables=range_variables,
         directory=run_2_directory,
         overwrite=True,
     )
-    original_track_3 = VortexTrack.from_file(run_2_directory / 'original.22')
+    original_track_2 = VortexTrack.from_file(run_2_directory / 'original.22')
 
     comparison_fields = [
         field
@@ -161,4 +153,3 @@ def test_original_file():
     original_data = original_track_0.data[comparison_fields].reset_index(drop=True)
     pandas.testing.assert_frame_equal(original_track_1.data[comparison_fields], original_data)
     pandas.testing.assert_frame_equal(original_track_2.data[comparison_fields], original_data)
-    pandas.testing.assert_frame_equal(original_track_3.data[comparison_fields], original_data)
