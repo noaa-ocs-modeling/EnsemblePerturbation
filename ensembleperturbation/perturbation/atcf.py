@@ -805,6 +805,7 @@ class IsotachRadius(VortexPerturbedVariable):
         def ts_factor(isotach_rad, Rmax):
             # factors based on LC12 Figure 2
             rRm = isotach_rad / Rmax
+            rRm[rRm == 0] = 1e6  # convert a zero value to the upper limit
             factor = 0.66 + (0.6 - 0.66) * rRm / 2
             factor[rRm > 2] = 0.6 + (0.55 - 0.6) * (rRm[rRm > 2] - 2) / 4
             factor[rRm > 6] = 0.55
@@ -818,7 +819,7 @@ class IsotachRadius(VortexPerturbedVariable):
             dataframe['isotach_radius'].values
             * MaximumSustainedWindSpeed.unit  # LC12 factor and 20-deg CCW rotation
             - ts_factor(
-                dataframe['isotach_radius'].values, dataframe[RadiusOfMaximumWinds.name].values
+                dataframe[self.name].values, dataframe[RadiusOfMaximumWinds.name].values
             )
             * translation_speed
             * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
@@ -857,6 +858,9 @@ class IsotachRadius(VortexPerturbedVariable):
         B = self.find_parameter_from_GAHM_profile(
             Vr_old, Vmax_old, f_old, Roinv_old, B=B, isotach_rad=isotach_rad, Rrat=Rrat
         )
+        # correct where B is nan but should not be because isotach_rad exists
+        invalid = (numpy.isnan(B)) & (~numpy.isnan(isotach_rad))
+        B[invalid] = numpy.nanmedian(B)
         # preserving B, find new GAHM Bg and phi using new Ro_inv
         Bg, phi = self.find_GAHM_parameters(B, Roinv_new)
         # determine guess of new Rrat
@@ -876,7 +880,7 @@ class IsotachRadius(VortexPerturbedVariable):
 # IsotachRadius subclass for each quadrant
 class IsotachRadiusSWQ(IsotachRadius):
     """
-    ``isotach_radius_for_SWQ`
+    ``isotach_radius_for_SWQ``
     """
 
     name = 'isotach_radius_for_SWQ'
@@ -886,7 +890,7 @@ class IsotachRadiusSWQ(IsotachRadius):
 
 class IsotachRadiusSEQ(IsotachRadius):
     """
-    ``isotach_radius_for_SEQ
+    ``isotach_radius_for_SEQ``
     """
 
     name = 'isotach_radius_for_SEQ'
@@ -896,7 +900,7 @@ class IsotachRadiusSEQ(IsotachRadius):
 
 class IsotachRadiusNWQ(IsotachRadius):
     """
-    ``isotach_radius_for_NWQ`
+    ``isotach_radius_for_NWQ``
     """
 
     name = 'isotach_radius_for_NWQ'
@@ -906,7 +910,7 @@ class IsotachRadiusNWQ(IsotachRadius):
 
 class IsotachRadiusNEQ(IsotachRadius):
     """
-    ``isotach_radius_for_NEQ`
+    ``isotach_radius_for_NEQ``
     """
 
     name = 'isotach_radius_for_NEQ'
