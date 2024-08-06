@@ -843,7 +843,7 @@ class IsotachRadius(VortexPerturbedVariable):
         """ Compute new isotach radius based on Holland profile using perturbed Rmax/Vmax/speed values"""
         # retrieve the Vmax, Vr(isotach) at the top of the boundary layer, and Rmax
         # in the original and perturbed dataframe
-        Vmax_old, Vr_old, Rmax_old, Roinv_old, f_old, B = self.get_isotach_properties(
+        Vmax_old, Vr_old, Rmax_old, Roinv_old, f_old, B_ini = self.get_isotach_properties(
             dataframe=original_dataframe
         )
         Vmax_new, Vr_new, Rmax_new, Roinv_new, f_new, _ = self.get_isotach_properties(
@@ -856,15 +856,18 @@ class IsotachRadius(VortexPerturbedVariable):
         Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
         # find B from original velocity profile using GAHM (traditional Holland B as first guess)
         B = self.find_parameter_from_GAHM_profile(
-            Vr_old, Vmax_old, f_old, Roinv_old, B=B, isotach_rad=isotach_rad, Rrat=Rrat
+            Vr_old, Vmax_old, f_old, Roinv_old, B=B_ini, isotach_rad=isotach_rad, Rrat=Rrat
         )
-        # correct where B is nan but should not be because isotach_rad exists
-        invalid = (numpy.isnan(B)) & (~numpy.isnan(isotach_rad))
-        B[invalid] = numpy.nanmedian(B)
+        # correct where B is nan
+        invalid = numpy.isnan(B)
+        B[invalid] = B_ini[invalid]
         # preserving B, find new GAHM Bg and phi using new Ro_inv
         Bg, phi = self.find_GAHM_parameters(B, Roinv_new)
         # determine guess of new Rrat
         Rrat = Rmax_new / isotach_rad
+        # correct where Rrat is nan
+        invalid = numpy.isnan(Rrat)
+        Rrat[invalid] = Vr_new[invalid] / Vmax_new[invalid]
         Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
         Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
         # now use GAHM root finding algorithm to get the new isotach_rad
