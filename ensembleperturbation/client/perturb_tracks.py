@@ -106,7 +106,7 @@ def main():
     else:
         for forcing in arguments['forcings']:
             if isinstance(forcing, BestTrackForcingJSON):
-                storm = forcing.adcircpy_forcing.nhc_code
+                storm = forcing.pyschism_forcing.nhc_code
                 break
         else:
             raise ValueError('no best track forcing specified')
