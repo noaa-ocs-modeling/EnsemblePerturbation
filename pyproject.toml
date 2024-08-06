@@ -44,6 +44,7 @@ python-dateutil = '*'
 requests = '*'
 shapely = '*'
 scikit-learn = '*'
+scipy = '<=1.12' # Due to interpolation issue on macos!
 stormevents = '>=2.3.2' # Speed fix
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
