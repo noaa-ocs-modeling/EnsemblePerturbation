@@ -63,6 +63,10 @@ jobs:
       - name: install dependencies
         run: pip install ".[testing]"
         shell: micromamba-shell {0}
+      - name: rebuild netcdf from source
+        run: pip install --upgrade --force-reinstall --no-deps --no-cache-dir netcdf4 --no-binary netcdf4
+        shell: micromamba-shell {0}
+        if: runner.os == 'Linux'
       - name: run tests
         run: pytest --numprocesses auto
         shell: micromamba-shell {0}
