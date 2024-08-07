@@ -2,6 +2,7 @@ from os import PathLike
 from pathlib import Path
 from typing import List
 
+import geodatasets
 import geopandas
 from matplotlib import pyplot
 from matplotlib.cm import get_cmap
@@ -175,7 +176,7 @@ def plot_perturbations(
             figure.suptitle(f'{num_perturbations} perturbations of storm track')
 
             map_axis = figure.add_subplot(1, 1, 1)
-            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+            countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
             unique_perturbation_types = numpy.unique(perturbation_types)
             encoded_perturbation_types = encode_categorical_values(
@@ -269,7 +270,7 @@ def plot_track_perturbations(
     map_axis = figure.add_subplot(2, 1, 1)
     Vmax_axis = figure.add_subplot(2, 2, 3)
     Rmax_axis = figure.add_subplot(2, 2, 4)
-    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+    countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
     unique_perturbation_types = numpy.unique(perturbation_types)
     encoded_perturbation_types = encode_categorical_values(

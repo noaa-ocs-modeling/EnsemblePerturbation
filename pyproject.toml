@@ -32,6 +32,7 @@ dunamai = { version = '*', optional = true }
 f90nml = '*'
 fiona = '*'
 geopandas = '*'
+geodatasets = '*'
 netcdf4 = '*'
 matplotlib = { version = '*', optional = true }
 numpy = '*'
