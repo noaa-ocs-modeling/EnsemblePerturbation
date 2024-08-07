@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import cartopy
+import geodatasets
 import geopandas
 from matplotlib import gridspec, pyplot
 from matplotlib.axis import Axis
@@ -410,7 +411,7 @@ def plot_selected_validations(
         for index, source in enumerate(sources):
             map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
-            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+            countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
             map_axis.set_xlim((bounds[0], bounds[2]))
             map_axis.set_ylim((bounds[1], bounds[3]))
@@ -485,7 +486,7 @@ def plot_selected_percentiles(
         for index, source in enumerate(sources):
             map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
-            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+            countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
             map_axis.set_xlim((bounds[0], bounds[2]))
             map_axis.set_ylim((bounds[1], bounds[3]))
@@ -622,7 +623,7 @@ def plot_selected_probability_fields(
         for index, source in enumerate(sources):
             map_axis = figure.add_subplot(2, len(sources), index + 1)
             map_axis.title.set_text(f'{source}')
-            countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+            countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
             map_axis.set_xlim((bounds[0], bounds[2]))
             map_axis.set_ylim((bounds[1], bounds[3]))
