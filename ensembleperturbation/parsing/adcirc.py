@@ -832,7 +832,7 @@ def subset_dataset(
             elements = node_mapper[elements]
             # update element table in dataset
             ele_da = DataArray(data=elements, dims=['nele', 'nvertex'])
-            subset = subset.assign_coords({'element': ele_da})
+            subset = subset.drop('element').assign_coords({'element': ele_da})
         try:
             subset = subset.drop_sel(run='original')
         except:
