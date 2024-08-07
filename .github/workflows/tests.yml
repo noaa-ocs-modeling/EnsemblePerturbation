@@ -82,7 +82,7 @@ jobs:
           init-shell: bash
           environment-name: ci-env
           create-args: >-
-            python=3.10
+            python=3.9
             libnetcdf
             hdf5
             udunits2
