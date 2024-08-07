@@ -228,9 +228,7 @@ def karhunen_loeve_prediction(
                 index += 1
                 map_axis = figure.add_subplot(2, len(sources), index, projection=map_crs)
                 map_axis.title.set_text(f'{source}')
-                countries = geopandas.read_file(
-                    geodatasets.get_path('naturalearth land')
-                )
+                countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
                 countries.plot(color='lightgrey', ax=map_axis)
                 coast = cartopy.feature.NaturalEarthFeature(
                     category='physical', scale='50m', facecolor='none', name='coastline'
