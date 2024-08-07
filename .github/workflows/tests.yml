@@ -97,6 +97,7 @@ jobs:
         shell: micromamba-shell {0}
       - name: show coverage report
         run: coverage report
+        shell: micromamba-shell {0}
       - name: upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
