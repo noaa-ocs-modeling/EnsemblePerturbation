@@ -82,7 +82,7 @@ jobs:
           init-shell: bash
           environment-name: ci-env
           create-args: >-
-            python=${{ matrix.python-version }}
+            python=3.10
             libnetcdf
             hdf5
             udunits2
