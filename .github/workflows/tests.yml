@@ -50,34 +50,22 @@ jobs:
     steps:
       - name: clone repository
         uses: actions/checkout@v4
-      - name: install Python
-        uses: actions/setup-python@v5
+      - name: conda virtual environment
+        uses: mamba-org/setup-micromamba@v1
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: install linux dependencies
-        run: |
-          sudo apt update
-          sudo apt install libhdf5-dev
-          sudo apt install libnetcdf-dev
-        if: runner.os == 'Linux'
-      - name: install macos dependencies
-        run: |
-          brew install hdf5
-          brew install netcdf
-        if: runner.os == 'macOS'
-      - name: load cached Python installation
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.pythonLocation }}
-          key: test-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
+          init-shell: bash
+          environment-name: ci-env
+          create-args: >-
+            python=${{ matrix.python-version }}
+            libnetcdf
+            hdf5
+            udunits2
       - name: install dependencies
         run: pip install ".[testing]"
-      - name: rebuild netcdf from source
-        run: python -m pip install --upgrade --force-reinstall --no-deps --no-cache-dir netcdf4 --no-binary netcdf4
-        if: runner.os == 'Linux'
+        shell: micromamba-shell {0}
       - name: run tests
         run: pytest --numprocesses auto
+        shell: micromamba-shell {0}
   test_with_coverage:
     needs: [ lint, test ]
     name: test with coverage
