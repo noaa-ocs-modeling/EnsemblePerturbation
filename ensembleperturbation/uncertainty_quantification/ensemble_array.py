@@ -6,12 +6,6 @@ import pandas
 from pandas import DataFrame
 from scipy.spatial import cKDTree
 from scipy.special import ndtri
-import tables
-
-
-def read_combined_hdf(filename: PathLike) -> Dict[str, DataFrame]:
-    keys = [group._v_name for group in tables.open_file(filename).walk_groups('/')]
-    return {key: pandas.read_hdf(filename, key) for key in keys if key != '/'}
 
 
 def ensemble_array(
