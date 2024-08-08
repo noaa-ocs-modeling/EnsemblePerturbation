@@ -758,6 +758,20 @@ def combine_outputs(
                 if elevation_selection is not None:
                     elevation_subset = subset
 
+                if 'element' in file_data:
+                    # keep only elements where all nodes are present
+                    elements = file_data['element'].values
+                    element_mask = numpy.isin(elements, file_data['node'].values).all(axis=1)
+                    elements = elements[element_mask]
+                    # map nodes in element table to local numbering system (start at 0)
+                    node_mapper = numpy.zeros(file_data['node'].max().values + 1, dtype=int)
+                    node_index = numpy.arange(len(file_data['node']))
+                    node_mapper[file_data['node'].values] = node_index
+                    elements = node_mapper[elements]
+                    # update element table in dataset
+                    ele_da = DataArray(data=elements, dims=['nele', 'nvertex'])
+                    file_data = file_data.drop('element').assign_coords({'element': ele_da})
+
             output_data[basename] = file_data
 
     for basename, file_data in output_data.items():

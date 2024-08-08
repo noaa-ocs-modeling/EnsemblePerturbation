@@ -2,6 +2,6 @@
   "cross_track": NaN,
   "along_track": NaN,
   "max_sustained_wind_speed": NaN,
-  "radius_of_maximum_winds_persistent": NaN,
+  "radius_of_maximum_winds": NaN,
   "weight": 1.0
 }

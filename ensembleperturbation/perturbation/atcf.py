@@ -1,6 +1,7 @@
 from abc import ABC
 import concurrent.futures
 from copy import copy
+from difflib import get_close_matches
 from datetime import datetime, timedelta
 from enum import Enum
 from glob import glob
@@ -33,7 +34,12 @@ import typepigeon
 import xarray
 from xarray import Dataset
 
-from ensembleperturbation.utilities import get_logger, ProcessPoolExecutorStackTraced, units
+from ensembleperturbation.utilities import (
+    get_logger,
+    ProcessPoolExecutorStackTraced,
+    units,
+    move_to_end,
+)
 
 LOGGER = get_logger('perturbation.atcf')
 
@@ -47,8 +53,23 @@ E1 = exp(1.0)  # e
 
 BLAdj = 0.9  # adjustment factor from 10-m height to top of boundary layer
 
+omega = 7.2921159 * 1e-5 / units.seconds  # angular velocity of the earth
+
 # Index of absolute errors (forecast times [hrs)]
 HISTORICAL_ERROR_HOURS = [0, 12, 24, 36, 48, 60, 72, 96, 120]  # has 60-hr data (for Rmax)
+HISTORICAL_ERROR_HOURS_EXT = [
+    0,
+    12,
+    24,
+    36,
+    48,
+    60,
+    72,
+    84,
+    96,
+    108,
+    120,
+]  # extended index for new Rmax errors
 HISTORICAL_ERROR_HOURS_NO_60H = (
     HISTORICAL_ERROR_HOURS[:5] + HISTORICAL_ERROR_HOURS[6:]
 )  # no 60-hr data
@@ -241,7 +262,11 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             # make a deepcopy to preserve the original dataframe
             vortex_dataframe = vortex_dataframe.copy(deep=True)
 
-        variable_values = vortex_dataframe[self.name].values
+        if self.name in vortex_dataframe.columns:
+            varname = self.name
+        else:
+            varname = get_close_matches(self.name, vortex_dataframe.columns)[0]
+        variable_values = vortex_dataframe[varname].values
         if (
             not isinstance(variable_values, PintArray)
             or variable_values.units == variable_values.units._REGISTRY.dimensionless
@@ -258,7 +283,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
         all_values = variable_values - values
         # ensure that we don't change zero values
         all_values[variable_values.magnitude < 1] = 0 * all_values.units
-        vortex_dataframe[self.name] = [
+        vortex_dataframe[varname] = [
             min(self.upper_bound, max(value, self.lower_bound)).magnitude
             if value.magnitude != 0
             else 0
@@ -340,15 +365,118 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
             unit=units.knot,
         )
 
+    def radial_Vmax_at_BL(self, dataframe: DataFrame) -> Quantity:
+        # keep original translation speed for the 0-hr forecast which has been computed
+        # using info from track info prior to the forecast time (in m/s!)
+        initial_translation_speed = dataframe['speed'].loc[
+            dataframe['datetime'] == dataframe['datetime'].min()
+        ].values * units('m/s')
+        # re-compute the translation speed
+        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
+            'speed'
+        ].values * units('m/s')
+        # overwrite the first hour with the initial
+        translation_speed[
+            dataframe['datetime'] == dataframe['datetime'].min()
+        ] = initial_translation_speed
+        # make sure put this back into the dataframe to preserve
+        dataframe['speed'] = translation_speed.magnitude
+        # get the radial Vmax at the boundary layer height
+        Vmax = (
+            dataframe[self.name].values * self.unit
+            - 0.66 * translation_speed  # LC12: 0.66 factor
+        ) / BLAdj
+        # limit Vmax to the lower bound
+        Vmax[Vmax < self.lower_bound] = self.lower_bound
+        return Vmax, translation_speed
+
 
 class RadiusOfMaximumWinds(VortexPerturbedVariable):
     """
-    ``radius_of_maximum_winds`` (``Rmax``)
-    It is perturbed along a uniform distribution on [-1,1] between the 0th and 100th percentile CDFs of NHC historical forecast errors.
-    0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
+    ``radius_of_maximum_winds`` (``Rmax``) represents the distance from the storm center to the maximum wind speed sustained by the storm.
+    It is perturbed along a random gaussian distribution (``0`` - ``1``), scaled to the mean of absolute historical errors based on the forecasted Rmax regression in Penny et al. (2023). https://doi.org/10.1175/WAF-D-22-0209.1
     """
 
     name = 'radius_of_maximum_winds'
+    perturbation_type = PerturbationType.GAUSSIAN
+    unit = units.nautical_mile
+
+    # Reference - Computed MAE from the CDF of 10-yrs of RMW forecast errors as described in Penny et al. (2023), and provided by Andrew Penny.
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=200,
+            historical_forecast_errors={
+                '<50kt': DataFrame(
+                    {
+                        'mean error [nmi]': [
+                            3.38,
+                            11.81,
+                            15.04,
+                            17.44,
+                            17.78,
+                            17.78,
+                            18.84,
+                            19.34,
+                            21.15,
+                            23.19,
+                            24.77,
+                        ]
+                    },
+                    dtype=PintType(units.nautical_mile),
+                    index=HISTORICAL_ERROR_HOURS_EXT,
+                ),
+                '50-95kt': DataFrame(
+                    {
+                        'mean error [nmi]': [
+                            3.38,
+                            6.67,
+                            9.51,
+                            10.70,
+                            11.37,
+                            12.27,
+                            12.67,
+                            13.32,
+                            13.97,
+                            14.45,
+                            15.79,
+                        ]
+                    },
+                    dtype=PintType(units.nautical_mile),
+                    index=HISTORICAL_ERROR_HOURS_EXT,
+                ),
+                '>95kt': DataFrame(
+                    {
+                        'mean error [nmi]': [
+                            3.38,
+                            3.66,
+                            4.98,
+                            6.26,
+                            7.25,
+                            8.57,
+                            9.22,
+                            10.69,
+                            11.35,
+                            11.57,
+                            11.38,
+                        ]
+                    },
+                    dtype=PintType(units.nautical_mile),
+                    index=HISTORICAL_ERROR_HOURS_EXT,
+                ),
+            },
+            unit=units.nautical_mile,
+        )
+
+
+class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
+    """
+    ``radius_of_maximum_winds_persistent`` (``Rmax``)
+    It is perturbed along a uniform distribution on [-1,1] between the 0th and 100th percentile CDFs of NHC historical forecast errors based on persistence forecasting of Rmax (0-hr Rmax is propagated for every validation time of storm).
+    0th and 100th percentiles are calculated based on extrapolation from the provided 15th, 50th, and 85th percentiles.
+    """
+
+    name = 'radius_of_maximum_winds_persistent'
     perturbation_type = PerturbationType.UNIFORM
 
     def __init__(self):
@@ -564,7 +692,7 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
         :return: errors based on size classification
         """
 
-        initial_radius = data_frame[self.name].iloc[loc_index]
+        initial_radius = data_frame['radius_of_maximum_winds'].iloc[loc_index]
 
         if not isinstance(initial_radius, Quantity):
             initial_radius *= units.nautical_mile
@@ -584,73 +712,213 @@ class RadiusOfMaximumWinds(VortexPerturbedVariable):
         return self.historical_forecast_errors[storm_classification]
 
 
-# Rmax-dependent radius variables
-class IsotachRadiusSWQ(VortexPerturbedVariable):
+# IsotachRadius parent class for isotach radii dependent
+# on the changes to Rmax, Vmax and track
+class IsotachRadius(VortexPerturbedVariable):
+
+    name = 'isotach_radius'
+    perturbation_type = None
+
+    def __init__(self):
+        super().__init__(
+            lower_bound=5,
+            upper_bound=400,
+            historical_forecast_errors={},
+            unit=units.nautical_mile,
+        )
+
+    def find_GAHM_parameters(self, B, Ro_inv) -> Quantity:
+        """ 
+        find Bg and phi for GAHM model iteratively
+        with given B and Rossby number (inverse)
+        """
+        Bg = B
+        Bm = 1e6
+        while any(abs(Bm - Bg) > 1e-3):
+            Bm = Bg
+            phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
+            Bg = B * (1 + Ro_inv) * numpy.exp(phi - 1) / phi
+        return Bg, phi
+
+    def find_parameter_from_GAHM_profile(
+        self,
+        Vr,
+        Vmax,
+        f,
+        Ro_inv,
+        B=None,
+        Bg=None,
+        phi=None,
+        Rmax=None,
+        isotach_rad=None,
+        Rrat=None,
+    ) -> Quantity:
+        """ 
+        Use root finding algorithm to return a desired parameter 
+        based on the GAHM profile of velocity that matches the input Vr
+        Input B (guess), isotach_rad and Rrat to get back the actual B
+        Input Bg, phi, Rmax, and Rrat to get back isotach_rad 
+        """
+        if B is not None:
+            # initial guesses when trying to find Bg, phi (and new B)
+            Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
+            rfo2 = 0.5 * isotach_rad * f
+            alpha = Rrat ** Bg
+        Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
+        tol = 1e-2 * MaximumSustainedWindSpeed.unit
+        while any(abs(Vr_test - Vr) > tol):
+            if B is None:
+                # updates for when trying to find isotach_rad
+                isotach_rad = Rmax / Rrat
+                rfo2 = 0.5 * isotach_rad * f
+                alpha = Rrat ** Bg
+            Vr_test = (
+                numpy.sqrt(
+                    Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
+                )
+                - rfo2
+            )
+            Vr_test[Vr_test < tol] = numpy.nan  # no solution
+            # bi-section method
+            alpha[Rrat <= 1] *= 0.5 * (1 + (Vr / Vr_test)[Rrat <= 1] ** 2)
+            alpha[Rrat > 1] *= 0.5 * (1 + (Vr_test / Vr)[Rrat > 1] ** 2)
+            if B is not None:
+                # update to and Bg, phi
+                Bg = numpy.log(alpha) / numpy.log(Rrat)
+                phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
+                phi[phi < 1] = 1
+            else:
+                # update to Rrat
+                Rrat = numpy.exp(numpy.log(alpha) / Bg)
+        if B is not None:
+            return Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))  # B
+        else:
+            return Rmax / Rrat  # isotach_rad
+
+    def get_isotach_properties(self, dataframe: DataFrame) -> Quantity:
+        """ 
+        Return properties of storm and isotach after adjusting for quadrant angle and boundary layer height.
+        LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
+        J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
+        """
+
+        def ts_factor(isotach_rad, Rmax):
+            # factors based on LC12 Figure 2
+            rRm = isotach_rad / Rmax
+            rRm[rRm == 0] = 1e6  # convert a zero value to the upper limit
+            factor = 0.66 + (0.6 - 0.66) * rRm / 2
+            factor[rRm > 2] = 0.6 + (0.55 - 0.6) * (rRm[rRm > 2] - 2) / 4
+            factor[rRm > 6] = 0.55
+            factor[rRm < 1] = 0.3 + (0.66 - 0.3) * rRm[rRm < 1]
+            return factor
+
+        # get Vmax after subtracting speed and adjusting to boundary layer height
+        Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
+        # get Vr for the X-kt isotach in this quadrant
+        Vr = (
+            dataframe['isotach_radius'].values
+            * MaximumSustainedWindSpeed.unit  # LC12 factor and 20-deg CCW rotation
+            - ts_factor(
+                dataframe[self.name].values, dataframe[RadiusOfMaximumWinds.name].values
+            )
+            * translation_speed
+            * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+        ) / BLAdj
+        # get Rmax with units
+        Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
+        # get Coriolis and compute Rossby number (inverse of)
+        f = 2 * omega * numpy.sin(numpy.deg2rad(dataframe['latitude'].values))
+        Ro_inv = (Rmax * f / Vmax).to('dimensionless')
+        # get central pessure and compute standard Holland B parameter as initial guess
+        DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
+        DelP = DelP.values * CentralPressure.unit
+        B = Vmax.to('m/s') ** 2 * AIR_DENSITY * E1 / DelP.to('Pa')
+        # now found the Bg and phi (and subsequent B) that actually fits
+        # through both the isotach and the Rmax value
+        return Vmax, Vr, Rmax, Ro_inv, f, B
+
+    def perturb(
+        self, vortex_dataframe: DataFrame, original_dataframe, inplace: bool = False,
+    ) -> DataFrame:
+        """ Compute new isotach radius based on Holland profile using perturbed Rmax/Vmax/speed values"""
+        # retrieve the Vmax, Vr(isotach) at the top of the boundary layer, and Rmax
+        # in the original and perturbed dataframe
+        Vmax_old, Vr_old, Rmax_old, Roinv_old, f_old, B_ini = self.get_isotach_properties(
+            dataframe=original_dataframe
+        )
+        Vmax_new, Vr_new, Rmax_new, Roinv_new, f_new, _ = self.get_isotach_properties(
+            dataframe=vortex_dataframe
+        )
+        # determine original isotach_rad and Rrat
+        isotach_rad = original_dataframe[self.name].values * RadiusOfMaximumWinds.unit
+        isotach_rad[isotach_rad == 0] = numpy.nan
+        Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
+        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
+        # find B from original velocity profile using GAHM (traditional Holland B as first guess)
+        B = self.find_parameter_from_GAHM_profile(
+            Vr_old, Vmax_old, f_old, Roinv_old, B=B_ini, isotach_rad=isotach_rad, Rrat=Rrat
+        )
+        # correct where B is nan
+        invalid = numpy.isnan(B)
+        B[invalid] = B_ini[invalid]
+        # preserving B, find new GAHM Bg and phi using new Ro_inv
+        Bg, phi = self.find_GAHM_parameters(B, Roinv_new)
+        # determine guess of new Rrat
+        Rrat = Rmax_new / isotach_rad
+        # correct where Rrat is nan
+        invalid = numpy.isnan(Rrat)
+        Rrat[invalid] = Vr_new[invalid] / Vmax_new[invalid]
+        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
+        Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
+        # now use GAHM root finding algorithm to get the new isotach_rad
+        isotach_rad_new = self.find_parameter_from_GAHM_profile(
+            Vr_new, Vmax_new, f_new, Roinv_new, Bg=Bg, phi=phi, Rmax=Rmax_new, Rrat=Rrat,
+        )
+        isotach_rad_new = isotach_rad_new.magnitude
+        isotach_rad_new[numpy.isnan(isotach_rad_new)] = 0
+        vortex_dataframe[self.name] = isotach_rad_new
+        return vortex_dataframe
+
+
+# IsotachRadius subclass for each quadrant
+class IsotachRadiusSWQ(IsotachRadius):
     """
-    ``isotach_radius_for_SWQ`
+    ``isotach_radius_for_SWQ``
     """
 
     name = 'isotach_radius_for_SWQ'
-    perturbation_type = PerturbationType.UNIFORM
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    perturbation_type = None
+    quadrant_angle = 225  # degrees
 
 
-class IsotachRadiusSEQ(VortexPerturbedVariable):
+class IsotachRadiusSEQ(IsotachRadius):
     """
-    ``isotach_radius_for_SEQ`
+    ``isotach_radius_for_SEQ``
     """
 
     name = 'isotach_radius_for_SEQ'
-    perturbation_type = PerturbationType.UNIFORM
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    perturbation_type = None
+    quadrant_angle = 135  # degrees
 
 
-class IsotachRadiusNWQ(VortexPerturbedVariable):
+class IsotachRadiusNWQ(IsotachRadius):
     """
-    ``isotach_radius_for_NWQ`
+    ``isotach_radius_for_NWQ``
     """
 
     name = 'isotach_radius_for_NWQ'
-    perturbation_type = PerturbationType.UNIFORM
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    perturbation_type = None
+    quadrant_angle = 315  # degrees
 
 
-class IsotachRadiusNEQ(VortexPerturbedVariable):
+class IsotachRadiusNEQ(IsotachRadius):
     """
-    ``isotach_radius_for_NEQ`
+    ``isotach_radius_for_NEQ``
     """
 
     name = 'isotach_radius_for_NEQ'
-    perturbation_type = PerturbationType.UNIFORM
-
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+    perturbation_type = None
+    quadrant_angle = 45  # degrees
 
 
 class CrossTrack(VortexPerturbedVariable):
@@ -1396,7 +1664,7 @@ class VortexPerturber:
 
         perturbations.append(
             xarray.DataArray(
-                numpy.full((1, len(variables)), fill_value=0),
+                numpy.full((1, len(variables)), fill_value=numpy.nan),
                 coords={'run': ['original'], 'variable': variable_names},
                 dims=('run', 'variable'),
             )
@@ -1637,29 +1905,35 @@ class VortexPerturber:
                         f'perturbation type "{variable.perturbation_type}" is not recognized'
                     )
 
-                if isinstance(variable, MaximumSustainedWindSpeed):
-                    # In case of Vmax need to change the central pressure in accordance with Holland B relationship
-                    dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
-                elif isinstance(variable, RadiusOfMaximumWinds):
-                    # In case of Rmax need to change the r34/50,64 radii at all quadrants in the same way
-                    quadrants = [
-                        IsotachRadiusNEQ(),
-                        IsotachRadiusSEQ(),
-                        IsotachRadiusSWQ(),
-                        IsotachRadiusNWQ(),
-                    ]
-                    for quadrant in quadrants:
-                        dataframe = quadrant.perturb(
-                            vortex_dataframe=dataframe,
-                            values=perturbed_values,
-                            times=self.validation_times,
-                            inplace=True,
-                        )
-
         # remove units from data frame
         for column in dataframe:
             if isinstance(dataframe[column].dtype, PintType):
                 dataframe[column] = dataframe[column].pint.magnitude
+
+        # enter if it is not the original unperturbed file
+        if any(~numpy.isnan(list(perturbation.values()))):
+            # Compute potential changes in the central pressure in accordance with Holland B relationship
+            dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
+
+            # Compute potential changes to r34/50,64 radii at all quadrants in accordance with the GAHM profile
+            quadrants = [
+                IsotachRadiusNEQ(),
+                IsotachRadiusSEQ(),
+                IsotachRadiusSWQ(),
+                IsotachRadiusNWQ(),
+            ]
+            for quadrant in quadrants:
+                dataframe = quadrant.perturb(
+                    vortex_dataframe=dataframe,
+                    original_dataframe=self.track.data,
+                    inplace=True,
+                )
+            # remove any rows that now have all 0 isotach radii for the 50-kt or 64-kt isotach
+            quadrant_names = [q.name for q in quadrants]
+            drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
+                dataframe['isotach_radius'].isin([50, 64])
+            )
+            dataframe.drop(index=dataframe.index[drop_row], inplace=True)
 
         # write out the modified `fort.22`
         VortexTrack(storm=dataframe).to_file(filename, overwrite=True)
@@ -1681,12 +1955,11 @@ class VortexPerturber:
         return self.track.data['datetime'] - self.track.start_date
 
     @property
-    def holland_B(self) -> float:
+    def holland_B(self) -> Quantity:
         """ Compute Holland B at each time snap """
         dataframe = self.track.data
         # get Vmax after subtracting speed and adjusting to boundary layer
-        Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
-        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
+        Vmax, _ = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         DelP = dataframe[BackgroundPressure.name] - dataframe[CentralPressure.name]
         DelP = DelP.values * CentralPressure.unit
         B = Vmax * Vmax * AIR_DENSITY * E1 / DelP
@@ -1695,8 +1968,7 @@ class VortexPerturber:
     def compute_pc_from_Vmax(self, dataframe: DataFrame) -> float:
         """ Compute central pressure from Vmax based on Holland B """
         # get Vmax after subtracting speed and adjusting to boundary layer height
-        Vmax = (dataframe[MaximumSustainedWindSpeed.name] - dataframe['speed']) / BLAdj
-        Vmax = Vmax.values * MaximumSustainedWindSpeed.unit
+        Vmax, _ = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         DelP = Vmax * Vmax * AIR_DENSITY * E1 / self.holland_B
         pc = dataframe[BackgroundPressure.name].values * CentralPressure.unit - DelP
         return pc.magnitude
