@@ -32,6 +32,7 @@ dunamai = { version = '*', optional = true }
 f90nml = '*'
 fiona = '*'
 geopandas = '*'
+geodatasets = '*'
 netcdf4 = '*'
 matplotlib = { version = '*', optional = true }
 numpy = '*'
@@ -45,7 +46,7 @@ requests = '*'
 shapely = '*'
 scikit-learn = '*'
 scipy = '<=1.12' # Due to interpolation issue on macos!
-stormevents = '>=2.3.2' # Speed fix
+stormevents = '>=2.2.5, != 2.3.0, != 2.3.1' # tests results based on speed fix
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
 pytest = { version = '*', optional = true }

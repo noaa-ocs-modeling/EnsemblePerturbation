@@ -4,6 +4,7 @@ import pickle
 from typing import Union
 
 import cartopy
+import geodatasets
 import geopandas
 import cmocean
 from matplotlib import pyplot
@@ -162,6 +163,7 @@ def karhunen_loeve_prediction(
     actual_values=None,
     ensembles_to_plot=None,
     element_table=None,
+    reference_line: bool = True,
     plot_directory: PathLike = None,
 ):
     """
@@ -192,8 +194,13 @@ def karhunen_loeve_prediction(
 
         xlim = axis.get_xlim()
         ylim = axis.get_ylim()
-        axis.set_xlim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
-        axis.set_ylim(min(xlim[0], ylim[0]), max(xlim[1], ylim[1]))
+        bb_min = min(xlim[0], ylim[0])
+        bb_max = max(xlim[1], ylim[1])
+        axis.set_xlim(bb_min, bb_max)
+        axis.set_ylim(bb_min, bb_max)
+
+        if reference_line:
+            axis.plot([bb_min, bb_max], [bb_min, bb_max], '--k', alpha=0.3, zorder=-50)
 
         figure.savefig(
             plot_directory / f'KL_fit.png', dpi=200, bbox_inches='tight',
@@ -208,8 +215,8 @@ def karhunen_loeve_prediction(
                 actual_values['y'].max(),
             ]
         )
-        vmax = np.round_(actual_values.quantile(0.98), decimals=1)
-        vmin = min(0.0, np.round_(actual_values.quantile(0.02), decimals=1))
+        vmax = np.round(actual_values.quantile(0.98), decimals=1)
+        vmin = min(0.0, np.round(actual_values.quantile(0.02), decimals=1))
         sources = {'actual': actual_values, 'reconstructed': kl_prediction}
         map_crs = cartopy.crs.PlateCarree()
         for example in ensembles_to_plot:
@@ -221,9 +228,7 @@ def karhunen_loeve_prediction(
                 index += 1
                 map_axis = figure.add_subplot(2, len(sources), index, projection=map_crs)
                 map_axis.title.set_text(f'{source}')
-                countries = geopandas.read_file(
-                    geopandas.datasets.get_path('naturalearth_lowres')
-                )
+                countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
                 countries.plot(color='lightgrey', ax=map_axis)
                 coast = cartopy.feature.NaturalEarthFeature(
                     category='physical', scale='50m', facecolor='none', name='coastline'
@@ -260,6 +265,7 @@ def karhunen_loeve_prediction(
             pyplot.subplots_adjust(wspace=0.02, right=0.96)
             cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
             cbar = figure.colorbar(im, extend='both', cax=cax)
+            cbar.ax.set_title('[m]')
 
             figure.savefig(
                 plot_directory / f'KL_ensemble{example}.png', dpi=200, bbox_inches='tight',
