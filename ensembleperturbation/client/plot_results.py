@@ -6,7 +6,6 @@ import cmocean
 from matplotlib import pyplot
 import pandas
 from pandas import DataFrame
-import tables
 
 
 def main():
@@ -22,8 +21,6 @@ def main():
         combined_results_filename, key='vortex_perturbation_parameters'
     )
     output_dataframe: DataFrame = pandas.read_hdf(combined_results_filename, key='zeta_max')
-
-    combined_results = tables.open_file(combined_results_filename)
 
     # just get standard deviation of the outputs
     output_standard_deviation = output_dataframe.std(axis=1, skipna=True)

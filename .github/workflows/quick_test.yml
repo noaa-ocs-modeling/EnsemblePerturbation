@@ -15,12 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: clone repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: install Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
       - name: load cached Python installation
         id: cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ${{ env.pythonLocation }}
           key: lint-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
@@ -40,19 +42,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: clone repository
-        uses: actions/checkout@v2
-      - name: install Python
-        uses: actions/setup-python@v2
-        # due to coupledmodeldriver dependency python 3.10 cannot be supported
+        uses: actions/checkout@v4
+      - name: conda virtual environment
+        uses: mamba-org/setup-micromamba@v1
         with:
-          python-version: 3.9
-      - name: load cached Python installation
-        id: cache
-        uses: actions/cache@v2
-        with:
-          path: ${{ env.pythonLocation }}
-          key: test-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
+          init-shell: bash
+          environment-name: ci-env
+          create-args: >-
+            python=3.9
+            libnetcdf
+            hdf5
+            udunits2
       - name: install dependencies
         run: pip install ".[testing]"
+        shell: micromamba-shell {0}
+      - name: rebuild netcdf from source
+        run: pip install --upgrade --force-reinstall --no-deps --no-cache-dir netcdf4 --no-binary netcdf4
+        shell: micromamba-shell {0}
       - name: run tests
         run: pytest --numprocesses auto
+        shell: micromamba-shell {0}

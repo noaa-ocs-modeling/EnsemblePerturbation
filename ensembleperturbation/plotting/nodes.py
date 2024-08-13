@@ -1,6 +1,7 @@
 from os import PathLike
 
 import cartopy
+import geodatasets
 import geopandas
 from matplotlib import cm, gridspec, pyplot
 from matplotlib.axis import Axis
@@ -217,7 +218,7 @@ def plot_node_map(
         float(nodes.coords['y'].max().values),
     ]
 
-    countries = geopandas.read_file(geopandas.datasets.get_path('naturalearth_lowres'))
+    countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
     countries.plot(color='lightgrey', ax=map_axis)
     coast = cartopy.feature.NaturalEarthFeature(
         category='physical', scale='50m', facecolor='none', name='coastline'

@@ -1,7 +1,7 @@
 {
-  "cross_track": 0.0,
-  "along_track": 0.0,
-  "max_sustained_wind_speed": 0.0,
-  "radius_of_maximum_winds": 0.0,
+  "cross_track": NaN,
+  "along_track": NaN,
+  "max_sustained_wind_speed": NaN,
+  "radius_of_maximum_winds_persistent": NaN,
   "weight": 1.0
 }
