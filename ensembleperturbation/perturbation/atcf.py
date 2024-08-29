@@ -780,7 +780,7 @@ class IsotachRadius(VortexPerturbedVariable):
             )
             Vr_test[Vr_test < tol] = numpy.nan  # no solution
             # bi-section method with correction rate
-            rate = 1 / 2**(i//1000 + 1)
+            rate = 1 / 2 ** (i // 1000 + 1)
             alpha[Rrat <= 1] *= 1 + ((Vr / Vr_test)[Rrat <= 1] ** 2 - 1) * rate
             alpha[Rrat > 1] *= 1 + ((Vr_test / Vr)[Rrat > 1] ** 2 - 1) * rate
             if B is not None:
