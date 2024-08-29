@@ -762,16 +762,16 @@ class IsotachRadius(VortexPerturbedVariable):
         if B is not None:
             # initial guesses when trying to find Bg, phi (and new B)
             Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
-            rfo2 = 0.5 * isotach_rad * f
-            alpha = Rrat ** Bg
+        else:
+            # updates for when trying to find isotach_rad
+            isotach_rad = Rmax / Rrat
+        rfo2 = 0.5 * isotach_rad * f
+        alpha = Rrat ** Bg
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
+        i = 0
         while any(abs(Vr_test - Vr) > tol):
-            if B is None:
-                # updates for when trying to find isotach_rad
-                isotach_rad = Rmax / Rrat
-                rfo2 = 0.5 * isotach_rad * f
-                alpha = Rrat ** Bg
+            i += 1
             Vr_test = (
                 numpy.sqrt(
                     Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
@@ -779,9 +779,10 @@ class IsotachRadius(VortexPerturbedVariable):
                 - rfo2
             )
             Vr_test[Vr_test < tol] = numpy.nan  # no solution
-            # bi-section method
-            alpha[Rrat <= 1] *= 0.5 * (1 + (Vr / Vr_test)[Rrat <= 1] ** 2)
-            alpha[Rrat > 1] *= 0.5 * (1 + (Vr_test / Vr)[Rrat > 1] ** 2)
+            # bi-section method with correction rate
+            rate = 1 / 2**(i//1000 + 1)
+            alpha[Rrat <= 1] *= 1 + ((Vr / Vr_test)[Rrat <= 1] ** 2 - 1) * rate
+            alpha[Rrat > 1] *= 1 + ((Vr_test / Vr)[Rrat > 1] ** 2 - 1) * rate
             if B is not None:
                 # update to and Bg, phi
                 Bg = numpy.log(alpha) / numpy.log(Rrat)
@@ -790,6 +791,8 @@ class IsotachRadius(VortexPerturbedVariable):
             else:
                 # update to Rrat
                 Rrat = numpy.exp(numpy.log(alpha) / Bg)
+                isotach_rad = Rmax / Rrat
+                rfo2 = 0.5 * isotach_rad * f
         if B is not None:
             return Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))  # B
         else:
