@@ -420,6 +420,7 @@ def statistics_from_surrogate(
 def percentiles_from_samples(
     samples: xarray.DataArray,
     percentiles: List[float],
+    timeslots: int,
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     convert_from_log_scale: Union[bool, float] = False,
@@ -428,12 +429,31 @@ def percentiles_from_samples(
     # surrogate_percentiles = chaospy.Perc(
     #    poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
     # )
-    surrogate_percentiles = compute_surrogate_percentiles(
-        poly=surrogate_model,
-        q=percentiles,
-        dist=distribution,
-        convert_from_log_scale=convert_from_log_scale,
-    )
+
+    # use chunks of surrogate model (for each timeslot) to calculate percentiles
+    surr_chunk_length = int(surrogate_model.shape[0] / timeslots)
+
+    for timestep in range(timeslots):
+        surrogate_percentiles_chunk = compute_surrogate_percentiles(
+            poly=surrogate_model[
+                (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
+            ],
+            q=percentiles,
+            dist=distribution,
+            convert_from_log_scale=convert_from_log_scale,
+        )
+        if timestep == 0:
+            surrogate_percentiles = surrogate_percentiles_chunk
+        else:
+            surrogate_percentiles = numpy.concatenate(
+                (surrogate_percentiles, surrogate_percentiles_chunk), axis=1
+            )
+    #    surrogate_percentiles = compute_surrogate_percentiles(
+    #        poly=surrogate_model,
+    #        q=percentiles,
+    #        dist=distribution,
+    #        convert_from_log_scale=convert_from_log_scale,
+    #    )
 
     surrogate_percentiles = xarray.DataArray(
         surrogate_percentiles,
@@ -453,6 +473,7 @@ def percentiles_from_samples(
 
 def percentiles_from_surrogate(
     percentiles: List[float],
+    timeslots: int,
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
@@ -485,6 +506,7 @@ def percentiles_from_surrogate(
             samples=training_set,
             percentiles=percentiles,
             surrogate_model=surrogate_model,
+            timeslots=timeslots, 
             distribution=distribution,
             convert_from_log_scale=convert_from_log_scale,
         )
