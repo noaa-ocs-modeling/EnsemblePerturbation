@@ -898,7 +898,7 @@ def extrapolate_water_elevation_to_dry_areas(
 
     # inverse distance weighting of order `idw_order` with `k_nearest` neighbors
     for run in range(da.sizes['run']):
-        null = numpy.isnan(da[run, :])
+        null = numpy.isnan(da[run, :]).compute()
         tree = KDTree(projected_coordinates[~null])
         dd, nn = tree.query(projected_coordinates[null], k=k_neighbors)
         max_allowable_values = da['depth'][null].values + min_depth - numpy.finfo(float).eps
