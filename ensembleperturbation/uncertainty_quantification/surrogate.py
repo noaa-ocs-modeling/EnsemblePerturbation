@@ -420,7 +420,7 @@ def statistics_from_surrogate(
 def percentiles_from_samples(
     samples: xarray.DataArray,
     percentiles: List[float],
-    timeslots: int,
+    timeslots: int = 1,
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     convert_from_log_scale: Union[bool, float] = False,
@@ -473,7 +473,7 @@ def percentiles_from_samples(
 
 def percentiles_from_surrogate(
     percentiles: List[float],
-    timeslots: int,
+    timeslots: int = 1,
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
@@ -633,7 +633,7 @@ def compute_surrogate_percentiles(
 def probability_field_from_samples(
     samples: xarray.Dataset,
     levels: List[float],
-    timeslots: int,
+    timeslots: int = 1,
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     minimum_allowable_value: float = None,
@@ -694,7 +694,7 @@ def probability_field_from_samples(
 
 def probability_field_from_surrogate(
     levels: List[float],
-    timeslots: int,
+    timeslots: int = 1,
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
