@@ -656,7 +656,8 @@ def probability_field_from_samples(
             minimum_allowable_value=minimum_allowable_value,
             convert_from_log_scale=convert_from_log_scale,
             convert_from_depths=convert_from_depths,
-            depths=samples['depth'],
+            depths=samples['depth'][(timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)],
+#            depths=samples['depth'],
         )
         if timestep == 0:
             surrogate_prob_field = surrogate_prob_field_chunk
