@@ -767,6 +767,8 @@ class IsotachRadius(VortexPerturbedVariable):
             isotach_rad = Rmax / Rrat
         rfo2 = 0.5 * isotach_rad * f
         alpha = Rrat ** Bg
+        alpha_lo = numpy.nan * alpha
+        alpha_hi = numpy.nan * alpha
         beta = Vmax ** 2 * (1 + Ro_inv)
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
@@ -776,12 +778,17 @@ class IsotachRadius(VortexPerturbedVariable):
             expf = numpy.exp(phi * (1 - alpha))
             Vr_test = numpy.sqrt(beta * expf * alpha + rfo2 ** 2) - rfo2
             Vr_test[Vr_test < tol] = numpy.nan  # no solution
-            # bi-section method with correction rate
-            rate = 1 / 2 ** (i // 50 + 1)
-            alpha[Rrat <= 1] *= 1 + ((Vr / Vr_test)[Rrat <= 1] ** 2 - 1) * rate
-            alpha[Rrat > 1] *= 1 + ((Vr_test / Vr)[Rrat > 1] ** 2 - 1) * rate
+            # updates for bi-section method
+            alpha_hi[Vr_test > Vr] = alpha[Vr_test > Vr]
+            alpha_lo[Vr_test < Vr] = alpha[Vr_test < Vr]
+            # guess new alpha based on error
+            alpha[Rrat <= 1] *= (Vr / Vr_test)[Rrat <= 1] ** 2
+            alpha[Rrat > 1] *= (Vr_test / Vr)[Rrat > 1] ** 2
+            # bi-section method to help convergence
+            avail = ~numpy.isnan(alpha_hi) & ~numpy.isnan(alpha_lo)
+            alpha[avail] = 0.5 * (alpha_hi[avail] + alpha_lo[avail])
             if B is not None:
-                # update to and Bg, phi
+                # update to Bg, phi
                 Bg = numpy.log(alpha) / numpy.log(Rrat)
                 phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
                 phi[phi < 1] = 1
