@@ -49,5 +49,5 @@ def test_perturb_performance(storm, year, date1, date2):
             advisories=['OFCL'],
             start_date=date1,
             end_date=date2,
-            parallel=True,
+            parallel=False,  # Parallel interfere's with timeout
         )
