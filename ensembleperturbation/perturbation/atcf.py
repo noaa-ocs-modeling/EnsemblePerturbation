@@ -768,25 +768,15 @@ class IsotachRadius(VortexPerturbedVariable):
         rfo2 = 0.5 * isotach_rad * f
         alpha = Rrat ** Bg
         alpha_lo = numpy.nan * alpha
-        alpha_hi = numpy.nan * alpha
+        alpha_hi = 0 * alpha + 1
         beta = Vmax ** 2 * (1 + Ro_inv)
+        beta[Vmax < Vr] = numpy.nan  # no possible solution
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
         i = 0
         itmax = 1000
         while any(abs(Vr_test - Vr) > tol):
-            expf = numpy.exp(phi * (1 - alpha))
-            Vr_test = numpy.sqrt(beta * expf * alpha + rfo2 ** 2) - rfo2
-            Vr_test[Vr_test < tol] = numpy.nan  # no solution
-            # updates for bi-section method
-            alpha_hi[Vr_test > Vr] = alpha[Vr_test > Vr]
-            alpha_lo[Vr_test < Vr] = alpha[Vr_test < Vr]
-            # guess new alpha based on error
-            alpha[Rrat <= 1] *= (Vr / Vr_test)[Rrat <= 1] ** 2
-            alpha[Rrat > 1] *= (Vr_test / Vr)[Rrat > 1] ** 2
-            # bi-section method to help convergence
-            avail = ~numpy.isnan(alpha_hi) & ~numpy.isnan(alpha_lo)
-            alpha[avail] = 0.5 * (alpha_hi[avail] + alpha_lo[avail])
+            # updates to desired parameters with current alpha value
             if B is not None:
                 # update to Bg, phi
                 Bg = numpy.log(alpha) / numpy.log(Rrat)
@@ -797,6 +787,18 @@ class IsotachRadius(VortexPerturbedVariable):
                 Rrat = alpha ** (1 / Bg)
                 isotach_rad = Rmax / Rrat
                 rfo2 = 0.5 * isotach_rad * f
+            # compute Vr using the current set of inputs
+            expf = numpy.exp(phi * (1 - alpha))
+            Vr_test = numpy.sqrt(beta * expf * alpha + rfo2 ** 2) - rfo2
+            # updates to the alphas for bi-section method
+            alpha_hi[Vr_test > Vr] = alpha[Vr_test > Vr]
+            alpha_lo[Vr_test < Vr] = alpha[Vr_test < Vr]
+            # guess new alpha based on error
+            alpha[Rrat <= 1] *= (Vr / Vr_test)[Rrat <= 1] ** 2
+            alpha[Rrat > 1] *= (Vr_test / Vr)[Rrat > 1] ** 2
+            # bi-section method to help convergence
+            avail = ~numpy.isnan(alpha_lo)
+            alpha[avail] = 0.5 * (alpha_hi[avail] + alpha_lo[avail])
             i += 1
             if i == itmax:
                 raise RuntimeError('GAHM function could not converge')
