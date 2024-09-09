@@ -762,34 +762,46 @@ class IsotachRadius(VortexPerturbedVariable):
         if B is not None:
             # initial guesses when trying to find Bg, phi (and new B)
             Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
-            rfo2 = 0.5 * isotach_rad * f
-            alpha = Rrat ** Bg
+        else:
+            # updates for when trying to find isotach_rad
+            isotach_rad = Rmax / Rrat
+        rfo2 = 0.5 * isotach_rad * f
+        alpha = Rrat ** Bg
+        alpha_lo = numpy.nan * alpha
+        alpha_hi = 0 * alpha + 1
+        beta = Vmax ** 2 * (1 + Ro_inv)
+        beta[Vmax < Vr] = numpy.nan  # no possible solution
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
+        i = 0
+        itmax = 1000
         while any(abs(Vr_test - Vr) > tol):
-            if B is None:
-                # updates for when trying to find isotach_rad
-                isotach_rad = Rmax / Rrat
-                rfo2 = 0.5 * isotach_rad * f
-                alpha = Rrat ** Bg
-            Vr_test = (
-                numpy.sqrt(
-                    Vmax ** 2 * (1 + Ro_inv) * numpy.exp(phi * (1 - alpha)) * alpha + rfo2 ** 2
-                )
-                - rfo2
-            )
-            Vr_test[Vr_test < tol] = numpy.nan  # no solution
-            # bi-section method
-            alpha[Rrat <= 1] *= 0.5 * (1 + (Vr / Vr_test)[Rrat <= 1] ** 2)
-            alpha[Rrat > 1] *= 0.5 * (1 + (Vr_test / Vr)[Rrat > 1] ** 2)
+            # updates to desired parameters with current alpha value
             if B is not None:
-                # update to and Bg, phi
+                # update to Bg, phi
                 Bg = numpy.log(alpha) / numpy.log(Rrat)
                 phi = 1 + Ro_inv / (Bg * (1 + Ro_inv))
                 phi[phi < 1] = 1
             else:
                 # update to Rrat
-                Rrat = numpy.exp(numpy.log(alpha) / Bg)
+                Rrat = alpha ** (1 / Bg)
+                isotach_rad = Rmax / Rrat
+                rfo2 = 0.5 * isotach_rad * f
+            # compute Vr using the current set of inputs
+            expf = numpy.exp(phi * (1 - alpha))
+            Vr_test = numpy.sqrt(beta * expf * alpha + rfo2 ** 2) - rfo2
+            # updates to the alphas for bi-section method
+            alpha_hi[Vr_test > Vr] = alpha[Vr_test > Vr]
+            alpha_lo[Vr_test < Vr] = alpha[Vr_test < Vr]
+            # guess new alpha based on error
+            alpha[Rrat <= 1] *= (Vr / Vr_test)[Rrat <= 1] ** 2
+            alpha[Rrat > 1] *= (Vr_test / Vr)[Rrat > 1] ** 2
+            # bi-section method to help convergence
+            avail = ~numpy.isnan(alpha_lo)
+            alpha[avail] = 0.5 * (alpha_hi[avail] + alpha_lo[avail])
+            i += 1
+            if i == itmax:
+                raise RuntimeError('GAHM function could not converge')
         if B is not None:
             return Bg * phi / ((1 + Ro_inv) * numpy.exp(phi - 1))  # B
         else:
