@@ -762,15 +762,15 @@ class IsotachRadius(VortexPerturbedVariable):
         if B is not None:
             # initial guesses when trying to find Bg, phi (and new B)
             Bg, phi = self.find_GAHM_parameters(B, Ro_inv)
+            rfo2 = 0.5 * isotach_rad * f  # this stays constant
         else:
             # updates for when trying to find isotach_rad
-            isotach_rad = Rmax / Rrat
-        rfo2 = 0.5 * isotach_rad * f
+            rfo2 = 0.5 * Rmax * f  # this would be rfo2 at Rrat = alpha = 1
         alpha = Rrat ** Bg
         alpha_lo = numpy.nan * alpha
         alpha_hi = 0 * alpha + 1
         beta = Vmax ** 2 * (1 + Ro_inv)
-        beta[Vmax < Vr] = numpy.nan  # no possible solution
+        beta[numpy.sqrt(beta + rfo2 ** 2) - rfo2 < Vr] = numpy.nan  # no possible solution
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
         i = 0
