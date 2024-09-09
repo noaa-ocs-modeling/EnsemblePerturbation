@@ -52,6 +52,7 @@ oitnb = { version = '*', optional = true }
 pytest = { version = '*', optional = true }
 pytest-cov = { version = '*', optional = true }
 pytest-xdist = { version = '*', optional = true }
+pytest-timeout = { version = '*', optional = true }
 wget = { version = '*', optional = true }
 m2r2 = { version = '*', optional = true }
 sphinx = { version = '*', optional = true }
@@ -61,7 +62,7 @@ sphinxcontrib-programoutput = { version = '*', optional = true }
 
 [tool.poetry.extras]
 plotting = ['cartopy', 'cmocean', 'matplotlib']
-testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'wget']
+testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'pytest-timeout', 'wget']
 development = ['isort', 'oitnb']
 documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex', 'cartopy', 'cmocean', 'matplotlib']
 adcirc = ['adcircpy']
