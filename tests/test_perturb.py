@@ -20,6 +20,7 @@ from ensembleperturbation.perturbation.atcf import (
         ('irma', 2017, datetime(2017, 9, 10, 0), datetime(2017, 9, 13, 12)),
         ('florence', 2018, datetime(2018, 9, 12, 18), datetime(2018, 9, 19, 0)),
         ('laura', 2020, datetime(2020, 8, 25, 6), datetime(2020, 8, 31, 6)),
+        ('idalia', 2023, datetime(2023, 8, 29, 0), datetime(2023, 9, 7, 18)),
     ],
 )
 def test_perturb_performance(storm, year, date1, date2):
