@@ -423,17 +423,37 @@ def percentiles_from_samples(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     convert_from_log_scale: Union[bool, float] = False,
+    timeslots: int = 1,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
     # surrogate_percentiles = chaospy.Perc(
     #    poly=surrogate_model, q=percentiles, dist=distribution, sample=samples.shape[1],
     # )
-    surrogate_percentiles = compute_surrogate_percentiles(
-        poly=surrogate_model,
-        q=percentiles,
-        dist=distribution,
-        convert_from_log_scale=convert_from_log_scale,
-    )
+
+    # use chunks of surrogate model (for each timeslot) to calculate percentiles
+    surr_chunk_length = int(surrogate_model.shape[0] / timeslots)
+
+    for timestep in range(timeslots):
+        surrogate_percentiles_chunk = compute_surrogate_percentiles(
+            poly=surrogate_model[
+                (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
+            ],
+            q=percentiles,
+            dist=distribution,
+            convert_from_log_scale=convert_from_log_scale,
+        )
+        if timestep == 0:
+            surrogate_percentiles = surrogate_percentiles_chunk
+        else:
+            surrogate_percentiles = numpy.concatenate(
+                (surrogate_percentiles, surrogate_percentiles_chunk), axis=1
+            )
+    #    surrogate_percentiles = compute_surrogate_percentiles(
+    #        poly=surrogate_model,
+    #        q=percentiles,
+    #        dist=distribution,
+    #        convert_from_log_scale=convert_from_log_scale,
+    #    )
 
     surrogate_percentiles = xarray.DataArray(
         surrogate_percentiles,
@@ -456,6 +476,7 @@ def percentiles_from_surrogate(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
+    timeslots: int = 1,
     minimum_allowable_value: float = None,
     convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
@@ -485,6 +506,7 @@ def percentiles_from_surrogate(
             samples=training_set,
             percentiles=percentiles,
             surrogate_model=surrogate_model,
+            timeslots=timeslots,
             distribution=distribution,
             convert_from_log_scale=convert_from_log_scale,
         )
@@ -613,6 +635,7 @@ def probability_field_from_samples(
     levels: List[float],
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
+    timeslots: int = 1,
     minimum_allowable_value: float = None,
     convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
@@ -620,15 +643,40 @@ def probability_field_from_samples(
 
     LOGGER.info(f'calculating {len(levels)} probability field(s): {levels}')
 
-    surrogate_prob_field = compute_surrogate_probability_field(
-        poly=surrogate_model,
-        levels=levels,
-        dist=distribution,
-        minimum_allowable_value=minimum_allowable_value,
-        convert_from_log_scale=convert_from_log_scale,
-        convert_from_depths=convert_from_depths,
-        depths=samples['depth'],
-    )
+    # use chunks of surrogate model (for each timeslot) to calculate percentiles
+    surr_chunk_length = int(surrogate_model.shape[0] / timeslots)
+
+    for timestep in range(timeslots):
+        surrogate_prob_field_chunk = compute_surrogate_probability_field(
+            poly=surrogate_model[
+                (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
+            ],
+            levels=levels,
+            dist=distribution,
+            minimum_allowable_value=minimum_allowable_value,
+            convert_from_log_scale=convert_from_log_scale,
+            convert_from_depths=convert_from_depths,
+            depths=samples['depth'][
+                (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
+            ],
+            #            depths=samples['depth'],
+        )
+        if timestep == 0:
+            surrogate_prob_field = surrogate_prob_field_chunk
+        else:
+            surrogate_prob_field = numpy.concatenate(
+                (surrogate_prob_field, surrogate_prob_field_chunk), axis=1
+            )
+
+    #    surrogate_prob_field = compute_surrogate_probability_field(
+    #        poly=surrogate_model,
+    #        levels=levels,
+    #        dist=distribution,
+    #        minimum_allowable_value=minimum_allowable_value,
+    #        convert_from_log_scale=convert_from_log_scale,
+    #        convert_from_depths=convert_from_depths,
+    #        depths=samples['depth'],
+    #    )
 
     surrogate_prob_field = xarray.DataArray(
         surrogate_prob_field,
@@ -651,6 +699,7 @@ def probability_field_from_surrogate(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
+    timeslots: int = 1,
     minimum_allowable_value: float = None,
     convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
@@ -666,6 +715,7 @@ def probability_field_from_surrogate(
             samples=training_set,
             levels=levels,
             surrogate_model=surrogate_model,
+            timeslots=timeslots,
             distribution=distribution,
             minimum_allowable_value=minimum_allowable_value,
             convert_from_log_scale=convert_from_log_scale,
