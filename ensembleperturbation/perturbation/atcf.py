@@ -1927,25 +1927,27 @@ class VortexPerturber:
             # Compute potential changes in the central pressure in accordance with Holland B relationship
             dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
-            # Compute potential changes to r34/50,64 radii at all quadrants in accordance with the GAHM profile
-            quadrants = [
-                IsotachRadiusNEQ(),
-                IsotachRadiusSEQ(),
-                IsotachRadiusSWQ(),
-                IsotachRadiusNWQ(),
-            ]
-            for quadrant in quadrants:
-                dataframe = quadrant.perturb(
-                    vortex_dataframe=dataframe,
-                    original_dataframe=self.track.data,
-                    inplace=True,
+            if RadiusOfMaximumWinds in variables:
+                # If perturbing for GAHM, use isotach perturbation
+                # Compute potential changes to r34/50,64 radii at all quadrants in accordance with the GAHM profile
+                quadrants = [
+                    IsotachRadiusNEQ(),
+                    IsotachRadiusSEQ(),
+                    IsotachRadiusSWQ(),
+                    IsotachRadiusNWQ(),
+                ]
+                for quadrant in quadrants:
+                    dataframe = quadrant.perturb(
+                        vortex_dataframe=dataframe,
+                        original_dataframe=self.track.data,
+                        inplace=True,
+                    )
+                # remove any rows that now have all 0 isotach radii for the 50-kt or 64-kt isotach
+                quadrant_names = [q.name for q in quadrants]
+                drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
+                    dataframe['isotach_radius'].isin([50, 64])
                 )
-            # remove any rows that now have all 0 isotach radii for the 50-kt or 64-kt isotach
-            quadrant_names = [q.name for q in quadrants]
-            drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
-                dataframe['isotach_radius'].isin([50, 64])
-            )
-            dataframe.drop(index=dataframe.index[drop_row], inplace=True)
+                dataframe.drop(index=dataframe.index[drop_row], inplace=True)
 
         # write out the modified `fort.22`
         VortexTrack(storm=dataframe).to_file(filename, overwrite=True)
