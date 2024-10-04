@@ -8,6 +8,7 @@ from ensembleperturbation.perturbation.atcf import (
     RadiusOfMaximumWindsPersistent,
     RadiusOfMaximumWinds,
     perturb_tracks,
+    PerturberFeatures,
 )
 from tests import check_reference_directory, DATA_DIRECTORY
 
@@ -73,7 +74,7 @@ def test_online_advisory():
     check_reference_directory(output_directory, reference_directory)
 
 
-def test_no_isotach_adj():
+def test_no_isotach_adj_feature():
     output_directory = DATA_DIRECTORY / 'output' / 'test_no_isotach_adj'
     reference_directory = DATA_DIRECTORY / 'reference' / 'test_no_isotach_adj'
 
@@ -84,7 +85,7 @@ def test_no_isotach_adj():
         CrossTrack,
         AlongTrack,
         MaximumSustainedWindSpeed,
-        RadiusOfMaximumWinds,
+        RadiusOfMaximumWindsPersistent, # No feature is used for persistent error
     ]
 
     perturbations = perturb_tracks(
@@ -99,7 +100,56 @@ def test_no_isotach_adj():
         sample_rule='korobov',
         overwrite=True,
         parallel=True,
-        features=None,
+        features=PerturberFeatures.NONE,
     )
 
     check_reference_directory(output_directory, reference_directory)
+
+
+def test_no_feature_equals_none():
+    output_directory_1 = DATA_DIRECTORY / 'output' / 'test_no_feature_equals_none' / 'none'
+    output_directory_2 = DATA_DIRECTORY / 'output' / 'test_no_feature_equals_none' / 'no_feature'
+
+    if not output_directory_1.exists():
+        output_directory_1.mkdir(parents=True, exist_ok=True)
+    if not output_directory_2.exists():
+        output_directory_2.mkdir(parents=True, exist_ok=True)
+
+    variables = [
+        CrossTrack,
+        AlongTrack,
+        MaximumSustainedWindSpeed,
+        RadiusOfMaximumWindsPersistent, # No feature is used for persistent error
+    ]
+
+    perturbations = perturb_tracks(
+        perturbations=9,
+        directory=output_directory_1,
+        storm='Ida2021',
+        start_date=datetime(2021, 8, 28),
+        advisories=['OFCL'],
+        file_deck='a',
+        variables=variables,
+        sample_from_distribution=True,
+        sample_rule='korobov',
+        overwrite=True,
+        parallel=True,
+        features=None,
+    )
+
+    perturbations = perturb_tracks(
+        perturbations=9,
+        directory=output_directory_2,
+        storm='Ida2021',
+        start_date=datetime(2021, 8, 28),
+        advisories=['OFCL'],
+        file_deck='a',
+        variables=variables,
+        sample_from_distribution=True,
+        sample_rule='korobov',
+        overwrite=True,
+        parallel=True,
+        features=PerturberFeatures.NONE,
+    )
+
+    check_reference_directory(output_directory_1, output_directory_2)
