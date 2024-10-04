@@ -85,7 +85,7 @@ def test_no_isotach_adj_feature():
         CrossTrack,
         AlongTrack,
         MaximumSustainedWindSpeed,
-        RadiusOfMaximumWindsPersistent, # No feature is used for persistent error
+        RadiusOfMaximumWindsPersistent,  # No feature is used for persistent error
     ]
 
     perturbations = perturb_tracks(
@@ -108,7 +108,9 @@ def test_no_isotach_adj_feature():
 
 def test_no_feature_equals_none():
     output_directory_1 = DATA_DIRECTORY / 'output' / 'test_no_feature_equals_none' / 'none'
-    output_directory_2 = DATA_DIRECTORY / 'output' / 'test_no_feature_equals_none' / 'no_feature'
+    output_directory_2 = (
+        DATA_DIRECTORY / 'output' / 'test_no_feature_equals_none' / 'no_feature'
+    )
 
     if not output_directory_1.exists():
         output_directory_1.mkdir(parents=True, exist_ok=True)
@@ -119,7 +121,7 @@ def test_no_feature_equals_none():
         CrossTrack,
         AlongTrack,
         MaximumSustainedWindSpeed,
-        RadiusOfMaximumWindsPersistent, # No feature is used for persistent error
+        RadiusOfMaximumWindsPersistent,  # No feature is used for persistent error
     ]
 
     perturbations = perturb_tracks(

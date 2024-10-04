@@ -725,7 +725,6 @@ class IsotachRadiusQuadrant(Enum):
 
 # IsotachRadius adjuster dependent on the changes to Rmax, Vmax and track
 class IsotachRadius:
-
     def __init__(self, rad_quad_info: IsotachRadiusQuadrant):
         self.quadrant_angle = rad_quad_info.value.angle
         self.column = rad_quad_info.value.column
@@ -1248,7 +1247,6 @@ class AlongTrack(VortexPerturbedVariable):
 class PerturberFeatures(Flag):
     NONE = 0
     ISOTACH_ADJUSTMENT = auto()
-
 
 
 class VortexPerturber:
