@@ -1,9 +1,10 @@
 from abc import ABC
 import concurrent.futures
+from collections import namedtuple
 from copy import copy
 from difflib import get_close_matches
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import Enum, Flag, auto
 from glob import glob
 import json
 from math import exp, inf, sqrt
@@ -11,7 +12,7 @@ import os
 from os import PathLike
 from pathlib import Path
 from random import gauss, uniform
-from typing import Dict, List, Mapping, Union
+from typing import Dict, List, Mapping, Union, Optional
 import warnings
 
 import chaospy
@@ -712,20 +713,22 @@ class RadiusOfMaximumWindsPersistent(VortexPerturbedVariable):
         return self.historical_forecast_errors[storm_classification]
 
 
-# IsotachRadius parent class for isotach radii dependent
-# on the changes to Rmax, Vmax and track
-class IsotachRadius(VortexPerturbedVariable):
+IsotachQuadrant = namedtuple('IsotachQuadrant', ['angle', 'column'])
 
-    name = 'isotach_radius'
-    perturbation_type = None
 
-    def __init__(self):
-        super().__init__(
-            lower_bound=5,
-            upper_bound=400,
-            historical_forecast_errors={},
-            unit=units.nautical_mile,
-        )
+class IsotachRadiusQuadrant(Enum):
+    SWQ = IsotachQuadrant(225, 'isotach_radius_for_SWQ')
+    SEQ = IsotachQuadrant(135, 'isotach_radius_for_SEQ')
+    NWQ = IsotachQuadrant(315, 'isotach_radius_for_NWQ')
+    NEQ = IsotachQuadrant(45, 'isotach_radius_for_NEQ')
+
+
+# IsotachRadius adjuster dependent on the changes to Rmax, Vmax and track
+class IsotachRadius:
+
+    def __init__(self, rad_quad_info: IsotachRadiusQuadrant):
+        self.quadrant_angle = rad_quad_info.value.angle
+        self.column = rad_quad_info.value.column
 
     def find_GAHM_parameters(self, B, Ro_inv) -> Quantity:
         """ 
@@ -831,7 +834,7 @@ class IsotachRadius(VortexPerturbedVariable):
             dataframe['isotach_radius'].values
             * MaximumSustainedWindSpeed.unit  # LC12 factor and 20-deg CCW rotation
             - ts_factor(
-                dataframe[self.name].values, dataframe[RadiusOfMaximumWinds.name].values
+                dataframe[self.column].values, dataframe[RadiusOfMaximumWinds.name].values
             )
             * translation_speed
             * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
@@ -849,7 +852,7 @@ class IsotachRadius(VortexPerturbedVariable):
         # through both the isotach and the Rmax value
         return Vmax, Vr, Rmax, Ro_inv, f, B
 
-    def perturb(
+    def adjust(
         self, vortex_dataframe: DataFrame, original_dataframe, inplace: bool = False,
     ) -> DataFrame:
         """ Compute new isotach radius based on Holland profile using perturbed Rmax/Vmax/speed values"""
@@ -862,7 +865,7 @@ class IsotachRadius(VortexPerturbedVariable):
             dataframe=vortex_dataframe
         )
         # determine original isotach_rad and Rrat
-        isotach_rad = original_dataframe[self.name].values * RadiusOfMaximumWinds.unit
+        isotach_rad = original_dataframe[self.column].values * RadiusOfMaximumWinds.unit
         isotach_rad[isotach_rad == 0] = numpy.nan
         Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
         Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
@@ -888,49 +891,8 @@ class IsotachRadius(VortexPerturbedVariable):
         )
         isotach_rad_new = isotach_rad_new.magnitude
         isotach_rad_new[numpy.isnan(isotach_rad_new)] = 0
-        vortex_dataframe[self.name] = isotach_rad_new
+        vortex_dataframe[self.column] = isotach_rad_new
         return vortex_dataframe
-
-
-# IsotachRadius subclass for each quadrant
-class IsotachRadiusSWQ(IsotachRadius):
-    """
-    ``isotach_radius_for_SWQ``
-    """
-
-    name = 'isotach_radius_for_SWQ'
-    perturbation_type = None
-    quadrant_angle = 225  # degrees
-
-
-class IsotachRadiusSEQ(IsotachRadius):
-    """
-    ``isotach_radius_for_SEQ``
-    """
-
-    name = 'isotach_radius_for_SEQ'
-    perturbation_type = None
-    quadrant_angle = 135  # degrees
-
-
-class IsotachRadiusNWQ(IsotachRadius):
-    """
-    ``isotach_radius_for_NWQ``
-    """
-
-    name = 'isotach_radius_for_NWQ'
-    perturbation_type = None
-    quadrant_angle = 315  # degrees
-
-
-class IsotachRadiusNEQ(IsotachRadius):
-    """
-    ``isotach_radius_for_NEQ``
-    """
-
-    name = 'isotach_radius_for_NEQ'
-    perturbation_type = None
-    quadrant_angle = 45  # degrees
 
 
 class CrossTrack(VortexPerturbedVariable):
@@ -1283,6 +1245,12 @@ class AlongTrack(VortexPerturbedVariable):
         return vortex_dataframe
 
 
+class PerturberFeatures(Flag):
+    NONE = 0
+    ISOTACH_ADJUSTMENT = auto()
+
+
+
 class VortexPerturber:
     """
     ``VortexPerturber`` takes an ATCF track from an input storm and perturbs it based on several variables (of the class ``VortexPerturbedVariable``)
@@ -1332,6 +1300,7 @@ class VortexPerturber:
         end_date: datetime = None,
         file_deck: ATCF_FileDeck = None,
         advisories: List[str] = None,
+        features: Optional[PerturberFeatures] = PerturberFeatures.ISOTACH_ADJUSTMENT,
     ):
         """
         :param storm: NHC storm code, for instance `al062018`
@@ -1346,6 +1315,9 @@ class VortexPerturber:
         self.__file_deck = None
         self.__track = None
         self.__previous_configuration = None
+        if features is None:
+            features = PerturberFeatures.NONE
+        self.__features = PerturberFeatures(features)
 
         self.storm = storm
         self.start_date = start_date
@@ -1363,6 +1335,7 @@ class VortexPerturber:
         end_date: datetime = None,
         file_deck: ATCF_FileDeck = None,
         advisories: List[str] = None,
+        features: Optional[PerturberFeatures] = PerturberFeatures.ISOTACH_ADJUSTMENT,
     ) -> 'VortexPerturber':
         """
         build storm perturber from an existing `fort.22` or ATCF file
@@ -1385,12 +1358,16 @@ class VortexPerturber:
             track.forecast_time = (
                 track.data.track_start_time.min() if start_date is None else start_date
             )
-        instance = VortexPerturber.from_track(track)
+        instance = cls.from_track(track, features)
         instance.__filename = filename
         return instance
 
     @classmethod
-    def from_track(cls, track: VortexTrack) -> 'VortexPerturber':
+    def from_track(
+        cls,
+        track: VortexTrack,
+        features: Optional[PerturberFeatures] = PerturberFeatures.ISOTACH_ADJUSTMENT,
+    ) -> 'VortexPerturber':
         """
         build storm perturber from an existing `VortexTrack` object
 
@@ -1406,6 +1383,7 @@ class VortexPerturber:
             end_date=track.end_date,
             file_deck=track.file_deck,
             advisories=track.advisories,
+            features=features,
         )
         instance.track = track
         instance.__previous_configuration = {
@@ -1927,23 +1905,22 @@ class VortexPerturber:
             # Compute potential changes in the central pressure in accordance with Holland B relationship
             dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
-            if RadiusOfMaximumWinds in variables:
-                # If perturbing for GAHM, use isotach perturbation
+            if self.__features | PerturberFeatures.ISOTACH_ADJUSTMENT:
                 # Compute potential changes to r34/50,64 radii at all quadrants in accordance with the GAHM profile
                 quadrants = [
-                    IsotachRadiusNEQ(),
-                    IsotachRadiusSEQ(),
-                    IsotachRadiusSWQ(),
-                    IsotachRadiusNWQ(),
+                    IsotachRadius(IsotachRadiusQuadrant.NEQ),
+                    IsotachRadius(IsotachRadiusQuadrant.SEQ),
+                    IsotachRadius(IsotachRadiusQuadrant.SWQ),
+                    IsotachRadius(IsotachRadiusQuadrant.NWQ),
                 ]
                 for quadrant in quadrants:
-                    dataframe = quadrant.perturb(
+                    dataframe = quadrant.adjust(
                         vortex_dataframe=dataframe,
                         original_dataframe=self.track.data,
                         inplace=True,
                     )
                 # remove any rows that now have all 0 isotach radii for the 50-kt or 64-kt isotach
-                quadrant_names = [q.name for q in quadrants]
+                quadrant_names = [q.column for q in quadrants]
                 drop_row = (dataframe[quadrant_names] == 0).all(axis=1) & (
                     dataframe['isotach_radius'].isin([50, 64])
                 )
@@ -2184,6 +2161,7 @@ def perturb_tracks(
     advisories: List[str] = None,
     overwrite: bool = False,
     parallel: bool = True,
+    features: Optional[PerturberFeatures] = PerturberFeatures.ISOTACH_ADJUSTMENT,
 ):
     """
     write a set of perturbed storm tracks
@@ -2226,6 +2204,7 @@ def perturb_tracks(
                 end_date=end_date,
                 file_deck=file_deck,
                 advisories=advisories,
+                features=features,
             )
         else:
             raise FileNotFoundError
@@ -2239,6 +2218,7 @@ def perturb_tracks(
             end_date=end_date,
             file_deck=file_deck,
             advisories=advisories,
+            features=features,
         )
 
     filenames = [directory / 'original.22']

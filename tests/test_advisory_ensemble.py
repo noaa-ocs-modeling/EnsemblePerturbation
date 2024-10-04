@@ -71,3 +71,35 @@ def test_online_advisory():
     )
 
     check_reference_directory(output_directory, reference_directory)
+
+
+def test_no_isotach_adj():
+    output_directory = DATA_DIRECTORY / 'output' / 'test_no_isotach_adj'
+    reference_directory = DATA_DIRECTORY / 'reference' / 'test_no_isotach_adj'
+
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True, exist_ok=True)
+
+    variables = [
+        CrossTrack,
+        AlongTrack,
+        MaximumSustainedWindSpeed,
+        RadiusOfMaximumWinds,
+    ]
+
+    perturbations = perturb_tracks(
+        perturbations=9,
+        directory=output_directory,
+        storm='Ida2021',
+        start_date=datetime(2021, 8, 28),
+        advisories=['OFCL'],
+        file_deck='a',
+        variables=variables,
+        sample_from_distribution=True,
+        sample_rule='korobov',
+        overwrite=True,
+        parallel=True,
+        features=None,
+    )
+
+    check_reference_directory(output_directory, reference_directory)
