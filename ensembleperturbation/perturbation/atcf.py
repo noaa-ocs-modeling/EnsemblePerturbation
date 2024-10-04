@@ -1905,7 +1905,7 @@ class VortexPerturber:
             # Compute potential changes in the central pressure in accordance with Holland B relationship
             dataframe[CentralPressure.name] = self.compute_pc_from_Vmax(dataframe)
 
-            if self.__features | PerturberFeatures.ISOTACH_ADJUSTMENT:
+            if self.__features & PerturberFeatures.ISOTACH_ADJUSTMENT:
                 # Compute potential changes to r34/50,64 radii at all quadrants in accordance with the GAHM profile
                 quadrants = [
                     IsotachRadius(IsotachRadiusQuadrant.NEQ),
