@@ -8,7 +8,7 @@ on:
 jobs:
   publish:
     name: publish package to PyPI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Latest not supported by actions-poetry@v3
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
