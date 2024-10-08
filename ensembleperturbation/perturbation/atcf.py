@@ -820,7 +820,7 @@ class IsotachRadius:
             # factors based on LC12 Figure 2
             rRm = isotach_rad / Rmax
             rRm[rRm == 0] = 1e6  # convert a zero value to the upper limit
-            factor = 0.66 + (0.6 - 0.66) * rRm / 2
+            factor = 0.66 + (0.6 - 0.66) * (rRm - 1)  # (1 <= rRm <= 2)
             factor[rRm > 2] = 0.6 + (0.55 - 0.6) * (rRm[rRm > 2] - 2) / 4
             factor[rRm > 6] = 0.55
             factor[rRm < 1] = 0.3 + (0.66 - 0.3) * rRm[rRm < 1]
