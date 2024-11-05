@@ -867,7 +867,7 @@ class IsotachRadius:
         isotach_rad = original_dataframe[self.column].values * RadiusOfMaximumWinds.unit
         isotach_rad[isotach_rad == 0] = numpy.nan
         Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
-        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
+        Rrat[Rrat > 0.95] = 0.95  # enforce upper limit to enable convergence
         # find B from original velocity profile using GAHM (traditional Holland B as first guess)
         B = self.find_parameter_from_GAHM_profile(
             Vr_old, Vmax_old, f_old, Roinv_old, B=B_ini, isotach_rad=isotach_rad, Rrat=Rrat
@@ -882,8 +882,8 @@ class IsotachRadius:
         # correct where Rrat is nan
         invalid = numpy.isnan(Rrat)
         Rrat[invalid] = Vr_new[invalid] / Vmax_new[invalid]
-        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
         Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
+        Rrat[Rrat > 0.95] = 0.95  # enforce upper limit to enable convergence
         # now use GAHM root finding algorithm to get the new isotach_rad
         isotach_rad_new = self.find_parameter_from_GAHM_profile(
             Vr_new, Vmax_new, f_new, Roinv_new, Bg=Bg, phi=phi, Rmax=Rmax_new, Rrat=Rrat,
