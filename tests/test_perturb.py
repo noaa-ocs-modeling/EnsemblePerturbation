@@ -54,6 +54,7 @@ def test_perturb_performance(storm, year, date1, date2):
             parallel=False,  # Parallel interfere's with timeout
         )
 
+
 def test_perturb_converge():
     with tempfile.TemporaryDirectory() as tdir:
         track_path = Path(tdir) / 'track.dat'
@@ -72,10 +73,10 @@ def test_perturb_converge():
         perturb_tracks(
             40,
             variables=[
-              "cross_track",
-              "along_track",
-              "radius_of_maximum_winds_persistent",
-              "max_sustained_wind_speed",
+                'cross_track',
+                'along_track',
+                'radius_of_maximum_winds_persistent',
+                'max_sustained_wind_speed',
             ],
             directory=pert_path,
             storm=track_path,
