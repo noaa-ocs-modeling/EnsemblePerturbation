@@ -383,9 +383,11 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         # make sure put this back into the dataframe to preserve
         dataframe['speed'] = translation_speed.magnitude
         # get the radial Vmax at the boundary layer height
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
         Vmax = (
             dataframe[self.name].values * self.unit
-            - 0.66 * translation_speed  # LC12: 0.66 factor
+            - SWH79_ts * translation_speed.units  # SHW79 eqn
+            # - 0.62 * translation_speed  # LC12
         ) / BLAdj
         # limit Vmax to the lower bound
         Vmax[Vmax < self.lower_bound] = self.lower_bound
@@ -718,8 +720,8 @@ IsotachQuadrant = namedtuple('IsotachQuadrant', ['angle', 'column'])
 
 class IsotachRadiusQuadrant(Enum):
     SWQ = IsotachQuadrant(225, 'isotach_radius_for_SWQ')
-    SEQ = IsotachQuadrant(135, 'isotach_radius_for_SEQ')
-    NWQ = IsotachQuadrant(315, 'isotach_radius_for_NWQ')
+    SEQ = IsotachQuadrant(315, 'isotach_radius_for_SEQ')
+    NWQ = IsotachQuadrant(135, 'isotach_radius_for_NWQ')
     NEQ = IsotachQuadrant(45, 'isotach_radius_for_NEQ')
 
 
@@ -812,8 +814,12 @@ class IsotachRadius:
     def get_isotach_properties(self, dataframe: DataFrame) -> Quantity:
         """ 
         Return properties of storm and isotach after adjusting for quadrant angle and boundary layer height.
-        LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
-        J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
+
+        LC12: Lin, N., and D. Chavas (2012). On hurricane parametric wind and applications in storm surge modeling,
+        J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126
+
+        SHW79: Schwerdt, R. W., Ho, F. P., & Watkins, R. R. (1979). Meteorological Criteria for Standard Project Hurricane and Probable Maximum Hurricane Windfields, Gulf and East Coasts of the United States.
+        https://repository.library.noaa.gov/view/noaa/6948/noaa_6948_DS1.pdf
         """
 
         def ts_factor(isotach_rad, Rmax):
@@ -829,15 +835,25 @@ class IsotachRadius:
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
         Vr = (
-            dataframe['isotach_radius'].values
-            * MaximumSustainedWindSpeed.unit  # LC12 factor and 20-deg CCW rotation
-            - ts_factor(
-                dataframe[self.column].values, dataframe[RadiusOfMaximumWinds.name].values
-            )
-            * translation_speed
-            * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+            dataframe['isotach_radius'].values * MaximumSustainedWindSpeed.unit
+            - SWH79_ts
+            * translation_speed.units
+            * numpy.cos(
+                numpy.deg2rad(self.quadrant_angle - 15)
+            )  # SHW79 method assuming inflow angle = 25-deg @r & 10-deg @RMW, i.e., 15-deg diff
+            # although SHW79 suggest maximum is in SEQ, here we assume it is in NEQ and use minus 15 deg
+            # since that appears to match the NHC data better (also more similar to LC12)
+            # LC12 factor and 20-deg CCW rotation
+            # - ts_factor(
+            #    dataframe[self.column].values, dataframe[RadiusOfMaximumWinds.name].values
+            # )
+            # * translation_speed
+            # * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
         ) / BLAdj
+        # 0-kt isotach's should be ignored
+        Vr[dataframe['isotach_radius'].values == 0] = numpy.nan
         # get Rmax with units
         Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
         # get Coriolis and compute Rossby number (inverse of)
