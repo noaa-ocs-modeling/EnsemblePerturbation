@@ -836,12 +836,20 @@ class IsotachRadius:
         Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
         SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
+        # find the ts rotation angle based on the radius weighted sum
+        isotach_complex = dataframe.filter(regex='isotach_radius_for').values * [
+            1 + 1j,
+            1 - 1j,
+            -1 - 1j,
+            -1 + 1j,
+        ]
+        ts_rotation = numpy.rad2deg(numpy.angle(isotach_complex.sum(axis=1)))
         Vr = (
             dataframe['isotach_radius'].values * MaximumSustainedWindSpeed.unit
             - SWH79_ts
             * translation_speed.units
             * numpy.cos(
-                numpy.deg2rad(self.quadrant_angle - 15)
+                numpy.deg2rad(self.quadrant_angle - ts_rotation)
             )  # SHW79 method assuming inflow angle = 25-deg @r & 10-deg @RMW, i.e., 15-deg diff
             # although SHW79 suggest maximum is in SEQ, here we assume it is in NEQ and use minus 15 deg
             # since that appears to match the NHC data better (also more similar to LC12)
