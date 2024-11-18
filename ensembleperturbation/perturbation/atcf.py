@@ -773,10 +773,12 @@ class IsotachRadius:
         alpha = Rrat ** Bg
         alpha_lo = numpy.nan * alpha
         alpha_hi = 0 * alpha + 1
-        beta = Vmax ** 2 * (1 + Ro_inv)
-        beta[numpy.sqrt(beta + rfo2 ** 2) - rfo2 < Vr] = numpy.nan  # no possible solution
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
+        beta = Vmax ** 2 * (1 + Ro_inv)
+        beta[
+            numpy.sqrt(beta + rfo2 ** 2) - rfo2 < Vr - 0.5 * tol
+        ] = numpy.nan  # no possible solution
         i = 0
         itmax = 1000
         while any(abs(Vr_test - Vr) > tol):
