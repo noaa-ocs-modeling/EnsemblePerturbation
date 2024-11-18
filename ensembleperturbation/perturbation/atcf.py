@@ -889,7 +889,15 @@ class IsotachRadius:
         )
         # determine original isotach_rad and Rrat
         isotach_rad = original_dataframe[self.column].values * RadiusOfMaximumWinds.unit
-        isotach_rad[isotach_rad == 0] = numpy.nan
+        # fill in isotach_rad==0 using Rankin vortex assumption
+        # for the mean isotach radius (calculated across non-zero quadrants)
+        isotach_radall = original_dataframe.filter(regex='isotach_radius_for').values
+        isotach_radall[isotach_radall == 0] = numpy.nan
+        radmean = numpy.nanmean(isotach_radall, axis=1) * isotach_rad.units
+        isotach_rad_adjust = (
+            radmean * original_dataframe['isotach_radius'].values / Vr_old.magnitude
+        )
+        isotach_rad[isotach_rad == 0] = isotach_rad_adjust[isotach_rad == 0]
         Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
         # correct where Rrat is >= 1
         invalid = Rrat >= 1
