@@ -9,6 +9,7 @@ from stormevents.nhc.const import RMWFillMethod
 from stormevents.nhc.track import VortexTrack
 from ensembleperturbation.perturbation.atcf import (
     MaximumSustainedWindSpeed,
+    PerturberFeatures,
     perturb_tracks,
 )
 
@@ -51,4 +52,40 @@ def test_perturb_performance(storm, year, date1, date2):
             start_date=date1,
             end_date=date2,
             parallel=False,  # Parallel interfere's with timeout
+        )
+
+
+def test_perturb_converge():
+    with tempfile.TemporaryDirectory() as tdir:
+        track_path = Path(tdir) / 'track.dat'
+        pert_path = Path(tdir) / 'track_perturb_dir'
+
+        if not track_path.exists():
+            track = VortexTrack.from_storm_name(
+                'irma',
+                2017,
+                file_deck='a',
+                advisories=['OFCL'],
+                rmw_fill=RMWFillMethod.persistent,
+            )
+            track.to_file(track_path)
+
+        perturb_tracks(
+            40,
+            variables=[
+                'cross_track',
+                'along_track',
+                'radius_of_maximum_winds_persistent',
+                'max_sustained_wind_speed',
+            ],
+            directory=pert_path,
+            storm=track_path,
+            sample_from_distribution=True,
+            sample_rule='korobov',
+            file_deck='a',
+            advisories=['OFCL'],
+            start_date=datetime(2017, 9, 8, 18),
+            end_date=datetime(2017, 9, 13, 12),
+            parallel=True,
+            features=PerturberFeatures.ISOTACH_ADJUSTMENT,
         )

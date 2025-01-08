@@ -383,9 +383,11 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         # make sure put this back into the dataframe to preserve
         dataframe['speed'] = translation_speed.magnitude
         # get the radial Vmax at the boundary layer height
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
         Vmax = (
             dataframe[self.name].values * self.unit
-            - 0.66 * translation_speed  # LC12: 0.66 factor
+            - SWH79_ts * translation_speed.units  # SHW79 eqn
+            # - 0.62 * translation_speed  # LC12
         ) / BLAdj
         # limit Vmax to the lower bound
         Vmax[Vmax < self.lower_bound] = self.lower_bound
@@ -718,8 +720,8 @@ IsotachQuadrant = namedtuple('IsotachQuadrant', ['angle', 'column'])
 
 class IsotachRadiusQuadrant(Enum):
     SWQ = IsotachQuadrant(225, 'isotach_radius_for_SWQ')
-    SEQ = IsotachQuadrant(135, 'isotach_radius_for_SEQ')
-    NWQ = IsotachQuadrant(315, 'isotach_radius_for_NWQ')
+    SEQ = IsotachQuadrant(315, 'isotach_radius_for_SEQ')
+    NWQ = IsotachQuadrant(135, 'isotach_radius_for_NWQ')
     NEQ = IsotachQuadrant(45, 'isotach_radius_for_NEQ')
 
 
@@ -771,10 +773,12 @@ class IsotachRadius:
         alpha = Rrat ** Bg
         alpha_lo = numpy.nan * alpha
         alpha_hi = 0 * alpha + 1
-        beta = Vmax ** 2 * (1 + Ro_inv)
-        beta[numpy.sqrt(beta + rfo2 ** 2) - rfo2 < Vr] = numpy.nan  # no possible solution
         Vr_test = 1e6 * MaximumSustainedWindSpeed.unit
         tol = 1e-2 * MaximumSustainedWindSpeed.unit
+        beta = Vmax ** 2 * (1 + Ro_inv)
+        beta[
+            numpy.sqrt(beta + rfo2 ** 2) - rfo2 < Vr - 0.5 * tol
+        ] = numpy.nan  # no possible solution
         i = 0
         itmax = 1000
         while any(abs(Vr_test - Vr) > tol):
@@ -812,8 +816,12 @@ class IsotachRadius:
     def get_isotach_properties(self, dataframe: DataFrame) -> Quantity:
         """ 
         Return properties of storm and isotach after adjusting for quadrant angle and boundary layer height.
-        LC12: Lin, N., and D. Chavas (2012), On hurricane parametric wind and applications in storm surge modeling, 
-        J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126 
+
+        LC12: Lin, N., and D. Chavas (2012). On hurricane parametric wind and applications in storm surge modeling,
+        J. Geophys. Res., 117, D09120, doi:10.1029/2011JD017126
+
+        SHW79: Schwerdt, R. W., Ho, F. P., & Watkins, R. R. (1979). Meteorological Criteria for Standard Project Hurricane and Probable Maximum Hurricane Windfields, Gulf and East Coasts of the United States.
+        https://repository.library.noaa.gov/view/noaa/6948/noaa_6948_DS1.pdf
         """
 
         def ts_factor(isotach_rad, Rmax):
@@ -829,15 +837,33 @@ class IsotachRadius:
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
+        # find the ts rotation angle based on the radius weighted sum
+        isotach_complex = dataframe.filter(regex='isotach_radius_for').values * [
+            1 + 1j,
+            1 - 1j,
+            -1 - 1j,
+            -1 + 1j,
+        ]
+        ts_rotation = numpy.rad2deg(numpy.angle(isotach_complex.sum(axis=1)))
         Vr = (
-            dataframe['isotach_radius'].values
-            * MaximumSustainedWindSpeed.unit  # LC12 factor and 20-deg CCW rotation
-            - ts_factor(
-                dataframe[self.column].values, dataframe[RadiusOfMaximumWinds.name].values
-            )
-            * translation_speed
-            * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
+            dataframe['isotach_radius'].values * MaximumSustainedWindSpeed.unit
+            - SWH79_ts
+            * translation_speed.units
+            * numpy.cos(
+                numpy.deg2rad(self.quadrant_angle - ts_rotation)
+            )  # SHW79 method assuming inflow angle = 25-deg @r & 10-deg @RMW, i.e., 15-deg diff
+            # although SHW79 suggest maximum is in SEQ, here we assume it is in NEQ and use minus 15 deg
+            # since that appears to match the NHC data better (also more similar to LC12)
+            # LC12 factor and 20-deg CCW rotation
+            # - ts_factor(
+            #    dataframe[self.column].values, dataframe[RadiusOfMaximumWinds.name].values
+            # )
+            # * translation_speed
+            # * numpy.sin(numpy.deg2rad(self.quadrant_angle + 20))
         ) / BLAdj
+        # 0-kt isotach's should be ignored
+        Vr[dataframe['isotach_radius'].values == 0] = numpy.nan
         # get Rmax with units
         Rmax = dataframe[RadiusOfMaximumWinds.name].values * RadiusOfMaximumWinds.unit
         # get Coriolis and compute Rossby number (inverse of)
@@ -865,9 +891,19 @@ class IsotachRadius:
         )
         # determine original isotach_rad and Rrat
         isotach_rad = original_dataframe[self.column].values * RadiusOfMaximumWinds.unit
-        isotach_rad[isotach_rad == 0] = numpy.nan
+        # fill in isotach_rad==0 using Rankin vortex assumption
+        # for the mean isotach radius (calculated across non-zero quadrants)
+        isotach_radall = original_dataframe.filter(regex='isotach_radius_for').values
+        isotach_radall[isotach_radall == 0] = numpy.nan
+        radmean = numpy.nanmean(isotach_radall, axis=1) * isotach_rad.units
+        isotach_rad_adjust = (
+            radmean * original_dataframe['isotach_radius'].values / Vr_old.magnitude
+        )
+        isotach_rad[isotach_rad == 0] = isotach_rad_adjust[isotach_rad == 0]
         Rrat = Rmax_old / isotach_rad  # [nmi/nmi] = []
-        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
+        # correct where Rrat is >= 1
+        invalid = Rrat >= 1
+        Rrat[invalid] = Vr_old[invalid] / Vmax_old[invalid]  # Rankine vortex assumption
         # find B from original velocity profile using GAHM (traditional Holland B as first guess)
         B = self.find_parameter_from_GAHM_profile(
             Vr_old, Vmax_old, f_old, Roinv_old, B=B_ini, isotach_rad=isotach_rad, Rrat=Rrat
@@ -879,10 +915,9 @@ class IsotachRadius:
         Bg, phi = self.find_GAHM_parameters(B, Roinv_new)
         # determine guess of new Rrat
         Rrat = Rmax_new / isotach_rad
-        # correct where Rrat is nan
-        invalid = numpy.isnan(Rrat)
-        Rrat[invalid] = Vr_new[invalid] / Vmax_new[invalid]
-        Rrat[abs(Rrat - 1.0) < 1e-3] = 0.999  # ensure not exactly 1
+        # correct where Rrat is nan or >= 1
+        invalid = (numpy.isnan(Rrat)) | (Rrat >= 1)
+        Rrat[invalid] = Vr_new[invalid] / Vmax_new[invalid]  # Rankine vortex assumption
         Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
         # now use GAHM root finding algorithm to get the new isotach_rad
         isotach_rad_new = self.find_parameter_from_GAHM_profile(
