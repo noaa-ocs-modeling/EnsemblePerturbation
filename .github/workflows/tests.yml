@@ -39,13 +39,41 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: lint with oitnb
         run: oitnb . --check
-  test:
+  test_linux:
     needs: lint
     name: test
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
+        python-version: [ '3.9', '3.10', '3.11' ]
+    steps:
+      - name: clone repository
+        uses: actions/checkout@v4
+      - name: conda virtual environment
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          init-shell: bash
+          environment-name: ci-env
+          create-args: >-
+            python=${{ matrix.python-version }}
+            libnetcdf
+            hdf5
+            udunits2
+      - name: install dependencies
+        run: pip install ".[testing]"
+        shell: micromamba-shell {0}
+      - name: rebuild netcdf from source
+        run: pip install --upgrade --force-reinstall --no-deps --no-cache-dir netcdf4 --no-binary netcdf4
+        shell: micromamba-shell {0}
+      - name: run tests
+        run: pytest --numprocesses auto
+        shell: micromamba-shell {0}
+  test_macos:
+    needs: lint
+    name: test optional
+    runs-on: macos-latest
+    strategy:
+      matrix:
         python-version: [ '3.9', '3.10', '3.11' ]
     steps:
       - name: clone repository
@@ -70,7 +98,7 @@ jobs:
         run: pytest --numprocesses auto
         shell: micromamba-shell {0}
   test_with_coverage:
-    needs: [ lint, test ]
+    needs: [ lint, test_linux ]
     name: test with coverage
     runs-on: ubuntu-latest
     steps:
