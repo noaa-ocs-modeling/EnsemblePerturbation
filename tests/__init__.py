@@ -99,22 +99,24 @@ def check_reference_directory(
                         del test_lines[line_index], reference_lines[line_index]
 
                     diff = context_diff(test_lines, reference_lines, lineterm='')
-                    assert '\n'.join(test_lines) == '\n'.join(reference_lines), (errmsg + '\n'.join(diff))
+                    assert '\n'.join(test_lines) == '\n'.join(
+                        reference_lines
+                    ), errmsg + '\n'.join(diff)
 
 
 def diff_dicts(dict1, dict2):
     assert dict1.keys() == dict2.keys()
     for k1, v1 in dict1.items():
         v2 = dict2[k1]
-        assert type(v1) == type(v2), "Different key sets"
+        assert type(v1) == type(v2), 'Different key sets'
 
         if isinstance(v1, Collection):
-            diff_dicts(v1, v2), f"{k1} is different {v1} != {v2}"
+            diff_dicts(v1, v2), f'{k1} is different {v1} != {v2}'
             continue
 
         elif isinstance(v1, Number):
             if not np.isnan(v1) and not np.isnan(v2):
-                assert np.isclose(v1, v2), f"{k1} is different {v1} != {v2}"
-        
+                assert np.isclose(v1, v2), f'{k1} is different {v1} != {v2}'
+
         else:
-            assert v1 == v2, f"{k1} is different {v1} != {v2}"
+            assert v1 == v2, f'{k1} is different {v1} != {v2}'
