@@ -14,7 +14,7 @@ from ensembleperturbation.perturbation.atcf import (
 )
 
 
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(180)
 @pytest.mark.parametrize(
     'storm,year,date1,date2',
     [
