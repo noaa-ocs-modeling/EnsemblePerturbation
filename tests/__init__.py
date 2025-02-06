@@ -75,7 +75,6 @@ def check_reference_directory(
                     try:
                         diff_dicts(test_json, reference_json)
                     except AssertionError as e:
-                        breakpoint()
                         assert False, errmsg + str(e)
                 else:
                     test_lines = list(test_file.readlines())
