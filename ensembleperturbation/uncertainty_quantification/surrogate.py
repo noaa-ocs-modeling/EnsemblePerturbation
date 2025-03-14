@@ -7,7 +7,7 @@ import numpoly
 import numpy
 import sklearn
 import xarray
-import time  #### added on march 6, 2025
+
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('surrogate')
@@ -715,10 +715,8 @@ def probability_field_from_surrogate(
 
     if filename is not None and not isinstance(filename, Path):
         filename = Path(filename)
-        print('file exists!')  #### added on Match 6, 2025
+
     if filename is None or not filename.exists():
-        print('Extracting probability from sample')
-        tic = time.time()  #### added on March 6, 2025
         surrogate_prob_field = probability_field_from_samples(
             samples=training_set,
             levels=levels,
@@ -729,8 +727,6 @@ def probability_field_from_surrogate(
             convert_from_log_scale=convert_from_log_scale,
             convert_from_depths=convert_from_depths,
         )
-        toc = time.time()
-        print(f'probability from sample took ~ {toc-tic} sec.')
 
         # before evaluating prob. field for model set null water elevation to the ground elevation
         # training_set = numpy.fmax(training_set, -training_set['depth'])
@@ -738,34 +734,18 @@ def probability_field_from_surrogate(
             too_small = (training_set + training_set['depth']).values < minimum_allowable_value
             training_set.values[too_small] = numpy.nan
 
-        tic = time.time()
         ds1, ds2 = xarray.broadcast(training_set, surrogate_prob_field['level'])
-        toc = time.time()
-        print(f'xarray.broadcasting() took ~ {toc-tic} sec.')
-
-        tic = time.time()
         modeled_prob_field = (ds1 >= ds2).sum(dim='run') / len(training_set.run)
-        toc = time.time()
-        print(f'modeled_prob_field took ~{toc-tic} sec.')
 
-        tic = time.time()
         node_prob_field = xarray.combine_nested(
             [surrogate_prob_field, modeled_prob_field], concat_dim='source'
         ).assign_coords(source=['surrogate', 'model'])
-        toc = time.time()
-        print(f'xarray.combine_nested() took ~{toc-tic} sec.')
 
-        tic = time.time()
         node_prob_field = node_prob_field.to_dataset(name='probabilities')
-        toc = time.time()
-        print(f'to_dataset() took ~{toc-tic} sec.')
 
-        tic = time.time()
         node_prob_field = node_prob_field.assign(
             differences=numpy.fabs(surrogate_prob_field - modeled_prob_field)
         )
-        toc = time.time()
-        print(f'assign() took ~{toc-tic} sec.')
 
         if element_table is not None:
             node_prob_field = node_prob_field.assign_coords({'element': element_table})
