@@ -7,7 +7,7 @@ import numpoly
 import numpy
 import sklearn
 import xarray
-
+import time       #### added on march 6, 2025
 from ensembleperturbation.utilities import get_logger
 
 LOGGER = get_logger('surrogate')
@@ -423,6 +423,7 @@ def percentiles_from_samples(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     convert_from_log_scale: Union[bool, float] = False,
+    sample_size: int = 2000,
     timeslots: int = 1,
 ) -> xarray.DataArray:
     LOGGER.info(f'calculating {len(percentiles)} percentile(s): {percentiles}')
@@ -440,6 +441,7 @@ def percentiles_from_samples(
             ],
             q=percentiles,
             dist=distribution,
+            sample=sample_size,
             convert_from_log_scale=convert_from_log_scale,
         )
         if timestep == 0:
@@ -452,6 +454,7 @@ def percentiles_from_samples(
     #        poly=surrogate_model,
     #        q=percentiles,
     #        dist=distribution,
+    #        sample=sample_size, ####    
     #        convert_from_log_scale=convert_from_log_scale,
     #    )
 
@@ -476,6 +479,7 @@ def percentiles_from_surrogate(
     surrogate_model: numpoly.ndpoly,
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
+    sample_size: int = 2000,
     timeslots: int = 1,
     minimum_allowable_value: float = None,
     convert_from_log_scale: Union[bool, float] = False,
@@ -491,6 +495,7 @@ def percentiles_from_surrogate(
     :param surrogate_model: polynomial of surrogate model to query
     :parama distribution: surrogate model ``chaospy`` distribution model
     :param training_set: set of training data (across nodes and perturbations)
+    :param sample_size: the number of Monte Carlo samples
     :param minimum_allowable_value: if surrogate prediction falls below this value set to NaN
     :param convert_from_log_scale: whether to take the exp() of the result
     :param convert_from_depths: whether to substract still water depth from the result
@@ -506,6 +511,7 @@ def percentiles_from_surrogate(
             samples=training_set,
             percentiles=percentiles,
             surrogate_model=surrogate_model,
+            sample_size=sample_size,
             timeslots=timeslots,
             distribution=distribution,
             convert_from_log_scale=convert_from_log_scale,
@@ -558,7 +564,7 @@ def compute_surrogate_percentiles(
     poly: numpoly.ndpoly,
     q: List[float],
     dist: chaospy.Distribution,
-    sample: int = 10000,
+    sample: int = 2000,
     convert_from_log_scale: Union[bool, float] = False,
     **kws,
 ):
@@ -709,8 +715,10 @@ def probability_field_from_surrogate(
 
     if filename is not None and not isinstance(filename, Path):
         filename = Path(filename)
-
+        print("file exists!") #### added on Match 6, 2025
     if filename is None or not filename.exists():
+        print("Extracting probability from sample")
+        tic = time.time()     #### added on March 6, 2025
         surrogate_prob_field = probability_field_from_samples(
             samples=training_set,
             levels=levels,
@@ -721,6 +729,8 @@ def probability_field_from_surrogate(
             convert_from_log_scale=convert_from_log_scale,
             convert_from_depths=convert_from_depths,
         )
+        toc = time.time()
+        print(f"probability from sample took ~ {toc-tic} sec.")
 
         # before evaluating prob. field for model set null water elevation to the ground elevation
         # training_set = numpy.fmax(training_set, -training_set['depth'])
@@ -728,18 +738,34 @@ def probability_field_from_surrogate(
             too_small = (training_set + training_set['depth']).values < minimum_allowable_value
             training_set.values[too_small] = numpy.nan
 
+        tic = time.time()   
         ds1, ds2 = xarray.broadcast(training_set, surrogate_prob_field['level'])
+        toc = time.time()
+        print(f"xarray.broadcasting() took ~ {toc-tic} sec.")
+        
+        tic = time.time()  
         modeled_prob_field = (ds1 >= ds2).sum(dim='run') / len(training_set.run)
+        toc = time.time()
+        print(f"modeled_prob_field took ~{toc-tic} sec.")
 
+        tic = time.time() 
         node_prob_field = xarray.combine_nested(
             [surrogate_prob_field, modeled_prob_field], concat_dim='source'
         ).assign_coords(source=['surrogate', 'model'])
+        toc = time.time()
+        print(f"xarray.combine_nested() took ~{toc-tic} sec.")
 
+        tic = time.time()  
         node_prob_field = node_prob_field.to_dataset(name='probabilities')
+        toc = time.time()
+        print(f"to_dataset() took ~{toc-tic} sec.")
 
+        tic = time.time() 
         node_prob_field = node_prob_field.assign(
             differences=numpy.fabs(surrogate_prob_field - modeled_prob_field)
         )
+        toc = time.time()
+        print(f"assign() took ~{toc-tic} sec.")
 
         if element_table is not None:
             node_prob_field = node_prob_field.assign_coords({'element': element_table})
