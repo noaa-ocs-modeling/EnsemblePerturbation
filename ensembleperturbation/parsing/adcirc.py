@@ -795,6 +795,7 @@ def subset_dataset(
     minimum_depth: float = None,
     wind_swath: list = None,
     bounds: (float, float, float, float) = None,
+    keep_indices: int = None,
     node_status_selection: dict = None,
     point_spacing: int = None,
     output_filename: PathLike = None,
@@ -831,6 +832,8 @@ def subset_dataset(
         ]
         if point_spacing is not None:
             subsetted_nodes = subsetted_nodes[::point_spacing]
+        if keep_indices is not None:
+            subsetted_nodes = numpy.unique(numpy.hstack([subsetted_nodes, keep_indices]))
         subset = ds.sel(node=subsetted_nodes)
 
         # adjust element table if present
