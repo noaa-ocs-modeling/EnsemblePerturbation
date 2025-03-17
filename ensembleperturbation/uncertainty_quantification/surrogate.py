@@ -87,7 +87,7 @@ def surrogate_from_karhunen_loeve(
                 surrogate_model.dump(surrogate_file)
     else:
         LOGGER.info(f'loading surrogate model from "{filename}"')
-        surrogate_model = chaospy.load(filename, allow_pickle=True)
+        surrogate_model = numpy.load(filename, allow_pickle=True)
 
     return surrogate_model
 
@@ -204,7 +204,7 @@ def surrogate_from_training_set(
                 surrogate_model.dump(surrogate_file)
     else:
         LOGGER.info(f'loading surrogate model from "{filename}"')
-        surrogate_model = chaospy.load(filename, allow_pickle=True)
+        surrogate_model = numpy.load(filename, allow_pickle=True)
 
     return surrogate_model
 
