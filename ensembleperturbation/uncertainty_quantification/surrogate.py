@@ -7,6 +7,7 @@ import numpoly
 import numpy
 import sklearn
 import xarray
+import dask
 
 from ensembleperturbation.utilities import get_logger
 
@@ -59,23 +60,12 @@ def surrogate_from_karhunen_loeve(
 
     LOGGER.info(f'transforming surrogate to {num_points} points from {num_modes} eigenmodes')
     if filename is None or not filename.exists():
-        # get the coefficients of the PC for each point in z (spatiotemporal dimension)
-        pc_exponents = kl_surrogate_model.exponents
-        pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
-        klpc_coefficients = numpy.sum(
-            numpy.stack(
-                [
-                    numpy.dot(
-                        (pc_coefficients * numpy.sqrt(eigenvalues))[:, mode_index, None],
-                        modes[None, mode_index, :],
-                    )
-                    for mode_index in range(num_modes)
-                ],
-                axis=0,
-            ),
-            axis=0,
-        )
-        klpc_coefficients[0, :] += mean_vector
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            # get the coefficients of the PC for each point in z (spatiotemporal dimension)
+            pc_exponents = kl_surrogate_model.exponents
+            pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
+            klpc_coefficients = numpy.dot(pc_coefficients * numpy.sqrt(eigenvalues), modes)
+            klpc_coefficients[0, :] += mean_vector
 
         surrogate_model = numpoly.ndpoly.from_attributes(
             exponents=pc_exponents, coefficients=klpc_coefficients,
@@ -90,6 +80,59 @@ def surrogate_from_karhunen_loeve(
         surrogate_model = numpy.load(filename, allow_pickle=True)
 
     return surrogate_model
+
+
+def sensitivities_from_karhunen_loeve(
+    eigenvalues: numpy.ndarray, modes: numpy.ndarray, kl_surrogate_model: numpoly.ndpoly,
+) -> numpy.ndarray:
+    """
+    return sensitivities from the given Karhunen-Loeve expansion (eigenvalues and modes) &
+    PC surrogate model in KL space
+
+    the formula is from Eqs (7)-(9) in Sargsyan, K. and Ricciuto D. (2021):
+
+    V(z) = sum_{k==1} c_k(z)^2;
+    Si(z) = sum_{k for all term i ONLY} c_k(z)^2 / V(z)
+    Ti(z) = sum_{k for all term i including joints} c_k(z)^2 / V(z)
+
+    :param eigenvalues: eigenvalues of each point to each mode
+    :param modes: modes of the Karhunen-Loeve expansion
+    :param kl_surrogate_model: ``ndpoly`` surrogate polynomial generated on training set
+    :return: main and total sensitivities for all variables at all grid points
+    """
+    num_points = modes.shape[1]
+    num_modes = len(eigenvalues)
+    LOGGER.info(
+        f'calculating sensitivities at {num_points} points from {num_modes} eigenmodes'
+    )
+    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        pc_exponents = kl_surrogate_model.exponents
+        pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
+        klpc_coefficients = numpy.dot(pc_coefficients * numpy.sqrt(eigenvalues), modes)
+        total_variance = (klpc_coefficients[1::] ** 2).sum(axis=0)
+
+    num_vars = pc_exponents.shape[1]
+    cond_var_t = numpy.empty((num_vars, num_points))
+    cond_var_m = numpy.empty((num_vars, num_points))
+    for var_index in range(num_vars):
+        # get total conditional variances for this variable
+        total_indices = pc_exponents[:, var_index] > 0
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            cond_var_t[var_index, :] = (klpc_coefficients[total_indices] ** 2).sum(axis=0)
+
+        # get mean conditional variances for this variable
+        mean_indices = total_indices & (
+            numpy.delete(pc_exponents, var_index, axis=1) == 0
+        ).all(axis=1)
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            cond_var_m[var_index, :] = (klpc_coefficients[mean_indices] ** 2).sum(axis=0)
+
+    sensitivities = numpy.stack(
+        [cond_var_m / total_variance, cond_var_t / total_variance,]
+    )  # sensitivities where variance is small can go to zero
+    sensitivities[:, :, total_variance < 1e-6] = 0
+
+    return sensitivities
 
 
 def surrogate_from_samples(
@@ -149,7 +192,9 @@ def surrogate_from_samples(
             else:
                 raise
 
-    return surrogate_model
+    return surrogate_model.round(
+        8
+    )  # round to 8-decimal places, removes very small coefficients
 
 
 def surrogate_from_training_set(
@@ -215,6 +260,7 @@ def sensitivities_from_surrogate(
     variables: [str],
     nodes: xarray.Dataset,
     element_table: xarray.DataArray = None,
+    kl_dict: dict = None,
     filename: PathLike = None,
 ) -> xarray.DataArray:
     """
@@ -234,12 +280,20 @@ def sensitivities_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
 
-        sensitivities = [
-            chaospy.Sens_m(surrogate_model, distribution),
-            chaospy.Sens_t(surrogate_model, distribution),
-        ]
-
-        sensitivities = numpy.stack(sensitivities)
+        if kl_dict is not None:
+            # transform sensitivities to KL space
+            sensitivities = sensitivities_from_karhunen_loeve(
+                kl_dict['eigenvalues'], kl_dict['modes'], surrogate_model,
+            )
+        else:
+            # Care needs to be taken with this function... it appears if
+            # terms are surrogate_model are out of order it doesn't work correctly
+            sensitivities = numpy.stack(
+                [
+                    chaospy.Sens_m(surrogate_model, distribution),
+                    chaospy.Sens_t(surrogate_model, distribution),
+                ]
+            )
 
         sensitivities = xarray.DataArray(
             sensitivities,
