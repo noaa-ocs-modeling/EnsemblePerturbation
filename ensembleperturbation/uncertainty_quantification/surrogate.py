@@ -8,6 +8,7 @@ import numpy
 import sklearn
 import xarray
 import dask
+import pickle
 
 from ensembleperturbation.utilities import get_logger
 
@@ -18,9 +19,9 @@ def surrogate_from_karhunen_loeve(
     mean_vector: numpy.ndarray,
     eigenvalues: numpy.ndarray,
     modes: numpy.ndarray,
-    kl_surrogate_model: numpoly.ndpoly,
+    kl_surrogate_model: dict,
     filename: PathLike = None,
-) -> numpoly.ndpoly:
+) -> dict:
     """
     build a polynomial from the given Karhunen-Loeve expansion (eigenvalues and modes) along with a mean vector along the node space
 
@@ -55,84 +56,42 @@ def surrogate_from_karhunen_loeve(
     num_modes = len(eigenvalues)
 
     assert num_modes == len(
-        kl_surrogate_model
+        kl_surrogate_model['poly']
     ), 'number of kl_dict eigenvalues must be equal to the length of the kl_surrogate_model'
 
     LOGGER.info(f'transforming surrogate to {num_points} points from {num_modes} eigenmodes')
     if filename is None or not filename.exists():
         with dask.config.set(**{'array.slicing.split_large_chunks': True}):
             # get the coefficients of the PC for each point in z (spatiotemporal dimension)
-            pc_exponents = kl_surrogate_model.exponents
-            pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
+            pc_exponents = kl_surrogate_model['poly'].exponents
+            pc_coefficients = numpy.array(kl_surrogate_model['poly'].coefficients)
             klpc_coefficients = numpy.dot(pc_coefficients * numpy.sqrt(eigenvalues), modes)
             klpc_coefficients[0, :] += mean_vector
+            klpc_Fcoefficients = numpy.dot(
+                kl_surrogate_model['coefs'] * numpy.sqrt(eigenvalues), modes
+            )
+            klpc_Fcoefficients[0, :] += mean_vector
 
-        surrogate_model = numpoly.ndpoly.from_attributes(
+        surrogate_poly = numpoly.ndpoly.from_attributes(
             exponents=pc_exponents, coefficients=klpc_coefficients,
         )
 
+        surrogate_model = {
+            'poly': surrogate_poly.round(8),
+            'coefs': klpc_Fcoefficients,
+            'norms': kl_surrogate_model['norms'],
+            'expansion': kl_surrogate_model['expansion'],
+        }
         if filename is not None:
-            with open(filename, 'wb') as surrogate_file:
+            with open(filename, 'wb') as surrogate_handle:
                 LOGGER.info(f'saving surrogate model to "{filename}"')
-                surrogate_model.dump(surrogate_file)
+                pickle.dump(surrogate_model, surrogate_handle)
     else:
         LOGGER.info(f'loading surrogate model from "{filename}"')
-        surrogate_model = numpy.load(filename, allow_pickle=True)
+        with open(filename, 'rb') as surrogate_handle:
+            surrogate_model = pickle.load(surrogate_handle)
 
     return surrogate_model
-
-
-def sensitivities_from_karhunen_loeve(
-    eigenvalues: numpy.ndarray, modes: numpy.ndarray, kl_surrogate_model: numpoly.ndpoly,
-) -> numpy.ndarray:
-    """
-    return sensitivities from the given Karhunen-Loeve expansion (eigenvalues and modes) &
-    PC surrogate model in KL space
-
-    the formula is from Eqs (7)-(9) in Sargsyan, K. and Ricciuto D. (2021):
-
-    V(z) = sum_{k==1} c_k(z)^2;
-    Si(z) = sum_{k for all term i ONLY} c_k(z)^2 / V(z)
-    Ti(z) = sum_{k for all term i including joints} c_k(z)^2 / V(z)
-
-    :param eigenvalues: eigenvalues of each point to each mode
-    :param modes: modes of the Karhunen-Loeve expansion
-    :param kl_surrogate_model: ``ndpoly`` surrogate polynomial generated on training set
-    :return: main and total sensitivities for all variables at all grid points
-    """
-    num_points = modes.shape[1]
-    num_modes = len(eigenvalues)
-    LOGGER.info(
-        f'calculating sensitivities at {num_points} points from {num_modes} eigenmodes'
-    )
-    with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-        pc_exponents = kl_surrogate_model.exponents
-        pc_coefficients = numpy.array(kl_surrogate_model.coefficients)
-        klpc_coefficients = numpy.dot(pc_coefficients * numpy.sqrt(eigenvalues), modes)
-        total_variance = (klpc_coefficients[1::] ** 2).sum(axis=0)
-
-    num_vars = pc_exponents.shape[1]
-    cond_var_t = numpy.empty((num_vars, num_points))
-    cond_var_m = numpy.empty((num_vars, num_points))
-    for var_index in range(num_vars):
-        # get total conditional variances for this variable
-        total_indices = pc_exponents[:, var_index] > 0
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            cond_var_t[var_index, :] = (klpc_coefficients[total_indices] ** 2).sum(axis=0)
-
-        # get mean conditional variances for this variable
-        mean_indices = total_indices & (
-            numpy.delete(pc_exponents, var_index, axis=1) == 0
-        ).all(axis=1)
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            cond_var_m[var_index, :] = (klpc_coefficients[mean_indices] ** 2).sum(axis=0)
-
-    sensitivities = numpy.stack(
-        [cond_var_m / total_variance, cond_var_t / total_variance,]
-    )  # sensitivities where variance is small can go to zero
-    sensitivities[:, :, total_variance < 1e-6] = 0
-
-    return sensitivities
 
 
 def surrogate_from_samples(
@@ -176,14 +135,17 @@ def surrogate_from_samples(
         )
         try:
             poly_list = [None] * samples.shape[1]
+            F_coeffs = [None] * samples.shape[1]
             for mode in range(samples.shape[1]):
-                poly_list[mode] = chaospy.fit_regression(
+                poly_list[mode], F_coeffs[mode] = chaospy.fit_regression(
                     polynomials=polynomials,
                     abscissas=perturbations.T,
                     evals=samples[:, mode],
                     model=regression_model,
+                    retall=1,
                 )
             surrogate_model = numpoly.polynomial(poly_list)
+            fourier_coefficients = numpy.stack(F_coeffs)
             ## Or just call this for default regression
             # surrogate_model = chaospy.fit_regression(polynomials=polynomials,abscissas=perturbations.T,evals=samples)
         except AssertionError:
@@ -192,9 +154,8 @@ def surrogate_from_samples(
             else:
                 raise
 
-    return surrogate_model.round(
-        8
-    )  # round to 8-decimal places, removes very small coefficients
+    # round to 8-decimal places, removes very small coefficients
+    return surrogate_model.round(8), fourier_coefficients.T
 
 
 def surrogate_from_training_set(
@@ -233,7 +194,7 @@ def surrogate_from_training_set(
             retall=True,
         )
 
-        surrogate_model = surrogate_from_samples(
+        surrogate_poly, fourier_coefficients = surrogate_from_samples(
             samples=training_set,
             perturbations=training_perturbations['perturbations'],
             polynomials=polynomial_expansion,
@@ -243,24 +204,30 @@ def surrogate_from_training_set(
             regression_model=regression_model,
         )
 
+        surrogate_model = {
+            'poly': surrogate_poly,
+            'coefs': fourier_coefficients,
+            'norms': norms,
+            'expansion': polynomial_expansion,
+        }
         if filename is not None:
-            with open(filename, 'wb') as surrogate_file:
+            with open(filename, 'wb') as surrogate_handle:
                 LOGGER.info(f'saving surrogate model to "{filename}"')
-                surrogate_model.dump(surrogate_file)
+                pickle.dump(surrogate_model, surrogate_handle)
     else:
         LOGGER.info(f'loading surrogate model from "{filename}"')
-        surrogate_model = numpy.load(filename, allow_pickle=True)
+        with open(filename, 'rb') as surrogate_handle:
+            surrogate_model = pickle.load(surrogate_handle)
 
     return surrogate_model
 
 
 def sensitivities_from_surrogate(
-    surrogate_model: numpoly.ndpoly,
-    distribution: chaospy.Distribution,
+    surrogate_model: Union[numpoly.ndpoly, dict],
     variables: [str],
     nodes: xarray.Dataset,
+    distribution: chaospy.Distribution = None,
     element_table: xarray.DataArray = None,
-    kl_dict: dict = None,
     filename: PathLike = None,
 ) -> xarray.DataArray:
     """
@@ -280,20 +247,26 @@ def sensitivities_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
 
-        if kl_dict is not None:
-            # transform sensitivities to KL space
-            sensitivities = sensitivities_from_karhunen_loeve(
-                kl_dict['eigenvalues'], kl_dict['modes'], surrogate_model,
+        if isinstance(surrogate_model, dict):
+            normed_Fcoefficients = surrogate_model['coefs'] * numpy.sqrt(
+                surrogate_model['norms'].reshape(-1, 1)
             )
+            total_variance = (normed_Fcoefficients[1::] ** 2).sum(axis=0)
+            sensitivities = [
+                chaospy.FirstOrderSobol(surrogate_model['expansion'], normed_Fcoefficients),
+                chaospy.TotalOrderSobol(surrogate_model['expansion'], normed_Fcoefficients),
+            ]
         else:
-            # Care needs to be taken with this function... it appears if
-            # terms are surrogate_model are out of order it doesn't work correctly
-            sensitivities = numpy.stack(
-                [
-                    chaospy.Sens_m(surrogate_model, distribution),
-                    chaospy.Sens_t(surrogate_model, distribution),
-                ]
-            )
+            if distribution is None:
+                raise TypeError('must supply the distribution')
+            total_variance = chaospy.Var(surrogate_model, distribution)
+            sensitivities = [
+                chaospy.Sens_m(surrogate_model, distribution),
+                chaospy.Sens_t(surrogate_model, distribution),
+            ]
+        sensitivities = numpy.stack(sensitivities)
+        # sensitivities where variance is small can go to zero
+        sensitivities[:, :, total_variance < 1e-6] = 0
 
         sensitivities = xarray.DataArray(
             sensitivities,
