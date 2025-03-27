@@ -398,9 +398,9 @@ def validations_from_surrogate(
 
 
 def statistics_from_surrogate(
-    surrogate_model: numpoly.ndpoly,
-    distribution: chaospy.Distribution,
+    surrogate_model: Union[numpoly.ndpoly, dict],
     training_set: xarray.Dataset,
+    distribution: chaospy.Distribution = None,
     filename: PathLike = None,
 ) -> xarray.Dataset:
     if filename is not None and not isinstance(filename, Path):
@@ -410,8 +410,18 @@ def statistics_from_surrogate(
         LOGGER.info(
             f'gathering mean and standard deviation from surrogate on {training_set.shape} training samples'
         )
-        surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
-        surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+        if isinstance(surrogate_model, dict):
+            normed_Fcoefficients = surrogate_model['coefs'] * numpy.sqrt(
+                surrogate_model['norms'].reshape(-1, 1)
+            )
+            surrogate_mean = normed_Fcoefficients[0]
+            surrogate_std = numpy.sqrt((normed_Fcoefficients[1::] ** 2).sum(axis=0))
+        else:
+            if distribution is None:
+                raise TypeError('must supply the distribution')
+            surrogate_mean = chaospy.E(poly=surrogate_model, dist=distribution)
+            surrogate_std = chaospy.Std(poly=surrogate_model, dist=distribution)
+
         modeled_mean = training_set.mean('run')
         modeled_std = training_set.std('run')
 
