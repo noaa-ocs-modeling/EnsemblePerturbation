@@ -266,7 +266,7 @@ def sensitivities_from_surrogate(
             ]
         sensitivities = numpy.stack(sensitivities)
         # sensitivities where variance is small can go to zero
-        sensitivities[:, :, total_variance < 1e-6] = 0
+        sensitivities[:, :, total_variance < 1e-6] = numpy.nan
 
         sensitivities = xarray.DataArray(
             sensitivities,
