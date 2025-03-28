@@ -480,11 +480,11 @@ def plot_selected_percentiles(
     vmax = numpy.round(percentiles.sel(source='model').quantile(0.98), decimals=1)
     vmin = 0.0
     for perc in perc_list:
-        figure = pyplot.figure()
+        figure, axes = pyplot.subplots(1, len(sources), constrained_layout=True)
         figure.set_size_inches(10, 10 / 1.61803398875)
         figure.suptitle(f'comparison of percentiles: {perc}%')
         for index, source in enumerate(sources):
-            map_axis = figure.add_subplot(2, len(sources), index + 1)
+            map_axis = axes[index]
             map_axis.title.set_text(f'{source}')
             countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
@@ -534,9 +534,7 @@ def plot_selected_percentiles(
                 if storm.name is not None:
                     map_axis.legend(fontsize=6)
 
-        pyplot.subplots_adjust(wspace=0.02, right=0.96)
-        cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
-        cbar = figure.colorbar(im, extend='both', cax=cax)
+        cbar = figure.colorbar(im, ax=axes, shrink=0.7, extend='both')
         cbar.ax.set_title('[m]')
 
         if output_directory is not None:
