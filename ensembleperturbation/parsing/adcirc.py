@@ -876,7 +876,17 @@ def extrapolate_water_elevation_to_dry_areas(
     u_ref: float = 0.4,
     d_ref: float = 1.0,
     min_depth: float = 0.0,
+    filename: PathLike = None,
 ):
+
+    if filename is not None and not isinstance(filename, Path):
+        filename = Path(filename)
+
+    if filename is not None and filename.exists():
+        LOGGER.info(f'loading extrapolated training set from "{filename}"')
+        da_adjusted = xarray.open_dataarray(filename)
+        return da_adjusted
+
     # return a deep copy of original datarrary on output
     da_adjusted = da.copy(deep=True)
 
@@ -927,5 +937,9 @@ def extrapolate_water_elevation_to_dry_areas(
                         idw_sum += total_head * weights
                         weight_sum += weights
                 da_adjusted[run, null] = numpy.fmin(idw_sum / weight_sum, max_allowable_values)
+
+    if filename is not None:
+        LOGGER.info(f'saving extrapolated training set to "{filename}"')
+        da_adjusted.to_netcdf(filename)
 
     return da_adjusted
