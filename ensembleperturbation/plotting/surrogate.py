@@ -18,6 +18,9 @@ from ensembleperturbation.plotting.geometry import plot_points, plot_surface
 from ensembleperturbation.plotting.nodes import plot_node_map
 from ensembleperturbation.plotting.utilities import colorbar_axis
 
+# dpi of figures
+dpi = 300
+
 
 def get_validation_statistics(O, P, decimals):
     # pearson correlation coefficient
@@ -194,7 +197,7 @@ def plot_scatter_comparison(
                 axis.text(xpos, ypos[3], 'RMSE = ' + str(rmse) + ' m', color=color)
 
     if output_filename is not None:
-        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+        figure.savefig(output_filename, dpi=dpi, bbox_inches='tight')
 
     return figure, axes
 
@@ -271,7 +274,7 @@ def plot_boxplot_comparison(
     axis.set_xticklabels(['CORR', 'CORR$_{w/d}$', 'MB [m]', 'MAE [m]', 'RMSE [m]'])
 
     if output_filename is not None:
-        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+        figure.savefig(output_filename, dpi=dpi, bbox_inches='tight')
 
     return figure
 
@@ -334,7 +337,7 @@ def plot_sensitivities(
     )
 
     if output_filename is not None:
-        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+        figure.savefig(output_filename, dpi=dpi, bbox_inches='tight')
 
 
 def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
@@ -378,10 +381,10 @@ def plot_validations(validation: xarray.Dataset, output_directory: PathLike):
 
     if output_directory is not None:
         # fig_scatter.savefig(
-        #    output_directory / f'validation_scatter.png', dpi=200, bbox_inches='tight',
+        #    output_directory / f'validation_scatter.png', dpi=dpi, bbox_inches='tight',
         # )
         fig_boxplot.savefig(
-            output_directory / f'validation_boxplot.png', dpi=200, bbox_inches='tight',
+            output_directory / f'validation_boxplot.png', dpi=dpi, bbox_inches='tight',
         )
 
 
@@ -452,7 +455,7 @@ def plot_selected_validations(
 
         if output_directory is not None:
             figure.savefig(
-                output_directory / f'validation_{run}.png', dpi=200, bbox_inches='tight',
+                output_directory / f'validation_{run}.png', dpi=dpi, bbox_inches='tight',
             )
 
 
@@ -477,7 +480,8 @@ def plot_selected_percentiles(
             node_percentiles['y'].max(),
         ]
     )
-    vmax = numpy.round(percentiles.sel(source='model').quantile(0.98), decimals=1)
+    # round percentiles to the nearest ~foot (0.3 m)
+    vmax = numpy.round(percentiles.sel(source='model').quantile(0.98) / 0.3) * 0.3
     vmin = 0.0
     for perc in perc_list:
         figure, axes = pyplot.subplots(1, len(sources), constrained_layout=True)
@@ -513,7 +517,7 @@ def plot_selected_percentiles(
                     element_table=node_percentiles['element'].values,
                     axis=map_axis,
                     add_colorbar=False,
-                    levels=numpy.linspace(vmin, vmax, 25 + 1),
+                    levels=numpy.arange(vmin, vmax + 0.3, 0.3),
                     extend='both',
                 )
 
@@ -534,12 +538,12 @@ def plot_selected_percentiles(
                 if storm.name is not None:
                     map_axis.legend(fontsize=6)
 
-        cbar = figure.colorbar(im, ax=axes, shrink=0.7, extend='both')
+        cbar = figure.colorbar(im, ax=axes, shrink=0.75, extend='both')
         cbar.ax.set_title('[m]')
 
         if output_directory is not None:
             figure.savefig(
-                output_directory / f'percentiles_{perc}.png', dpi=200, bbox_inches='tight',
+                output_directory / f'percentiles_{perc}.png', dpi=dpi, bbox_inches='tight',
             )
 
 
@@ -584,7 +588,7 @@ def plot_kl_surrogate_fit(
         axis.title.set_text(f'KL mode-{mode + 1}')
 
     if output_filename is not None:
-        figure.savefig(output_filename, dpi=200, bbox_inches='tight')
+        figure.savefig(output_filename, dpi=dpi, bbox_inches='tight')
 
 
 def plot_selected_probability_fields(
@@ -613,13 +617,13 @@ def plot_selected_probability_fields(
     vmax = 1 + numpy.finfo(float).eps
     vmin = 0
     for lvl in level_list:
-        figure = pyplot.figure()
+        figure, axes = pyplot.subplots(1, len(sources), constrained_layout=True)
         figure.set_size_inches(10, 10 / 1.61803398875)
         figure.suptitle(
             f'Probability of water level exceeding {round(lvl*label_unit_convert_factor)}-{label_unit_name}'
         )
         for index, source in enumerate(sources):
-            map_axis = figure.add_subplot(2, len(sources), index + 1)
+            map_axis = axes[index]
             map_axis.title.set_text(f'{source}')
             countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
 
@@ -669,14 +673,12 @@ def plot_selected_probability_fields(
                 if storm.name is not None:
                     map_axis.legend(fontsize=6)
 
-        pyplot.subplots_adjust(wspace=0.02, right=0.96)
-        cax = pyplot.axes([0.95, 0.55, 0.015, 0.3])
-        cbar = figure.colorbar(im, extend='neither', cax=cax)
+        cbar = figure.colorbar(im, ax=axes, shrink=0.75, extend='neither')
 
         if output_directory is not None:
             figure.savefig(
                 output_directory
                 / f'probability_exceeding_{round(lvl*label_unit_convert_factor)}_{label_unit_name}.png',
-                dpi=200,
+                dpi=dpi,
                 bbox_inches='tight',
             )
