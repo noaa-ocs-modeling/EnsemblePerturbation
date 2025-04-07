@@ -248,6 +248,7 @@ def sensitivities_from_surrogate(
     if filename is None or not filename.exists():
         LOGGER.info(f'extracting sensitivities from surrogate model and distribution')
 
+        start_time = time.time()
         if isinstance(surrogate_model, dict):
             normed_Fcoefficients = surrogate_model['coefs'] * numpy.sqrt(
                 surrogate_model['norms'].reshape(-1, 1)
@@ -268,6 +269,9 @@ def sensitivities_from_surrogate(
         sensitivities = numpy.stack(sensitivities)
         # sensitivities where variance is small can go to zero
         sensitivities[:, :, total_variance < 1e-6] = numpy.nan
+
+        end_time = time.time()
+        LOGGER.info(f'sensitivities computed in {end_time - start_time:.1f} seconds')
 
         sensitivities = xarray.DataArray(
             sensitivities,
