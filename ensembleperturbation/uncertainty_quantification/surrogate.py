@@ -696,10 +696,9 @@ def compute_surrogate_percentiles(
 def probability_field_from_samples(
     samples: xarray.Dataset,
     levels: List[float],
-    surrogate_model: numpoly.ndpoly,
+    surrogate_model: List[Union[numpoly.ndpoly, dict]],
     distribution: chaospy.Distribution,
     sample_size: int = 2000,
-    timeslots: int = 1,
     minimum_allowable_value: float = None,
     convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
@@ -707,22 +706,20 @@ def probability_field_from_samples(
 
     LOGGER.info(f'calculating {len(levels)} probability field(s): {levels}')
 
-    # use chunks of surrogate model (for each timeslot) to calculate percentiles
-    # surr_chunk_length = int(surrogate_model.shape[0] / timeslots)
-
     for timestep, sm in enumerate(surrogate_model):
         surrogate_prob_field_chunk = compute_surrogate_probability_field(
-            poly=sm,
+            surrogate_model=sm,
             levels=levels,
             dist=distribution,
             sample=sample_size,
             minimum_allowable_value=minimum_allowable_value,
             convert_from_log_scale=convert_from_log_scale,
             convert_from_depths=convert_from_depths,
-            depths=samples['depth'][
-                (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
-            ],
-            #            depths=samples['depth'],
+            # depths=samples['depth'][
+            #    (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
+            # ],
+            depths=samples['depth'],
+            rule='korobov',
         )
         if timestep == 0:
             surrogate_prob_field = surrogate_prob_field_chunk
@@ -730,17 +727,6 @@ def probability_field_from_samples(
             surrogate_prob_field = numpy.concatenate(
                 (surrogate_prob_field, surrogate_prob_field_chunk), axis=1
             )
-
-    #    surrogate_prob_field = compute_surrogate_probability_field(
-    #        poly=surrogate_model,
-    #        levels=levels,
-    #        dist=distribution,
-    #        sample=sample_size  ###
-    #        minimum_allowable_value=minimum_allowable_value,
-    #        convert_from_log_scale=convert_from_log_scale,
-    #        convert_from_depths=convert_from_depths,
-    #        depths=samples['depth'],
-    #    )
 
     surrogate_prob_field = xarray.DataArray(
         surrogate_prob_field,
@@ -760,11 +746,10 @@ def probability_field_from_samples(
 
 def probability_field_from_surrogate(
     levels: List[float],
-    surrogate_model: numpoly.ndpoly,
+    surrogate_model: List[Union[numpoly.ndpoly, dict]],
     distribution: chaospy.Distribution,
     training_set: xarray.Dataset,
     sample_size: int = 2000,
-    timeslots: int = 1,
     minimum_allowable_value: float = None,
     convert_from_log_scale: Union[bool, float] = False,
     convert_from_depths: Union[bool, float] = False,
@@ -779,9 +764,10 @@ def probability_field_from_surrogate(
         surrogate_prob_field = probability_field_from_samples(
             samples=training_set,
             levels=levels,
-            surrogate_model=surrogate_model,
+            surrogate_model=surrogate_model
+            if isinstance(surrogate_model, list)
+            else [surrogate_model],
             sample_size=sample_size,
-            timeslots=timeslots,
             distribution=distribution,
             minimum_allowable_value=minimum_allowable_value,
             convert_from_log_scale=convert_from_log_scale,
@@ -821,7 +807,7 @@ def probability_field_from_surrogate(
 
 
 def compute_surrogate_probability_field(
-    poly: numpoly.ndpoly,
+    surrogate_model: Union[numpoly.ndpoly, dict],
     levels: List[float],
     dist: chaospy.Distribution,
     sample: int = 2000,
@@ -832,46 +818,76 @@ def compute_surrogate_probability_field(
     **kws,
 ):
 
-    poly = chaospy.aspolynomial(poly)
-    shape = poly.shape
-    poly = poly.ravel()
-
+    start_time = time.time()
     levels = numpy.asarray(levels).ravel()
     dim = len(dist)
 
-    # Interior
+    # Get samples of the input distributions
+    ## Interior
     Z = dist.sample(sample, **kws).reshape(len(dist), sample)
-    poly1 = poly(*Z)
 
-    # Min/max
+    ## Min/max
     ext = numpy.mgrid[(slice(0, 2, 1),) * dim].reshape(dim, 2 ** dim).T
     ext = numpy.where(ext, dist.lower, dist.upper).T
-    poly2 = poly(*ext)
-    poly2 = numpy.array([_ for _ in poly2.T if not numpy.any(numpy.isnan(_))]).T
 
-    # Finish
-    if poly2.shape:
-        poly1 = numpy.concatenate([poly1, poly2], -1)
-    if isinstance(convert_from_log_scale, float):
-        poly1 = convert_from_log_scale ** poly1
-    elif convert_from_log_scale:
-        poly1 = numpy.exp(poly1)
-    samples = poly1.shape[1]
+    # prepare polynomials for evaluation
+    if isinstance(surrogate_model, dict):
+        # evaluate at the individual bases first
+        poly = chaospy.aspolynomial(surrogate_model['expansion'])
+        num_points = surrogate_model['coefs'].shape[1]
 
-    # adjustments and elev corrections
-    if isinstance(convert_from_depths, (float, numpy.ndarray)):
-        poly1 -= convert_from_depths
-    if minimum_allowable_value is not None:
-        too_small = poly1 < minimum_allowable_value
-        poly1[too_small] = numpy.nan
-    if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
-        # TODO: Sanity check for depth vs poly shapes
-        poly1 -= depths.values[:, None]
+        y1b = poly(*Z)  # interior
+        y2b = poly(*ext)  # min/max
+        y2b = numpy.array([_ for _ in y2b.T if not numpy.any(numpy.isnan(_))]).T
+    else:
+        # evaluate on the full polynomial in chunks
+        poly = chaospy.aspolynomial(surrogate_model)
+        num_points = poly.shape[0]
+        poly = poly.ravel()
 
-    out = (poly1[:, :, None] > (levels[None, None, :])).sum(axis=1).T / samples
+    # output array to enter quantiles into
+    out = numpy.empty((len(levels), num_points))
+    # chunk the points to avoid memory problems (~ 1GB chunks)
+    pchunks = int(sample * num_points / 1.5e8)
+    chunk_size = int(num_points / pchunks) + 1
+    iss = 0
+    iee = chunk_size
+    LOGGER.info(f'calculating probabilities at all points divided into {pchunks} chunks')
+    for chunk in range(pchunks):
+        LOGGER.info(f'calculating chunk #{chunk} of {pchunks}')
+        iee = min(iee, num_points - 1)
+        if isinstance(surrogate_model, dict):
+            cfs = surrogate_model['coefs'].T[iss:iee]
+            y2 = numpy.dot(cfs, y2b)
+            y1 = numpy.dot(cfs, y1b)
+        else:
+            # evaluate on the full polynomial
+            y2 = poly[iss:iee](*ext)  # min/max
+            y2 = numpy.array([_ for _ in y2.T if not numpy.any(numpy.isnan(_))]).T
+            y1 = poly[iss:iee](*Z)  # interior
 
-    out = out.reshape(levels.shape + shape)
+        if y2.shape:
+            y1 = numpy.concatenate([y1, y2], -1)
+        if isinstance(convert_from_log_scale, float):
+            y1 = convert_from_log_scale ** y1
+        elif convert_from_log_scale:
+            y1 = numpy.exp(y1)
 
+        # adjustments and elev corrections
+        if isinstance(convert_from_depths, (float, numpy.ndarray)):
+            y1 -= convert_from_depths
+        if minimum_allowable_value is not None:
+            too_small = y1 < minimum_allowable_value
+            y1[too_small] = numpy.nan
+        if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
+            y1 -= depths.values[iss:iee, None]
+
+        out[:, iss:iee] = (y1[:, :, None] > (levels[None, None, :])).mean(axis=1).T
+        iss += chunk_size
+        iee += chunk_size
+
+    end_time = time.time()
+    LOGGER.info(f'probabilities computed in {end_time - start_time:.1f} seconds')
     return out
 
 
