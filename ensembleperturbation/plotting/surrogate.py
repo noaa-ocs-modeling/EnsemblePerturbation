@@ -538,7 +538,7 @@ def plot_selected_percentiles(
                 if storm.name is not None:
                     map_axis.legend(fontsize=6)
 
-        cbar = figure.colorbar(im, ax=axes, shrink=0.75, extend='both')
+        cbar = figure.colorbar(im, ax=axes, shrink=0.5, extend='both')
         cbar.ax.set_title('[m]')
 
         if output_directory is not None:
@@ -673,7 +673,7 @@ def plot_selected_probability_fields(
                 if storm.name is not None:
                     map_axis.legend(fontsize=6)
 
-        cbar = figure.colorbar(im, ax=axes, shrink=0.75, extend='neither')
+        cbar = figure.colorbar(im, ax=axes, shrink=0.5, extend='neither')
 
         if output_directory is not None:
             figure.savefig(
