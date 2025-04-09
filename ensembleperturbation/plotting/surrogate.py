@@ -282,29 +282,37 @@ def plot_boxplot_comparison(
 def plot_sensitivities(
     sensitivities: xarray.Dataset, storm: str = None, output_filename: PathLike = None
 ):
-    figure = pyplot.figure()
+    map_crs = cartopy.crs.PlateCarree()
+    figure, axes = pyplot.subplots(
+        len(sensitivities['order']),
+        len(sensitivities['variable']),
+        layout='compressed',
+        subplot_kw={'projection': map_crs},
+        sharex=True,
+        sharey=True,
+    )
     figure.set_size_inches(12, 12 / 1.61803398875)
     figure.suptitle(
         f'Sobol sensitivities of {len(sensitivities["variable"])} variable(s) and {len(sensitivities["order"])} order(s) along {len(sensitivities["node"])} node(s)'
     )
 
-    grid = gridspec.GridSpec(
-        len(sensitivities['order']),
-        len(sensitivities['variable']),
-        figure=figure,
-        wspace=0,
-        hspace=0,
-    )
-    map_crs = cartopy.crs.PlateCarree()
-
     for order_index, order in enumerate(sensitivities['order']):
         for variable_index, variable in enumerate(sensitivities['variable']):
-            axis = figure.add_subplot(grid[order_index, variable_index], projection=map_crs)
+            axis = axes[order_index, variable_index]
             order_variable_sensitivities = sensitivities.sel(order=order, variable=variable)
 
-            plot_node_map(
+            if variable_index == 0 and order_index == len(sensitivities['order']) - 1:
+                gridline_labels = ['left', 'bottom']
+            elif variable_index == 0:
+                gridline_labels = ['left']
+            elif order_index == len(sensitivities['order']) - 1:
+                gridline_labels = ['bottom']
+            else:
+                gridline_labels = False
+
+            im, gl = plot_node_map(
                 order_variable_sensitivities,
-                map_title=None,
+                map_title=str(variable.values) if order_index == 0 else None,
                 colors=order_variable_sensitivities['sensitivities']
                 if 'element' not in sensitivities
                 else None,
@@ -312,29 +320,14 @@ def plot_sensitivities(
                 map_axis=axis,
                 min_value=0,
                 max_value=1,
+                gridline_labels=gridline_labels,
             )
 
-            if variable_index == 0:
-                axis.yaxis.set_visible(True)
-                axis.set_ylabel(str(order.values))
-            elif variable_index > 0:
-                axis.yaxis.set_visible(False)
+            if variable_index == len(sensitivities['variable']) - 1:
+                axis.yaxis.set_label_position('right')
+                axis.set_yaxis = str(order.values)
 
-            if order_index == 0:
-                axis.xaxis.set_visible(True)
-                axis.set_xlabel(str(variable.values))
-                axis.xaxis.set_label_position('top')
-                axis.xaxis.tick_top()
-            elif order_index > 0:
-                axis.xaxis.set_visible(False)
-
-    colorbar_axis(
-        normalization=Normalize(vmin=0, vmax=1),
-        axis=pyplot.axes([-1, 0.1, 3, 0.15]),
-        orientation='horizontal',
-        own_axis=True,
-        color_map='plasma',
-    )
+    figure.colorbar(im, ax=axes, shrink=0.3, orientation='horizontal')
 
     if output_filename is not None:
         figure.savefig(output_filename, dpi=dpi, bbox_inches='tight')
@@ -465,78 +458,46 @@ def plot_selected_percentiles(
     output_directory: PathLike,
     storm: str = None,
 ):
-    percentiles = node_percentiles.quantiles
 
+    map_crs = cartopy.crs.PlateCarree()
     sources = node_percentiles['source'].values
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
-    bounds = numpy.array(
-        [
-            node_percentiles['x'].min(),
-            node_percentiles['y'].min(),
-            node_percentiles['x'].max(),
-            node_percentiles['y'].max(),
-        ]
-    )
     # round percentiles to the nearest ~foot (0.3 m)
+    percentiles = node_percentiles.quantiles
     vmax = numpy.round(percentiles.sel(source='model').quantile(0.98) / 0.3) * 0.3
     vmin = 0.0
     for perc in perc_list:
-        figure, axes = pyplot.subplots(1, len(sources), constrained_layout=True)
+        figure, axes = pyplot.subplots(
+            1,
+            len(sources),
+            layout='compressed',
+            sharey=True,
+            subplot_kw={'projection': map_crs},
+        )
         figure.set_size_inches(10, 10 / 1.61803398875)
         figure.suptitle(f'comparison of percentiles: {perc}%')
         for index, source in enumerate(sources):
             map_axis = axes[index]
-            map_axis.title.set_text(f'{source}')
-            countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
+            source_percentiles = node_percentiles.sel(quantile=perc, source=source)
 
-            map_axis.set_xlim((bounds[0], bounds[2]))
-            map_axis.set_ylim((bounds[1], bounds[3]))
-
-            xlim = map_axis.get_xlim()
-            ylim = map_axis.get_ylim()
-
-            countries.plot(color='lightgrey', ax=map_axis)
-
-            points = numpy.vstack(
-                (
-                    node_percentiles['x'],
-                    node_percentiles['y'],
-                    percentiles.sel(quantile=perc, source=source),
-                )
-            ).T
-            if 'element' not in node_percentiles:
-                im = plot_points(
-                    points=points, axis=map_axis, add_colorbar=False, vmax=vmax, vmin=vmin,
-                )
-            else:
-                im = plot_surface(
-                    points=points,
-                    element_table=node_percentiles['element'].values,
-                    axis=map_axis,
-                    add_colorbar=False,
-                    levels=numpy.arange(vmin, vmax + 0.3, 0.3),
-                    extend='both',
-                )
-
-            map_axis.set_xlim(xlim)
-            map_axis.set_ylim(ylim)
-
-            if storm is not None:
-                if not isinstance(storm, VortexTrack):
-                    try:
-                        storm = VortexTrack.from_file(storm)
-                    except FileNotFoundError:
-                        storm = VortexTrack(storm)
-
-                map_axis.plot(
-                    storm.data['longitude'], storm.data['latitude'], 'k--', label=storm.name,
-                )
-
-                if storm.name is not None:
-                    map_axis.legend(fontsize=6)
+            im, _ = plot_node_map(
+                source_percentiles,
+                map_title=f'{source}',
+                colors=source_percentiles.values
+                if 'element' not in node_percentiles
+                else None,
+                storm=storm,
+                map_axis=map_axis,
+                min_value=vmin,
+                max_value=vmax,
+                num_levels=int((vmax - vmin) / 0.3) + 1,
+                color_map='viridis',
+                gridline_labels=['bottom', 'left'] if index == 0 else ['bottom'],
+                extend='both',
+            )
 
         cbar = figure.colorbar(im, ax=axes, shrink=0.5, extend='both')
         cbar.ax.set_title('[m]')
@@ -599,81 +560,46 @@ def plot_selected_probability_fields(
     label_unit_name: str = 'm',
     storm: str = None,
 ):
-    probabilities = node_prob_field.probabilities
 
+    map_crs = cartopy.crs.PlateCarree()
     sources = node_prob_field['source'].values
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
-    bounds = numpy.array(
-        [
-            node_prob_field['x'].min(),
-            node_prob_field['y'].min(),
-            node_prob_field['x'].max(),
-            node_prob_field['y'].max(),
-        ]
-    )
     vmax = 1 + numpy.finfo(float).eps
     vmin = 0
     for lvl in level_list:
-        figure, axes = pyplot.subplots(1, len(sources), constrained_layout=True)
+        figure, axes = pyplot.subplots(
+            1,
+            len(sources),
+            layout='compressed',
+            sharey=True,
+            subplot_kw={'projection': map_crs},
+        )
         figure.set_size_inches(10, 10 / 1.61803398875)
         figure.suptitle(
             f'Probability of water level exceeding {round(lvl*label_unit_convert_factor)}-{label_unit_name}'
         )
         for index, source in enumerate(sources):
             map_axis = axes[index]
-            map_axis.title.set_text(f'{source}')
-            countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
+            source_probabilities = node_prob_field.sel(level=lvl, source=source)
 
-            map_axis.set_xlim((bounds[0], bounds[2]))
-            map_axis.set_ylim((bounds[1], bounds[3]))
+            im, _ = plot_node_map(
+                source_probabilities,
+                map_title=f'{source}',
+                colors=source_probabilities.values
+                if 'element' not in node_prob_field
+                else None,
+                storm=storm,
+                map_axis=map_axis,
+                min_value=vmin,
+                max_value=vmax,
+                color_map='magma',
+                gridline_labels=['bottom', 'left'] if index == 0 else ['bottom'],
+            )
 
-            xlim = map_axis.get_xlim()
-            ylim = map_axis.get_ylim()
-
-            countries.plot(color='lightgrey', ax=map_axis)
-
-            points = numpy.vstack(
-                (
-                    node_prob_field['x'],
-                    node_prob_field['y'],
-                    probabilities.sel(level=lvl, source=source),
-                )
-            ).T
-            if 'element' not in node_prob_field:
-                im = plot_points(
-                    points=points, axis=map_axis, add_colorbar=False, vmax=vmax, vmin=vmin,
-                )
-            else:
-                im = plot_surface(
-                    points=points,
-                    element_table=node_prob_field['element'].values,
-                    axis=map_axis,
-                    add_colorbar=False,
-                    levels=numpy.linspace(vmin, vmax, 25),
-                    extend='neither',
-                )
-
-            map_axis.set_xlim(xlim)
-            map_axis.set_ylim(ylim)
-
-            if storm is not None:
-                if not isinstance(storm, VortexTrack):
-                    try:
-                        storm = VortexTrack.from_file(storm)
-                    except FileNotFoundError:
-                        storm = VortexTrack(storm)
-
-                map_axis.plot(
-                    storm.data['longitude'], storm.data['latitude'], 'k--', label=storm.name,
-                )
-
-                if storm.name is not None:
-                    map_axis.legend(fontsize=6)
-
-        cbar = figure.colorbar(im, ax=axes, shrink=0.5, extend='neither')
+        cbar = figure.colorbar(im, ax=axes, shrink=0.5)
 
         if output_directory is not None:
             figure.savefig(
