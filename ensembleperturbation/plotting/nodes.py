@@ -1,4 +1,5 @@
 from os import PathLike
+from typing import Union
 
 import cartopy
 import geodatasets
@@ -191,7 +192,9 @@ def plot_node_map(
     map_axis: Axis = None,
     min_value: float = None,
     max_value: float = None,
+    num_levels: int = 11,
     logarithmic: bool = False,
+    gridline_labels: Union[list, bool] = False,
     **kwargs,
 ):
     if isinstance(colors, str) and map_title is not None:
@@ -220,10 +223,7 @@ def plot_node_map(
 
     countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
     countries.plot(color='lightgrey', ax=map_axis)
-    coast = cartopy.feature.NaturalEarthFeature(
-        category='physical', scale='50m', facecolor='none', name='coastline'
-    )
-    map_axis.add_feature(coast, edgecolor='grey', linewidth=0.5)
+    map_axis.coastlines(resolution='50m', color='gray', linewidth=0.5)
 
     if storm is not None:
         if not isinstance(storm, VortexTrack):
@@ -236,9 +236,6 @@ def plot_node_map(
             storm.data['longitude'], storm.data['latitude'], 'k--', label=storm.name,
         )
 
-        if storm.name is not None:
-            map_axis.legend(fontsize=6)
-
     if 'element' in nodes:
         mesh_tri = Triangulation(
             nodes.coords['x'],
@@ -246,8 +243,8 @@ def plot_node_map(
             triangles=nodes.coords['element'],
             mask=numpy.isnan(nodes[data_var_name[0]][nodes.coords['element']]).any(axis=1),
         )
-        levels = numpy.linspace(min_value, max_value, 26)
-        map_axis.tricontourf(
+        levels = numpy.linspace(min_value, max_value, num_levels)
+        im = map_axis.tricontourf(
             mesh_tri,
             nodes[data_var_name[0]].values,
             levels=levels,
@@ -255,7 +252,7 @@ def plot_node_map(
             **kwargs,  # transform=map_crs,
         )
     else:
-        map_axis.scatter(
+        im = map_axis.scatter(
             x=nodes.coords['x'],
             y=nodes.coords['y'],
             c=colors,
@@ -267,5 +264,11 @@ def plot_node_map(
     map_axis.set_xlim(map_bounds[0], map_bounds[2])
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
 
+    gl = map_axis.gridlines(
+        draw_labels=gridline_labels, color='gray', alpha=0.5, linestyle='--', linewidth=0.25,
+    )
+
     if map_title is not None:
-        map_axis.set_title(map_title)
+        map_axis.set_title(map_title, fontsize='medium')
+
+    return im, gl
