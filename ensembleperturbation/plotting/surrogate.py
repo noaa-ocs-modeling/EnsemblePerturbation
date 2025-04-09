@@ -324,8 +324,16 @@ def plot_sensitivities(
             )
 
             if variable_index == len(sensitivities['variable']) - 1:
-                axis.yaxis.set_label_position('right')
-                axis.set_yaxis = str(order.values)
+                axis.text(
+                    1.05,
+                    0.5,
+                    str(order.values),
+                    transform=axis.transAxes,
+                    va='center',
+                    ha='center',
+                    rotation=-90,
+                    fontsize='medium',
+                )
 
     figure.colorbar(im, ax=axes, shrink=0.3, orientation='horizontal')
 
