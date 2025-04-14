@@ -401,7 +401,9 @@ def plot_selected_validations(
             validation['y'].max(),
         ]
     )
-    vmax = numpy.round(validation.sel(source='model').results.quantile(0.98), decimals=1).item()
+    vmax = numpy.round(
+        validation.sel(source='model').results.quantile(0.98), decimals=1
+    ).item()
     vmin = 0.0
     for run in run_list:
         figure = pyplot.figure()
