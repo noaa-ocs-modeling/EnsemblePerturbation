@@ -280,8 +280,15 @@ def plot_boxplot_comparison(
 
 
 def plot_sensitivities(
-    sensitivities: xarray.Dataset, storm: str = None, output_filename: PathLike = None
+    sensitivities: xarray.Dataset,
+    storm: str = None,
+    output_filename: PathLike = None,
+    overwrite: bool = False,
 ):
+
+    if output_filename.exists() and not overwrite:
+        return
+
     map_crs = cartopy.crs.PlateCarree()
     figure, axes = pyplot.subplots(
         len(sensitivities['order']),
@@ -465,19 +472,23 @@ def plot_selected_percentiles(
     perc_list: list,
     output_directory: PathLike,
     storm: str = None,
+    overwrite: bool = False,
 ):
 
-    map_crs = cartopy.crs.PlateCarree()
-    sources = node_percentiles['source'].values
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
+    map_crs = cartopy.crs.PlateCarree()
+    sources = node_percentiles['source'].values
     # round percentiles to the nearest ~foot (0.3 m)
     percentiles = node_percentiles.quantiles
     vmax = numpy.round(percentiles.sel(source='model').quantile(0.98) / 0.3) * 0.3
     vmin = 0.0
     for perc in perc_list:
+        output_filename = output_directory / f'percentiles_{perc}.png'
+        if output_filename.exists() and not overwrite:
+            continue
         figure, axes = pyplot.subplots(
             1,
             len(sources),
@@ -512,7 +523,7 @@ def plot_selected_percentiles(
 
         if output_directory is not None:
             figure.savefig(
-                output_directory / f'percentiles_{perc}.png', dpi=dpi, bbox_inches='tight',
+                output_filename, dpi=dpi, bbox_inches='tight',
             )
 
 
@@ -567,17 +578,25 @@ def plot_selected_probability_fields(
     label_unit_convert_factor: float = 1,
     label_unit_name: str = 'm',
     storm: str = None,
+    overwrite: bool = False,
 ):
 
-    map_crs = cartopy.crs.PlateCarree()
-    sources = node_prob_field['source'].values
     if output_directory is not None:
         if not isinstance(output_directory, Path):
             output_directory = Path(output_directory)
 
+    map_crs = cartopy.crs.PlateCarree()
+    sources = node_prob_field['source'].values
+
     vmax = 1 + numpy.finfo(float).eps
     vmin = 0
     for lvl in level_list:
+        output_filename = (
+            output_directory
+            / f'probability_exceeding_{round(lvl*label_unit_convert_factor)}_{label_unit_name}.png'
+        )
+        if output_filename.exists() and not overwrite:
+            continue
         figure, axes = pyplot.subplots(
             1,
             len(sources),
@@ -611,8 +630,5 @@ def plot_selected_probability_fields(
 
         if output_directory is not None:
             figure.savefig(
-                output_directory
-                / f'probability_exceeding_{round(lvl*label_unit_convert_factor)}_{label_unit_name}.png',
-                dpi=dpi,
-                bbox_inches='tight',
+                output_filename, dpi=dpi, bbox_inches='tight',
             )
