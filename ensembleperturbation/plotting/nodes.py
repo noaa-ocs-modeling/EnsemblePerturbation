@@ -2,6 +2,7 @@ from os import PathLike
 from typing import Union
 
 import cartopy
+import cartopy.feature as cfeature
 import geodatasets
 import geopandas
 from matplotlib import cm, gridspec, pyplot
@@ -195,6 +196,7 @@ def plot_node_map(
     num_levels: int = 11,
     logarithmic: bool = False,
     gridline_labels: Union[list, bool] = False,
+    feature_res: str = '50m',
     **kwargs,
 ):
     if isinstance(colors, str) and map_title is not None:
@@ -221,9 +223,15 @@ def plot_node_map(
         float(nodes.coords['y'].max().values),
     ]
 
-    countries = geopandas.read_file(geodatasets.get_path('naturalearth land'))
-    countries.plot(color='lightgrey', ax=map_axis)
-    map_axis.coastlines(resolution='50m', color='gray', linewidth=0.5)
+    land = cfeature.NaturalEarthFeature(
+        'physical',
+        'land',
+        scale=feature_res,
+        edgecolor=None,
+        facecolor=cfeature.COLORS['land'],
+    )
+    map_axis.add_feature(land, zorder=1)
+    map_axis.coastlines(resolution=feature_res, color='gray', linewidth=0.5)
 
     if storm is not None:
         if not isinstance(storm, VortexTrack):
@@ -233,7 +241,11 @@ def plot_node_map(
                 storm = VortexTrack(storm)
 
         map_axis.plot(
-            storm.data['longitude'], storm.data['latitude'], 'k--', label=storm.name,
+            storm.data['longitude'],
+            storm.data['latitude'],
+            'k--',
+            label=storm.name,
+            transform=map_crs,
         )
 
     if 'element' in nodes:
@@ -249,6 +261,7 @@ def plot_node_map(
             nodes[data_var_name[0]].values,
             levels=levels,
             cmap=color_map,
+            transform=map_crs,
             **kwargs,  # transform=map_crs,
         )
     else:
@@ -258,6 +271,7 @@ def plot_node_map(
             c=colors,
             s=2,
             norm=normalization,
+            transform=map_crs,
             **kwargs,  # transform=map_crs,
         )
 
@@ -265,7 +279,12 @@ def plot_node_map(
     map_axis.set_ylim(map_bounds[1], map_bounds[3])
 
     gl = map_axis.gridlines(
-        draw_labels=gridline_labels, color='gray', alpha=0.5, linestyle='--', linewidth=0.25,
+        draw_labels=gridline_labels,
+        color='gray',
+        alpha=0.5,
+        linestyle='--',
+        linewidth=0.25,
+        crs=map_crs,
     )
 
     if map_title is not None:
