@@ -89,8 +89,7 @@ def surrogate_from_karhunen_loeve(
                 pickle.dump(surrogate_model, surrogate_handle)
     else:
         LOGGER.info(f'loading surrogate model from "{filename}"')
-        with open(filename, 'rb') as surrogate_handle:
-            surrogate_model = pickle.load(surrogate_handle)
+        surrogate_model = numpy.load(filename, allow_pickle=True)  # used to be chaospy
 
     return surrogate_model
 
@@ -217,8 +216,7 @@ def surrogate_from_training_set(
                 pickle.dump(surrogate_model, surrogate_handle)
     else:
         LOGGER.info(f'loading surrogate model from "{filename}"')
-        with open(filename, 'rb') as surrogate_handle:
-            surrogate_model = pickle.load(surrogate_handle)
+        surrogate_model = numpy.load(filename, allow_pickle=True)  # used to be chaospy
 
     return surrogate_model
 

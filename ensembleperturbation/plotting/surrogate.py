@@ -412,7 +412,9 @@ def plot_selected_validations(
             validation['y'].max(),
         ]
     )
-    vmax = numpy.round(validation.sel(source='model').results.quantile(0.98), decimals=1)
+    vmax = numpy.round(
+        validation.sel(source='model').results.quantile(0.98), decimals=1
+    ).item()
     vmin = 0.0
     for run in run_list:
         figure = pyplot.figure()
@@ -483,7 +485,7 @@ def plot_selected_percentiles(
     sources = node_percentiles['source'].values
     # round percentiles to the nearest ~foot (0.3 m)
     percentiles = node_percentiles.quantiles
-    vmax = numpy.round(percentiles.sel(source='model').quantile(0.98) / 0.3) * 0.3
+    vmax = numpy.round(percentiles.sel(source='model').quantile(0.98) / 0.3).item() * 0.3
     vmin = 0.0
     for perc in perc_list:
         output_filename = output_directory / f'percentiles_{perc}.png'
