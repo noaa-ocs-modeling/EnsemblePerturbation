@@ -302,7 +302,7 @@ def sensitivities_from_surrogate(
 
 
 def validations_from_surrogate(
-    surrogate_model: numpoly.ndpoly,
+    surrogate_model: Union[numpoly.ndpoly, dict],
     training_set: xarray.Dataset,
     training_perturbations: xarray.Dataset,
     validation_set: xarray.Dataset = None,
@@ -330,6 +330,9 @@ def validations_from_surrogate(
 
     if filename is not None and not isinstance(filename, Path):
         filename = Path(filename)
+
+    if isinstance(surrogate_model, dict):
+        surrogate_model = surrogate_model['poly']
 
     if filename is None or not filename.exists():
         LOGGER.info(f'running surrogate model on {training_set.shape} training samples')
@@ -719,9 +722,6 @@ def probability_field_from_samples(
             minimum_allowable_value=minimum_allowable_value,
             convert_from_log_scale=convert_from_log_scale,
             convert_from_depths=convert_from_depths,
-            # depths=samples['depth'][
-            #    (timestep * surr_chunk_length) : ((timestep + 1) * surr_chunk_length)
-            # ],
             depths=samples['depth'],
             rule='korobov',
         )
