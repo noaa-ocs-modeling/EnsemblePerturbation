@@ -50,6 +50,7 @@ jobs:
           environment-name: ci-env
           create-args: >-
             python=3.9
+            pip<=25.0.1
             libnetcdf
             hdf5
             udunits2
