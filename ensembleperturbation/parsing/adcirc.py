@@ -795,6 +795,7 @@ def subset_dataset(
     minimum_depth: float = None,
     wind_swath: list = None,
     bounds: (float, float, float, float) = None,
+    keep_indices: int = None,
     node_status_selection: dict = None,
     point_spacing: int = None,
     output_filename: PathLike = None,
@@ -831,6 +832,8 @@ def subset_dataset(
         ]
         if point_spacing is not None:
             subsetted_nodes = subsetted_nodes[::point_spacing]
+        if keep_indices is not None:
+            subsetted_nodes = numpy.unique(numpy.hstack([subsetted_nodes, keep_indices]))
         subset = ds.sel(node=subsetted_nodes)
 
         # adjust element table if present
@@ -873,7 +876,17 @@ def extrapolate_water_elevation_to_dry_areas(
     u_ref: float = 0.4,
     d_ref: float = 1.0,
     min_depth: float = 0.0,
+    filename: PathLike = None,
 ):
+
+    if filename is not None and not isinstance(filename, Path):
+        filename = Path(filename)
+
+    if filename is not None and filename.exists():
+        LOGGER.info(f'loading extrapolated training set from "{filename}"')
+        da_adjusted = xarray.open_dataarray(filename)
+        return da_adjusted
+
     # return a deep copy of original datarrary on output
     da_adjusted = da.copy(deep=True)
 
@@ -897,27 +910,36 @@ def extrapolate_water_elevation_to_dry_areas(
         friction_factor = 0.0
 
     # inverse distance weighting of order `idw_order` with `k_nearest` neighbors
+    LOGGER.info('processing extrapolation of water elevations:')
     for run in range(da.sizes['run']):
-        null = numpy.isnan(da[run, :]).compute()
-        tree = KDTree(projected_coordinates[~null])
-        dd, nn = tree.query(projected_coordinates[null], k=k_neighbors)
-        max_allowable_values = da['depth'][null].values + min_depth - numpy.finfo(float).eps
-        if k_neighbors == 1:
-            headloss = dd * friction_factor  # hydraulic friction loss
-            da_adjusted[run, null] = numpy.fmin(
-                da[run, nodes[~null][nn]].values - headloss, max_allowable_values
+        LOGGER.info(f'ensemble member {run}')
+        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+            null = numpy.isnan(da[run, :]).compute()
+            tree = KDTree(projected_coordinates[~null])
+            dd, nn = tree.query(projected_coordinates[null], k=k_neighbors)
+            max_allowable_values = (
+                da['depth'][null].values + min_depth - numpy.finfo(float).eps
             )
-        else:
-            for kk in range(k_neighbors):
-                weights = dd[:, kk] ** (-idw_order)
-                headloss = dd[:, kk] * friction_factor  # hydraulic friction loss
-                total_head = da[run, nodes[~null][nn[:, kk]]].values - headloss
-                if kk == 0:
-                    idw_sum = total_head * weights
-                    weight_sum = weights
-                else:
-                    idw_sum += total_head * weights
-                    weight_sum += weights
-            da_adjusted[run, null] = numpy.fmin(idw_sum / weight_sum, max_allowable_values)
+            if k_neighbors == 1:
+                headloss = dd * friction_factor  # hydraulic friction loss
+                da_adjusted[run, null] = numpy.fmin(
+                    da[run, nodes[~null][nn]].values - headloss, max_allowable_values
+                )
+            else:
+                for kk in range(k_neighbors):
+                    weights = dd[:, kk] ** (-idw_order)
+                    headloss = dd[:, kk] * friction_factor  # hydraulic friction loss
+                    total_head = da[run, nodes[~null][nn[:, kk]]].values - headloss
+                    if kk == 0:
+                        idw_sum = total_head * weights
+                        weight_sum = weights
+                    else:
+                        idw_sum += total_head * weights
+                        weight_sum += weights
+                da_adjusted[run, null] = numpy.fmin(idw_sum / weight_sum, max_allowable_values)
+
+    if filename is not None:
+        LOGGER.info(f'saving extrapolated training set to "{filename}"')
+        da_adjusted.to_netcdf(filename)
 
     return da_adjusted
