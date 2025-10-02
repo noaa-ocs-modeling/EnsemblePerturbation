@@ -850,7 +850,9 @@ def compute_surrogate_probability_field(
     # output array to enter quantiles into
     out = numpy.empty((len(levels), num_points))
     # chunk the points to avoid memory problems (~ 1GB chunks)
-    pchunks = max(int(sample * num_points * numpy.sqrt(len(levels)) / 2e8), 1)  # to avoid division by zero
+    pchunks = max(
+        int(sample * num_points * numpy.sqrt(len(levels)) / 2e8), 1
+    )  # to avoid division by zero
     chunk_size = int(num_points / pchunks) + 1
     iss = 0
     iee = chunk_size
