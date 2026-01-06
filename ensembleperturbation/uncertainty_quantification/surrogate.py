@@ -548,8 +548,14 @@ def percentiles_from_surrogate(
 
         # before evaluating quantile for model set null water elevation to the ground elevation
         training_set = numpy.fmax(training_set, -training_set['depth'])
+        skipna = None
+        if not training_set.isnull().any():
+            # Using non-NaN variant for much better performance!
+            skipna = False
         modeled_percentiles = training_set.quantile(
-            dim='run', q=surrogate_percentiles['quantile'] / 100
+            dim='run',
+            q=surrogate_percentiles['quantile'] / 100,
+            skipna=skipna
         )
 
         if isinstance(convert_from_depths, (float, numpy.ndarray)):
@@ -689,7 +695,8 @@ def compute_surrogate_percentiles(
         elif convert_from_log_scale:
             y1 = numpy.exp(y1)
 
-        out[:, iss:iee] = numpy.quantile(y1, q, axis=1)
+        # We invalidate y1 here to speedup
+        numpy.quantile(y1, q, axis=1, overwrite_input=True, out=out[:, iss:iee])
         iss += chunk_size
         iee += chunk_size
 
@@ -850,9 +857,11 @@ def compute_surrogate_probability_field(
     # output array to enter quantiles into
     out = numpy.empty((len(levels), num_points))
     # chunk the points to avoid memory problems (~ 1GB chunks)
-    pchunks = max(
-        int(sample * num_points * numpy.sqrt(len(levels)) / 2e8), 1
-    )  # to avoid division by zero
+    # since we loop over levels we can now use larger chunks (no level considerations)
+    # pchunks = max(
+    #     int(sample * num_points * numpy.sqrt(len(levels)) / 2e8), 1
+    # )  # to avoid division by zero
+    pchunks = max(int(sample * num_points / 2e8), 1)
     chunk_size = int(num_points / pchunks) + 1
     iss = 0
     iee = chunk_size
@@ -886,7 +895,12 @@ def compute_surrogate_probability_field(
         if isinstance(convert_from_depths, (float, numpy.ndarray)) or convert_from_depths:
             y1 -= depths.values[iss:iee, None]
 
-        out[:, iss:iee] = (y1[:, :, None] > (levels[None, None, :])).mean(axis=1).T
+        # since we loop over levels we can now use larger chunks
+        # (no level considerations); list compr mean on smaller 
+        # matrices is tiwce as fast in getting the results if we keep
+        # the chunk size constant
+#        out[:, iss:iee] = (y1[:, :, None] > (levels[None, None, :])).mean(axis=1).T
+        out[:, iss:iee] = numpy.vstack([(y1 > lvl).mean(axis=1) for lvl in levels])
         iss += chunk_size
         iee += chunk_size
 
