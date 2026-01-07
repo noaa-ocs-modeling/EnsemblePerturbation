@@ -553,9 +553,7 @@ def percentiles_from_surrogate(
             # Using non-NaN variant for much better performance!
             skipna = False
         modeled_percentiles = training_set.quantile(
-            dim='run',
-            q=surrogate_percentiles['quantile'] / 100,
-            skipna=skipna
+            dim='run', q=surrogate_percentiles['quantile'] / 100, skipna=skipna
         )
 
         if isinstance(convert_from_depths, (float, numpy.ndarray)):
@@ -896,10 +894,10 @@ def compute_surrogate_probability_field(
             y1 -= depths.values[iss:iee, None]
 
         # since we loop over levels we can now use larger chunks
-        # (no level considerations); list compr mean on smaller 
+        # (no level considerations); list compr mean on smaller
         # matrices is tiwce as fast in getting the results if we keep
         # the chunk size constant
-#        out[:, iss:iee] = (y1[:, :, None] > (levels[None, None, :])).mean(axis=1).T
+        # out[:, iss:iee] = (y1[:, :, None] > (levels[None, None, :])).mean(axis=1).T
         out[:, iss:iee] = numpy.vstack([(y1 > lvl).mean(axis=1) for lvl in levels])
         iss += chunk_size
         iee += chunk_size
@@ -907,50 +905,3 @@ def compute_surrogate_probability_field(
     end_time = time.time()
     LOGGER.info(f'probabilities computed in {end_time - start_time:.1f} seconds')
     return out
-
-
-# WORK IN PROGRESS
-# import scipy.stats as st
-# function exact_distribition:
-# we know the exact distribution of certain bases
-# quantiles['constant'] = q * 0 + 1.0 # 1.0
-# quantiles['gaussian'] = st.norm.ppf(q) #X
-# quantiles['chi2'] = st.chi2.ppf(q,df=1) - 1.0 #X^2-1
-# exp_type = [None] * len(polys)
-# for pdx, poly in enumerate(polys):
-#    # we know the exact distribution of certain bases
-#    if poly.exponents.sum() == 0:
-#        # 1 Hermite0
-#        exp_type[pdx] = 'H0'
-#    elif poly.exponents.sum() == 1:
-#        # X Hermite1
-#        exp_type[pdx] = 'H1'
-#    elif poly.exponents.sum() == 2 and poly.exponents.max() == 2:
-#        # X^2 - 1 Hermite2
-#        exp_type[pdx] = 'H2'
-#    elif poly.exponents.sum() == 2 and poly.exponents.max() == 1:
-#        # X Hermit1 * Y Hermit1
-#        exp_type[pdx] = 'H1H1'
-# exp_type = numpy.array(exp_type)
-# breakpoint()
-
-# constant_values = surrogate_model['coefs'][exp_type == 'H0',:] * (q * 0 + 1.0)
-# gauss_percentiles = st.norm.ppf(q, scale=numpy.sqrt(gauss_variance)) #X
-
-# Get the convolved normal distribution by summing the variances..
-# gauss_variance = (surrogate_model['coefs'][exp_type == 'H1'] ** 2).sum(axis=0)
-# gauss_pdf = st.norm.pdf(Z, loc=0, scale=numpy.sqrt(gauss_variance))
-
-# Get the convolved chi-squared distribution by approximating as a gamma function
-# with k = E(Z)^2 / Var(Z), theta = Var(Z) / E(Z), where Z = X1 * X2 * .. XN
-# chi2_variance = 2 * (surrogate_model['coefs'][exp_type == 'H2'] ** 2).sum(axis=0)
-# chi2_pdf = st.norm.pdf(Z, loc=0, scale=numpy.sqrt(chi2_variance))
-
-# get samples from the H1 and H2s
-# total_variance = gauss_variance + chi2_variance
-# for chunk in range(ychunks):
-#    y_kt = numpy.dot(total_variance[:100].reshape(-1,1),
-#                     numpy.random.normal(loc=0,scale=1,size=sample).reshape(1,-1))
-#
-# convolution = numpy.convolve(pdf1, pdf2, mode='same')
-# end
