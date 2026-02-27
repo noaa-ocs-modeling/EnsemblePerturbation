@@ -2,10 +2,11 @@ from argparse import ArgumentParser
 
 import cartopy.crs as ccrs
 from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
-import cmocean
-from matplotlib import pyplot
+from matplotlib import pyplot, colors
 import pandas
 from pandas import DataFrame
+
+from ensembleperturbation.utilities import load_colormap
 
 
 def main():
@@ -47,6 +48,8 @@ def main():
     pyplot.show()
 
     # plot map
+    amp = load_colormap("../assets/cmocean.cm.amp.npy")
+    cmap = colors.mcolors.LinearSegmentedColormap.from_list("amp", amp)
     figure = pyplot.figure(figsize=(18, 8))
     axis = figure.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
     axis.scatter(
@@ -55,7 +58,7 @@ def main():
         s=1,
         c=output_standard_deviation,
         transform=ccrs.PlateCarree(),
-        cmap=cmocean.cm.amp,
+        cmap=cmap,
         vmin=0,
         vmax=1.6,
     )

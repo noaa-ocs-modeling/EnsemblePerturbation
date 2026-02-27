@@ -25,7 +25,6 @@ appdirs = '*'
 beautifulsoup4 = '*'
 cartopy = { version = '*', optional = true }
 chaospy = '*'
-cmocean = { version = '*', optional = true }
 coupledmodeldriver = '>=1.5'
 dask = '*'
 dunamai = { version = '*', optional = true }
@@ -61,10 +60,10 @@ sphinxcontrib-bibtex = { version = '*', optional = true }
 sphinxcontrib-programoutput = { version = '*', optional = true }
 
 [tool.poetry.extras]
-plotting = ['cartopy', 'cmocean', 'matplotlib']
+plotting = ['cartopy', 'matplotlib']
 testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'pytest-timeout', 'wget']
 development = ['isort', 'oitnb']
-documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex', 'cartopy', 'cmocean', 'matplotlib']
+documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex', 'cartopy', 'matplotlib']
 adcirc = ['adcircpy']
 
 [tool.poetry.scripts]
