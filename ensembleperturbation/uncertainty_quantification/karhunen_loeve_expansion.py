@@ -6,13 +6,12 @@ from typing import Union
 import cartopy
 import geodatasets
 import geopandas
-import cmocean
-from matplotlib import pyplot
+from matplotlib import pyplot, colors
 import numpy as np
 from sklearn.decomposition import PCA
 
 from ensembleperturbation.plotting.geometry import plot_points, plot_surface
-from ensembleperturbation.utilities import get_logger
+from ensembleperturbation.utilities import get_logger, load_colormap
 
 LOGGER = get_logger('karhunen_loeve')
 
@@ -250,6 +249,8 @@ def karhunen_loeve_prediction(
                         extend='both',
                     )
                 else:
+                    cmocean_cm = load_colormap("../assets/cmocean.cm.diff_r.npy")
+                    cmap = colors.mcolors.LinearSegmentedColormap.from_list("mycmap", cmocean_cm)
                     im = plot_surface(
                         points=np.vstack(
                             (actual_values['x'], actual_values['y'], value[example, :])
@@ -259,7 +260,7 @@ def karhunen_loeve_prediction(
                         add_colorbar=False,
                         levels=np.linspace(vmin, vmax, 25 + 1),
                         extend='both',
-                        cmap=cmocean.tools.crop(cmocean.cm.diff_r, vmin, vmax, pivot=0),
+                        cmap=cmap,
                     )
 
             pyplot.subplots_adjust(wspace=0.02, right=0.96)

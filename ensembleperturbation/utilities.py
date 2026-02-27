@@ -152,3 +152,10 @@ def move_to_end(lst, elem):
     # moving elem to end of list
     lst = [x for x in lst if not isinstance(x, elem)] + [x for x in lst if isinstance(x, elem)]
     return lst
+
+
+def load_colormap(filepath: PathLike = None) -> numpy.ndarray:
+    base_dir = Path(__file__).parent
+    file_path = base_dir / filepath
+    file_path = file_path.resolve()
+    return numpy.load(file_path)
