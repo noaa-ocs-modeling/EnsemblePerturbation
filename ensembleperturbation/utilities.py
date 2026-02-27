@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import traceback
 
+from matplotlib import colors
 import numpy
 import pint
 from pint_pandas import PintType
@@ -154,8 +155,9 @@ def move_to_end(lst, elem):
     return lst
 
 
-def load_colormap(filepath: PathLike = None) -> numpy.ndarray:
+def load_colormap(filepath: PathLike = None, name: str = None) -> numpy.ndarray:
     base_dir = Path(__file__).parent
     file_path = base_dir / filepath
     file_path = file_path.resolve()
-    return numpy.load(file_path)
+    arr = numpy.load(file_path)
+    return colors.mcolors.LinearSegmentedColormap.from_list(name, arr)

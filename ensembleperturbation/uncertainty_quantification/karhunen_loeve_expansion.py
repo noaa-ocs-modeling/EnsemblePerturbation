@@ -6,7 +6,7 @@ from typing import Union
 import cartopy
 import geodatasets
 import geopandas
-from matplotlib import pyplot, colors
+from matplotlib import pyplot
 import numpy as np
 from sklearn.decomposition import PCA
 
@@ -249,8 +249,7 @@ def karhunen_loeve_prediction(
                         extend='both',
                     )
                 else:
-                    diff_r = load_colormap("../assets/cmocean.cm.diff_r.npy")
-                    cmap = colors.mcolors.LinearSegmentedColormap.from_list("mycmap", diff_r)
+                    cmap = load_colormap("../assets/cmocean.cm.diff_r.npy", "mycmap")
                     im = plot_surface(
                         points=np.vstack(
                             (actual_values['x'], actual_values['y'], value[example, :])

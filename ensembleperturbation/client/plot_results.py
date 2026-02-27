@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 
 import cartopy.crs as ccrs
 from cartopy.mpl.gridliner import LATITUDE_FORMATTER, LONGITUDE_FORMATTER
-from matplotlib import pyplot, colors
+from matplotlib import pyplot
 import pandas
 from pandas import DataFrame
 
@@ -48,8 +48,7 @@ def main():
     pyplot.show()
 
     # plot map
-    amp = load_colormap("../assets/cmocean.cm.amp.npy")
-    cmap = colors.mcolors.LinearSegmentedColormap.from_list("amp", amp)
+    cmap = load_colormap("../assets/cmocean.cm.amp.npy", "amp")
     figure = pyplot.figure(figsize=(18, 8))
     axis = figure.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
     axis.scatter(
