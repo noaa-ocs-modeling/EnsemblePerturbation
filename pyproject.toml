@@ -21,13 +21,12 @@ build-backend = 'poetry.core.masonry.api'
 enable = true
 
 [tool.poetry.dependencies]
-python = '>=3.9,<3.10'
+python = '^3.9'
 adcircpy = { version = '>=1.3', optional = true }  # effectively disable until new version released
 appdirs = '*'
 beautifulsoup4 = '*'
 cartopy = { version = '*', optional = true }
 chaospy = '*'
-cmocean = { version = "*", optional = true }
 coupledmodeldriver = '>=1.5'
 dask = '*'
 dunamai = { version = '*', optional = true }
@@ -51,6 +50,7 @@ scipy = '*'
 stormevents = '>=2.2.5, != 2.3.0, != 2.3.1' # tests results based on speed fix
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
+cmocean = { version = "*", optional = true }
 pytest = { version = '*', optional = true }
 pytest-cov = { version = '*', optional = true }
 pytest-xdist = { version = '*', optional = true }
