@@ -8,6 +8,8 @@ readme = 'README.md'
 repository = 'https://github.com/noaa-ocs-modeling/EnsemblePerturbation.git'
 documentation = 'https://ensembleperturbation.readthedocs.io'
 
+include = ["ensembleperturbation/assets/*.npy"]
+
 [build-system]
 requires = [
     'poetry-core>=1.0.0',
@@ -19,12 +21,13 @@ build-backend = 'poetry.core.masonry.api'
 enable = true
 
 [tool.poetry.dependencies]
-python = '^3.9'
+python = ">=3.9,<3.10"
 adcircpy = { version = '>=1.3', optional = true }  # effectively disable until new version released
 appdirs = '*'
 beautifulsoup4 = '*'
 cartopy = { version = '*', optional = true }
 chaospy = '*'
+cmocean = { version = "*", optional = true }
 coupledmodeldriver = '>=1.5'
 dask = '*'
 dunamai = { version = '*', optional = true }
@@ -61,7 +64,7 @@ sphinxcontrib-programoutput = { version = '*', optional = true }
 
 [tool.poetry.extras]
 plotting = ['cartopy', 'matplotlib']
-testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'pytest-timeout', 'wget']
+testing = ['cmocean', 'pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'pytest-timeout', 'wget']
 development = ['isort', 'oitnb']
 documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex', 'cartopy', 'matplotlib']
 adcirc = ['adcircpy']

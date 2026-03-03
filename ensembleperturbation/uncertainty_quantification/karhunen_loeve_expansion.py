@@ -249,7 +249,7 @@ def karhunen_loeve_prediction(
                         extend='both',
                     )
                 else:
-                    cmap = load_colormap("../assets/cmocean.cm.diff_r.npy", "mycmap")
+                    cmap = load_colormap('cmocean.cm.diff_r.npy', 'mycmap')
                     im = plot_surface(
                         points=np.vstack(
                             (actual_values['x'], actual_values['y'], value[example, :])

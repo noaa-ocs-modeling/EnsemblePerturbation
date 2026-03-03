@@ -48,7 +48,7 @@ def main():
     pyplot.show()
 
     # plot map
-    cmap = load_colormap("../assets/cmocean.cm.amp.npy", "amp")
+    cmap = load_colormap('cmocean.cm.amp.npy', 'amp')
     figure = pyplot.figure(figsize=(18, 8))
     axis = figure.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
     axis.scatter(
