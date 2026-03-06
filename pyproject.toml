@@ -50,7 +50,6 @@ scipy = '*'
 stormevents = '>=2.2.5, != 2.3.0, != 2.3.1' # tests results based on speed fix
 isort = { version = '*', optional = true }
 oitnb = { version = '*', optional = true }
-cmocean = { version = "*", optional = true }
 pytest = { version = '*', optional = true }
 pytest-cov = { version = '*', optional = true }
 pytest-xdist = { version = '*', optional = true }
@@ -64,7 +63,7 @@ sphinxcontrib-programoutput = { version = '*', optional = true }
 
 [tool.poetry.extras]
 plotting = ['cartopy', 'matplotlib']
-testing = ['cmocean', 'pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'pytest-timeout', 'wget']
+testing = ['pytest', 'pytest-cov', 'pytest-socket', 'pytest-xdist', 'pytest-timeout', 'wget']
 development = ['isort', 'oitnb']
 documentation = ['dunamai', 'm2r2', 'sphinx', 'sphinx-rtd-theme', 'sphinxcontrib-programoutput', 'sphinxcontrib-bibtex', 'cartopy', 'matplotlib']
 adcirc = ['adcircpy']
