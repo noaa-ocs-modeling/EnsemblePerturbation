@@ -161,7 +161,7 @@ def move_to_end(lst, elem):
 
 def load_colormap(
     filepath: Union[str, Path, None] = None, name: Optional[str] = None,
-) -> colors.mcolors.LinearSegmentedColormap:
+) -> colors.LinearSegmentedColormap:
     """
     Load a colormap from a numpy array, safely from package assets if needed.
     """
@@ -182,4 +182,4 @@ def load_colormap(
     arr = numpy.load(file_path)
     if name is None:
         name = file_path.stem
-    return colors.mcolors.LinearSegmentedColormap.from_list(name, arr)
+    return colors.LinearSegmentedColormap.from_list(name, arr)
