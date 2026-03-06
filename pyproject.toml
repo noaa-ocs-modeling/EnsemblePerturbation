@@ -8,7 +8,7 @@ readme = 'README.md'
 repository = 'https://github.com/noaa-ocs-modeling/EnsemblePerturbation.git'
 documentation = 'https://ensembleperturbation.readthedocs.io'
 
-include = ["ensembleperturbation/assets/*.npy"]
+include = ['ensembleperturbation/assets/**/*']
 
 [build-system]
 requires = [

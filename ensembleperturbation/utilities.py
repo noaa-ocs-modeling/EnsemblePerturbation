@@ -14,7 +14,7 @@ from pint_pandas import PintType
 from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point
 
-from ensembleperturbation import assets
+import ensembleperturbation.assets as assets
 
 units = pint.UnitRegistry()
 PintType.ureg = units
@@ -173,7 +173,7 @@ def load_colormap(
         file_path = filepath.resolve()
     else:
         try:
-            file_path = pkg_resources.files(assets) / filepath.name
+            file_path = pkg_resources.files(assets) / 'colormaps' / filepath.name
         except Exception as e:
             raise FileNotFoundError(
                 f"Could not find colormap file '{filepath.name}' in assets"
