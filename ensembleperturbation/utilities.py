@@ -4,12 +4,17 @@ from os import PathLike
 from pathlib import Path
 import sys
 import traceback
+from typing import Optional, Union
 
+import importlib.resources as pkg_resources
+from matplotlib import colors
 import numpy
 import pint
 from pint_pandas import PintType
 from pyproj import CRS, Geod, Transformer
 from shapely.geometry import Point
+
+import ensembleperturbation.assets as assets
 
 units = pint.UnitRegistry()
 PintType.ureg = units
@@ -152,3 +157,29 @@ def move_to_end(lst, elem):
     # moving elem to end of list
     lst = [x for x in lst if not isinstance(x, elem)] + [x for x in lst if isinstance(x, elem)]
     return lst
+
+
+def load_colormap(
+    filepath: Union[str, Path, None] = None, name: Optional[str] = None,
+) -> colors.LinearSegmentedColormap:
+    """
+    Load a colormap from a numpy array, safely from package assets if needed.
+    """
+    if filepath is None:
+        raise ValueError('Must provide a filepath or asset name.')
+
+    filepath = Path(filepath)
+    if filepath.exists():
+        file_path = filepath.resolve()
+    else:
+        try:
+            file_path = pkg_resources.files(assets) / 'colormaps' / filepath.name
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Could not find colormap file '{filepath.name}' in assets"
+            ) from e
+
+    arr = numpy.load(file_path)
+    if name is None:
+        name = file_path.stem
+    return colors.LinearSegmentedColormap.from_list(name, arr)
