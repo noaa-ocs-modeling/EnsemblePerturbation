@@ -21,7 +21,7 @@ from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
 from pandas import DataFrame
-from pandas.errors import SettingWithCopyWarning
+
 import pint
 from pint import Quantity, UnitStrippedWarning
 from pint_pandas import PintArray, PintType
@@ -44,7 +44,7 @@ from ensembleperturbation.utilities import (
 
 LOGGER = get_logger('perturbation.atcf')
 
-warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+
 warnings.simplefilter(action='ignore', category=RuntimeWarning)
 warnings.simplefilter(action='ignore', category=UnitStrippedWarning)
 
@@ -209,7 +209,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         and dataframe[column].dtype != pint_type
                     ):
                         dataframe[column] = dataframe[column].pint.to(self.unit)
-                    dataframe[column].astype(pint_type, copy=False)
+                    dataframe[column] = dataframe[column].astype(pint_type)
         return self.__historical_forecast_errors
 
     @historical_forecast_errors.setter
@@ -226,7 +226,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         and dataframe[column].dtype != pint_type
                     ):
                         dataframe[column] = dataframe[column].pint.to(self.unit)
-                    dataframe[column].astype(pint_type, copy=False)
+                    dataframe[column] = dataframe[column].astype(pint_type)
         self.__historical_forecast_errors = historical_forecast_errors
 
     def chaospy_distribution(self) -> chaospy.Distribution:
