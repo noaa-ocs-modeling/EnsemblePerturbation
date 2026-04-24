@@ -1879,7 +1879,7 @@ class VortexPerturber:
                         variable.unit is not None
                         and variable.unit != variable.unit._REGISTRY.dimensionless
                     ):
-                        perturbed_values *= variable.unit
+                        perturbed_values = perturbed_values * variable.unit
 
                     # add the error to the variable with bounds to some physical constraints
                     dataframe = variable.perturb(
@@ -1914,7 +1914,7 @@ class VortexPerturber:
                         ).values
                     )
                     if variable.unit is not None and variable.unit != units.dimensionless:
-                        perturbed_values *= variable.unit
+                        perturbed_values = perturbed_values * variable.unit
 
                     # subtract the error from the variable with physical constraint bounds
                     dataframe = variable.perturb(
