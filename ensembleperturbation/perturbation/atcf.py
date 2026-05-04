@@ -267,7 +267,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             varname = self.name
         else:
             varname = get_close_matches(self.name, vortex_dataframe.columns)[0]
-        variable_values = vortex_dataframe[varname].values
+        variable_values = vortex_dataframe[varname].values.copy()
         if (
             not isinstance(variable_values, PintArray)
             or variable_values.units == variable_values.units._REGISTRY.dimensionless
@@ -893,7 +893,7 @@ class IsotachRadius:
         isotach_rad = original_dataframe[self.column].values * RadiusOfMaximumWinds.unit
         # fill in isotach_rad==0 using Rankin vortex assumption
         # for the mean isotach radius (calculated across non-zero quadrants)
-        isotach_radall = original_dataframe.filter(regex='isotach_radius_for').values
+        isotach_radall = original_dataframe.filter(regex='isotach_radius_for').values.copy()
         isotach_radall[isotach_radall == 0] = numpy.nan
         radmean = numpy.nanmean(isotach_radall, axis=1) * isotach_rad.units
         isotach_rad_adjust = (
