@@ -368,14 +368,15 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 
     def radial_Vmax_at_BL(self, dataframe: DataFrame) -> Quantity:
         # keep original translation speed for the 0-hr forecast which has been computed
-        # using info from track info prior to the forecast time (in m/s!)
-        initial_translation_speed = dataframe['speed'].loc[
-            dataframe['datetime'] == dataframe['datetime'].min()
-        ].values * units('m/s')
+        # using info from track info prior to the forecast time (in knots!)
+        initial_translation_speed = (
+            dataframe['speed'].loc[dataframe['datetime'] == dataframe['datetime'].min()].values
+            * units.knot
+        )
         # re-compute the translation speed
-        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
-            'speed'
-        ].values * units('m/s')
+        translation_speed = (
+            VortexTrack._VortexTrack__compute_velocity(dataframe)['speed'].values * units.knot
+        )
         # overwrite the first hour with the initial
         translation_speed[
             dataframe['datetime'] == dataframe['datetime'].min()
@@ -383,7 +384,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         # make sure put this back into the dataframe to preserve
         dataframe['speed'] = translation_speed.magnitude
         # get the radial Vmax at the boundary layer height
-        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63)
         Vmax = (
             dataframe[self.name].values * self.unit
             - SWH79_ts * translation_speed.units  # SHW79 eqn
@@ -837,7 +838,7 @@ class IsotachRadius:
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
-        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63)
         # find the ts rotation angle based on the radius weighted sum
         isotach_complex = dataframe.filter(regex='isotach_radius_for').values * [
             1 + 1j,
