@@ -21,7 +21,7 @@ from dateutil.parser import parse as parse_date
 import numpy
 from numpy import floor, interp, sign
 from pandas import DataFrame
-from pandas.errors import SettingWithCopyWarning
+
 import pint
 from pint import Quantity, UnitStrippedWarning
 from pint_pandas import PintArray, PintType
@@ -44,7 +44,7 @@ from ensembleperturbation.utilities import (
 
 LOGGER = get_logger('perturbation.atcf')
 
-warnings.simplefilter(action='ignore', category=SettingWithCopyWarning)
+
 warnings.simplefilter(action='ignore', category=RuntimeWarning)
 warnings.simplefilter(action='ignore', category=UnitStrippedWarning)
 
@@ -209,7 +209,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         and dataframe[column].dtype != pint_type
                     ):
                         dataframe[column] = dataframe[column].pint.to(self.unit)
-                    dataframe[column].astype(pint_type, copy=False)
+                    dataframe[column] = dataframe[column].astype(pint_type)
         return self.__historical_forecast_errors
 
     @historical_forecast_errors.setter
@@ -226,7 +226,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
                         and dataframe[column].dtype != pint_type
                     ):
                         dataframe[column] = dataframe[column].pint.to(self.unit)
-                    dataframe[column].astype(pint_type, copy=False)
+                    dataframe[column] = dataframe[column].astype(pint_type)
         self.__historical_forecast_errors = historical_forecast_errors
 
     def chaospy_distribution(self) -> chaospy.Distribution:
@@ -267,7 +267,7 @@ class VortexPerturbedVariable(VortexVariable, ABC):
             varname = self.name
         else:
             varname = get_close_matches(self.name, vortex_dataframe.columns)[0]
-        variable_values = vortex_dataframe[varname].values
+        variable_values = vortex_dataframe[varname].values.copy()
         if (
             not isinstance(variable_values, PintArray)
             or variable_values.units == variable_values.units._REGISTRY.dimensionless
@@ -368,14 +368,15 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
 
     def radial_Vmax_at_BL(self, dataframe: DataFrame) -> Quantity:
         # keep original translation speed for the 0-hr forecast which has been computed
-        # using info from track info prior to the forecast time (in m/s!)
-        initial_translation_speed = dataframe['speed'].loc[
-            dataframe['datetime'] == dataframe['datetime'].min()
-        ].values * units('m/s')
+        # using info from track info prior to the forecast time (in knots!)
+        initial_translation_speed = (
+            dataframe['speed'].loc[dataframe['datetime'] == dataframe['datetime'].min()].values
+            * units.knot
+        )
         # re-compute the translation speed
-        translation_speed = VortexTrack._VortexTrack__compute_velocity(dataframe)[
-            'speed'
-        ].values * units('m/s')
+        translation_speed = (
+            VortexTrack._VortexTrack__compute_velocity(dataframe)['speed'].values * units.knot
+        )
         # overwrite the first hour with the initial
         translation_speed[
             dataframe['datetime'] == dataframe['datetime'].min()
@@ -383,7 +384,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
         # make sure put this back into the dataframe to preserve
         dataframe['speed'] = translation_speed.magnitude
         # get the radial Vmax at the boundary layer height
-        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63)
         Vmax = (
             dataframe[self.name].values * self.unit
             - SWH79_ts * translation_speed.units  # SHW79 eqn
@@ -837,7 +838,7 @@ class IsotachRadius:
         # get Vmax after subtracting speed and adjusting to boundary layer height
         Vmax, translation_speed = MaximumSustainedWindSpeed().radial_Vmax_at_BL(dataframe)
         # get Vr for the X-kt isotach in this quadrant
-        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63) * (0.514791 ** 0.37)
+        SWH79_ts = 1.5 * (translation_speed.magnitude ** 0.63)
         # find the ts rotation angle based on the radius weighted sum
         isotach_complex = dataframe.filter(regex='isotach_radius_for').values * [
             1 + 1j,
@@ -893,7 +894,7 @@ class IsotachRadius:
         isotach_rad = original_dataframe[self.column].values * RadiusOfMaximumWinds.unit
         # fill in isotach_rad==0 using Rankin vortex assumption
         # for the mean isotach radius (calculated across non-zero quadrants)
-        isotach_radall = original_dataframe.filter(regex='isotach_radius_for').values
+        isotach_radall = original_dataframe.filter(regex='isotach_radius_for').values.copy()
         isotach_radall[isotach_radall == 0] = numpy.nan
         radmean = numpy.nanmean(isotach_radall, axis=1) * isotach_rad.units
         isotach_rad_adjust = (
@@ -1879,7 +1880,7 @@ class VortexPerturber:
                         variable.unit is not None
                         and variable.unit != variable.unit._REGISTRY.dimensionless
                     ):
-                        perturbed_values *= variable.unit
+                        perturbed_values = perturbed_values * variable.unit
 
                     # add the error to the variable with bounds to some physical constraints
                     dataframe = variable.perturb(
@@ -1914,7 +1915,7 @@ class VortexPerturber:
                         ).values
                     )
                     if variable.unit is not None and variable.unit != units.dimensionless:
-                        perturbed_values *= variable.unit
+                        perturbed_values = perturbed_values * variable.unit
 
                     # subtract the error from the variable with physical constraint bounds
                     dataframe = variable.perturb(
