@@ -333,7 +333,7 @@ class MaximumSustainedWindSpeed(VortexPerturbedVariable):
     # Table 12: Adjusted intensity errors [kt] for 2015-2019
     def __init__(self):
         super().__init__(
-            lower_bound=15,
+            lower_bound=25,
             upper_bound=175,
             historical_forecast_errors={
                 '<50kt': DataFrame(
@@ -920,6 +920,10 @@ class IsotachRadius:
         invalid = (numpy.isnan(Rrat)) | (Rrat >= 1)
         Rrat[invalid] = Vr_new[invalid] / Vmax_new[invalid]  # Rankine vortex assumption
         Rrat[Vr_new > Vmax_new] = numpy.nan  # if Vr is stronger than Vmax then ignore
+        Rrat[
+            vortex_dataframe['max_sustained_wind_speed'].round()
+            <= vortex_dataframe['isotach_radius']
+        ] = numpy.nan  # if new Vmax is as strong or weaker than the isotach ignore
         # now use GAHM root finding algorithm to get the new isotach_rad
         isotach_rad_new = self.find_parameter_from_GAHM_profile(
             Vr_new, Vmax_new, f_new, Roinv_new, Bg=Bg, phi=phi, Rmax=Rmax_new, Rrat=Rrat,
